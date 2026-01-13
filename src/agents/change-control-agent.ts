@@ -278,7 +278,7 @@ export class ChangeControlAgent {
   ): Promise<ChangeRequest | null> {
     // Frozen Kernelへの変更意図を検出
     if (kernel.maturity === 'frozen' || kernel.maturity === 'agreed') {
-      const changeIntent = this.detectChangeIntent(issue.body, kernel);
+      const changeIntent = this.detectChangeIntent(issue.body, kernel, issue.title);
 
       if (changeIntent) {
         const impact = this.analyzeImpact(changeIntent, kernel);
@@ -305,16 +305,25 @@ export class ChangeControlAgent {
    */
   private detectChangeIntent(
     body: string,
-    kernel: Kernel
+    kernel: Kernel,
+    title?: string
   ): {
     type: 'update' | 'deprecate' | 'freeze' | 'unfreeze';
     description: string;
     reason: string;
     affectedComponents: string[];
   } | null {
-    // Update検出
-    const updatePattern = new RegExp(`update.*${kernel.id}|modify.*${kernel.id}`, 'i');
-    if (updatePattern.test(body)) {
+    const fullText = `${title || ''} ${body}`;
+
+    // キーワードとkernel statementの関連性を抽出
+    const statementKeywords = this.extractKeywords(kernel.statement);
+    const hasRelevantKeywords = statementKeywords.some(kw =>
+      fullText.toLowerCase().includes(kw.toLowerCase())
+    );
+
+    // Update検出（change/update/modifyキーワードと関連性）
+    const updatePattern = /\b(update|modify|change)\b/i;
+    if (updatePattern.test(fullText) && hasRelevantKeywords) {
       return {
         type: 'update',
         description: 'Kernel update proposed',
@@ -323,9 +332,9 @@ export class ChangeControlAgent {
       };
     }
 
-    // Deprecate検出
-    const deprecatePattern = new RegExp(`deprecate.*${kernel.id}|retire.*${kernel.id}`, 'i');
-    if (deprecatePattern.test(body)) {
+    // Deprecate検出（deprecate/retireキーワードと関連性）
+    const deprecatePattern = /\b(deprecate|retire)\b/i;
+    if (deprecatePattern.test(fullText) && hasRelevantKeywords) {
       return {
         type: 'deprecate',
         description: 'Kernel deprecation proposed',
@@ -380,6 +389,23 @@ export class ChangeControlAgent {
     }
 
     return components;
+  }
+
+  /**
+   * Statementから重要なキーワードを抽出
+   */
+  private extractKeywords(statement: string): string[] {
+    // 一般的なストップワードを除外
+    const stopWords = new Set(['the', 'is', 'are', 'a', 'an', 'to', 'for', 'of', 'in', 'on', 'at', 'by', 'with']);
+
+    // 単語に分割し、ストップワードと短い単語を除外
+    const words = statement
+      .toLowerCase()
+      .replace(/[^\w\s]/g, ' ')
+      .split(/\s+/)
+      .filter(word => word.length >= 3 && !stopWords.has(word));
+
+    return words;
   }
 
   /**

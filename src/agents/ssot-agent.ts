@@ -343,28 +343,31 @@ export class SSOTAgent {
   private suggestKernelsFromDecisions(planningData: any): Kernel[] {
     const suggestions: Kernel[] = [];
 
-    if (!planningData || !planningData.decision_record) {
+    if (!planningData) {
       return suggestions;
     }
 
-    const decisionRecords = Array.isArray(planningData.decision_record)
-      ? planningData.decision_record
-      : [planningData.decision_record];
+    // DecisionRecordからKernel提案
+    if (planningData.decision_record) {
+      const decisionRecords = Array.isArray(planningData.decision_record)
+        ? planningData.decision_record
+        : [planningData.decision_record];
 
-    for (const decision of decisionRecords) {
-      if (decision.decision_type === 'adopt') {
-        // rationale または decision_statement を使用
-        const statement = decision.rationale || decision.decision_statement;
-        if (statement) {
-          suggestions.push({
-            id: this.generateKernelId(),
-            statement: statement,
-            category: 'requirement',
-            owner: decision.decided_by || decision.owner || 'TechLead',
-            maturity: 'draft',
-            createdAt: new Date().toISOString(),
-            lastUpdatedAt: new Date().toISOString(),
-          });
+      for (const decision of decisionRecords) {
+        if (decision.decision_type === 'adopt') {
+          // rationale または decision_statement を使用
+          const statement = decision.rationale || decision.decision_statement;
+          if (statement) {
+            suggestions.push({
+              id: this.generateKernelId(),
+              statement: statement,
+              category: 'requirement',
+              owner: decision.decided_by || decision.owner || 'TechLead',
+              maturity: 'draft',
+              createdAt: new Date().toISOString(),
+              lastUpdatedAt: new Date().toISOString(),
+            });
+          }
         }
       }
     }

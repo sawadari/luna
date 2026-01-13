@@ -98,23 +98,9 @@ export class ExceptionRegistryAgent {
       }
     }
 
-    // 4. 期限切れ検出
-    if (ssotData?.exceptions) {
-      const expiredExceptions = this.detectExpiredExceptions(ssotData.exceptions);
-      if (expiredExceptions.length > 0) {
-        result.expiredExceptions = expiredExceptions;
-
-        for (const expired of expiredExceptions) {
-          result.comments.push(this.buildExpirationComment(expired, ssotData));
-          result.labels.push('Exception:Expired');
-
-          this.log(`Exception expired: ${expired.id}`);
-        }
-      }
-    }
-
-    // 5. 延長コマンド検出
+    // 4. 延長コマンド検出（期限切れ検出の前に処理）
     const extendCommands = this.extractExtendCommands(githubIssue.body);
+    const extendedExceptionIds = new Set<string>();
     if (extendCommands.length > 0 && ssotData?.exceptions) {
       for (const cmd of extendCommands) {
         const exception = ssotData.exceptions.find((e) => e.id === cmd.exceptionId);
@@ -126,10 +112,33 @@ export class ExceptionRegistryAgent {
             cmd.approver
           );
 
+          // 元のexceptionオブジェクトも更新して、後の期限切れ検出でスキップされるようにする
+          exception.expiresAt = cmd.newExpiryDate;
+          exception.extendedAt = extended.extendedAt;
+          exception.extendedReason = extended.extendedReason;
+
           result.extendedExceptions.push(extended);
           result.comments.push(this.buildExtensionComment(extended));
+          extendedExceptionIds.add(exception.id);
 
           this.log(`Exception extended: ${extended.id}`);
+        }
+      }
+    }
+
+    // 5. 期限切れ検出（延長されたexceptionは除外）
+    if (ssotData?.exceptions) {
+      const expiredExceptions = this.detectExpiredExceptions(ssotData.exceptions).filter(
+        (e) => !extendedExceptionIds.has(e.id)
+      );
+      if (expiredExceptions.length > 0) {
+        result.expiredExceptions = expiredExceptions;
+
+        for (const expired of expiredExceptions) {
+          result.comments.push(this.buildExpirationComment(expired, ssotData));
+          result.labels.push('Exception:Expired');
+
+          this.log(`Exception expired: ${expired.id}`);
         }
       }
     }
@@ -421,9 +430,9 @@ export class ExceptionRegistryAgent {
       approver: string;
     }> = [];
 
-    // Pattern: /extend-exception EXC-NNN (supports multiline)
+    // Pattern: /extend-exception EXC-NNN (supports multiline, flexible whitespace)
     const pattern =
-      /\/extend-exception\s+(EXC-\d{3})[^\n]*\n+Reason:\s*([^\n]+)\n+New Expiry:\s*([^\n]+)/gim;
+      /\/extend-exception\s+(EXC-\d{3})\s+Reason:\s*(.+?)\s+New Expiry:\s*(.+)/gims;
     const matches = body.matchAll(pattern);
 
     for (const match of matches) {

@@ -34,10 +34,12 @@ import { ReviewAgent } from './review-agent';
 import { TestAgent } from './test-agent';
 import { DeploymentAgent } from './deployment-agent';
 import { MonitoringAgent } from './monitoring-agent';
+import { SSOTAgentV2 } from './ssot-agent-v2';
 
 export class CoordinatorAgent {
   private octokit: Octokit;
   private config: AgentConfig;
+  private ssotAgent: SSOTAgentV2;
   private codegenAgent: CodeGenAgent;
   private reviewAgent: ReviewAgent;
   private testAgent: TestAgent;
@@ -47,6 +49,7 @@ export class CoordinatorAgent {
   constructor(config: AgentConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.ssotAgent = new SSOTAgentV2(config);
     this.codegenAgent = new CodeGenAgent(config);
     this.reviewAgent = new ReviewAgent(config);
     this.testAgent = new TestAgent(config);
@@ -294,39 +297,46 @@ export class CoordinatorAgent {
     // Base task definitions
     const baseTasks = [
       {
+        name: 'SSOT & Kernel Management',
+        description: 'Extract decisions and manage NRVV traceability',
+        agent: 'ssot' as const,
+        duration: 10 * durationMultiplier,
+        dependencies: [],
+      },
+      {
         name: 'Code Generation',
         description: 'Generate code based on requirements',
         agent: 'codegen' as const,
         duration: 30 * durationMultiplier,
-        dependencies: [],
+        dependencies: ['TASK-001'],
       },
       {
         name: 'Code Review',
         description: 'Review generated code for quality and security',
         agent: 'review' as const,
         duration: 15 * durationMultiplier,
-        dependencies: ['TASK-001'],
+        dependencies: ['TASK-002'],
       },
       {
         name: 'Test Execution',
         description: 'Run tests and generate coverage report',
         agent: 'test' as const,
         duration: 20 * durationMultiplier,
-        dependencies: ['TASK-002'],
+        dependencies: ['TASK-003'],
       },
       {
         name: 'Deployment',
         description: 'Deploy to target environment',
         agent: 'deployment' as const,
         duration: 10 * durationMultiplier,
-        dependencies: ['TASK-003'],
+        dependencies: ['TASK-004'],
       },
       {
         name: 'Monitoring',
         description: 'Monitor deployment health',
         agent: 'monitoring' as const,
         duration: 5 * durationMultiplier,
-        dependencies: ['TASK-004'],
+        dependencies: ['TASK-005'],
       },
     ];
 
@@ -573,6 +583,7 @@ export class CoordinatorAgent {
 
     // Execution context to pass between tasks
     const executionContext: {
+      ssotResult?: any;
       codeGenContext?: CodeGenContext;
       reviewContext?: ReviewContext;
       testContext?: TestContext;
@@ -638,6 +649,7 @@ export class CoordinatorAgent {
     task: TaskNode,
     issue: GitHubIssue,
     executionContext: {
+      ssotResult?: any;
       codeGenContext?: CodeGenContext;
       reviewContext?: ReviewContext;
       testContext?: TestContext;
@@ -659,6 +671,16 @@ export class CoordinatorAgent {
     // Execute actual agent based on task agent type
     try {
       switch (task.agent) {
+        case 'ssot': {
+          const result = await this.ssotAgent.execute(issue.number);
+          if (result.status === 'success' && result.data) {
+            executionContext.ssotResult = result.data;
+            this.log(`SSOT: ${result.data.suggestedKernels.length} kernels managed`);
+            return result.data;
+          }
+          throw new Error('SSOT failed: ' + (result.error?.message || 'Unknown error'));
+        }
+
         case 'codegen': {
           const result = await this.codegenAgent.execute(issue.number);
           if (result.status === 'success' && result.data) {

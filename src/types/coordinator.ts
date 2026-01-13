@@ -10,7 +10,7 @@ export interface TaskNode {
   id: string; // TASK-NNN
   name: string;
   description: string;
-  agent: 'codegen' | 'review' | 'test' | 'deployment' | 'monitoring';
+  agent: 'ssot' | 'codegen' | 'review' | 'test' | 'deployment' | 'monitoring';
   estimatedDuration: number; // minutes
   status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'blocked';
   dependencies: string[]; // Task IDs that must complete first

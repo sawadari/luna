@@ -60,13 +60,49 @@ export class DeploymentAgent {
       const [owner, repo] = this.config.repository.split('/');
 
       // 1. Issue取得
-      const { data: issue } = await this.octokit.issues.get({
+      const { data: issueData } = await this.octokit.issues.get({
         owner,
         repo,
         issue_number: issueNumber,
       });
 
+      const issue: GitHubIssue = {
+        number: issueData.number,
+        title: issueData.title,
+        body: issueData.body || '',
+        labels: issueData.labels.map((l) =>
+          typeof l === 'string' ? { name: l, color: '' } : { name: l.name!, color: l.color! }
+        ),
+        state: issueData.state as 'open' | 'closed',
+        created_at: issueData.created_at,
+        updated_at: issueData.updated_at,
+      };
+
       this.log(`📋 Retrieved issue: ${issue.title}`);
+
+      // コードが生成されていない場合はスキップ
+      if (codeGenContext.generatedCode.length === 0) {
+        this.log(`ℹ️  No code to deploy (0 files generated)`);
+
+        const context: DeploymentContext = {
+          issue,
+          codeGenContext,
+          reviewContext,
+          testContext,
+          deploymentResults: [],
+          overallSuccess: true,
+          timestamp: new Date().toISOString(),
+        };
+
+        return {
+          status: 'success',
+          data: context,
+          metrics: {
+            durationMs: Date.now() - startTime,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
 
       // 2. デプロイ設定
       const finalConfig: DeploymentConfig = {

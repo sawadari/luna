@@ -5,6 +5,7 @@
  * Evaluates Issues/PRs for AL (AL0/AL1/AL2) and detects AL0 Reasons
  */
 
+import '../config/env.js'; // Initialize dotenv
 import { Octokit } from '@octokit/rest';
 import { Command } from 'commander';
 import * as fs from 'fs';

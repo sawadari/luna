@@ -12,7 +12,6 @@ import {
   MonitoringContext,
   DeploymentContext,
   Metric,
-  MetricType,
   Alert,
   HealthStatus,
   HealthCheck,
@@ -50,13 +49,49 @@ export class MonitoringAgent {
       const [owner, repo] = this.config.repository.split('/');
 
       // 1. Issue取得
-      const { data: issue } = await this.octokit.issues.get({
+      const { data: issueData } = await this.octokit.issues.get({
         owner,
         repo,
         issue_number: issueNumber,
       });
 
+      const issue: GitHubIssue = {
+        number: issueData.number,
+        title: issueData.title,
+        body: issueData.body || '',
+        labels: issueData.labels.map((l) =>
+          typeof l === 'string' ? { name: l, color: '' } : { name: l.name!, color: l.color! }
+        ),
+        state: issueData.state as 'open' | 'closed',
+        created_at: issueData.created_at,
+        updated_at: issueData.updated_at,
+      };
+
       this.log(`📋 Retrieved issue: ${issue.title}`);
+
+      // コードが生成されていない場合はスキップ
+      if (deploymentContext.codeGenContext.generatedCode.length === 0) {
+        this.log(`ℹ️  No deployment to monitor (0 files deployed)`);
+
+        const context: MonitoringContext = {
+          issue,
+          deploymentContext,
+          metrics: [],
+          alerts: [],
+          healthStatus: { status: 'healthy', checks: [], uptime: 0, timestamp: new Date().toISOString() },
+          isHealthy: true,
+          timestamp: new Date().toISOString(),
+        };
+
+        return {
+          status: 'success',
+          data: context,
+          metrics: {
+            durationMs: Date.now() - startTime,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
 
       // 2. メトリクス収集
       await this.collectMetrics(deploymentContext);

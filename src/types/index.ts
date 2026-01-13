@@ -90,7 +90,7 @@ export interface GitHubLabel {
 export interface GitHubIssue {
   number: number;
   title: string;
-  body: string | null;
+  body: string | null | undefined;
   labels: GitHubLabel[];
   state: 'open' | 'closed';
   created_at: string;

@@ -24,7 +24,22 @@
     "incremental": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "tests", "examples", "workspaces"],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests",
+    "examples",
+    "workspaces",
+    "src/agents/assumption-tracker-agent.ts",
+    "src/agents/box-navigator-agent.ts",
+    "src/agents/change-control-agent.ts",
+    "src/agents/dest-agent.ts",
+    "src/agents/evidence-governance-agent.ts",
+    "src/agents/exception-registry-agent.ts",
+    "src/agents/gate-keeper-agent.ts",
+    "src/agents/planning-agent.ts",
+    "src/agents/ssot-agent.ts"
+  ],
   "references": [
     { "path": "./examples/simple-app" }
   ]

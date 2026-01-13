@@ -20,7 +20,13 @@ interface SSOTResult {
   suggestedKernels: Kernel[];
   violations: KernelViolation[];
   detectedViolations: KernelViolation[]; // Alias for backward compatibility
-  maturityTransitions: Array<{ kernelId: string; from: MaturityLevel; to: MaturityLevel }>;
+  maturityTransitions: Array<{
+    kernelId: string;
+    from: MaturityLevel;
+    to: MaturityLevel;
+    approvedBy?: string;
+    freezedBy?: string;
+  }>;
   isConverged: boolean;
   convergenceStatus: { [kernelId: string]: boolean };
   comments: string[];
@@ -107,10 +113,11 @@ export class SSOTAgent {
       }
     }
 
-    // 4. Maturity遷移チェック
-    if (context.activeKernels.length > 0) {
-      this.log(`Checking maturity transitions for ${context.activeKernels.length} kernels`);
-      for (const kernel of context.activeKernels) {
+    // 4. Maturity遷移チェック (activeKernels + frozenKernels)
+    const kernelsToCheck = [...context.activeKernels, ...context.frozenKernels];
+    if (kernelsToCheck.length > 0) {
+      this.log(`Checking maturity transitions for ${kernelsToCheck.length} kernels`);
+      for (const kernel of kernelsToCheck) {
         const transition = this.checkMaturityTransition(kernel, githubIssue);
         if (transition) {
           result.maturityTransitions.push(transition);
@@ -355,8 +362,14 @@ export class SSOTAgent {
 
       for (const decision of decisionRecords) {
         if (decision.decision_type === 'adopt') {
-          // rationale または decision_statement を使用
-          const statement = decision.rationale || decision.decision_statement;
+          // rationale, decision_statement, chosen_optionの順で使用
+          const statement =
+            decision.rationale ||
+            decision.decision_statement ||
+            (decision.chosen_option
+              ? `Adopt decision: ${decision.chosen_option}`
+              : null);
+
           if (statement) {
             suggestions.push({
               id: this.generateKernelId(),
@@ -502,11 +515,13 @@ export class SSOTAgent {
 
       case 'under_review':
         // UnderReview → Agreed: 承認検出
-        if (this.hasApproval(issue)) {
+        const approval = this.hasApproval(issue, kernel.id);
+        if (approval.approved) {
           return {
             kernelId: kernel.id,
             from: 'under_review',
             to: 'agreed',
+            approvedBy: approval.approver,
           };
         }
         break;
@@ -524,7 +539,7 @@ export class SSOTAgent {
 
       case 'frozen':
         // Frozen → Deprecated: Deprecate command検出
-        if (this.hasDeprecateCommand(issue)) {
+        if (this.hasDeprecateCommand(issue, kernel.id)) {
           return {
             kernelId: kernel.id,
             from: 'frozen',
@@ -550,9 +565,21 @@ export class SSOTAgent {
   /**
    * 承認コメント検出
    */
-  private hasApproval(issue: GitHubIssue): boolean {
-    const approvalPattern = /\/approve-kernel|LGTM|Approved/i;
-    return approvalPattern.test(issue.body);
+  private hasApproval(issue: GitHubIssue, kernelId?: string): { approved: boolean; approver?: string } {
+    const approvalPattern = kernelId
+      ? new RegExp(String.raw`\/approve-kernel\s+${kernelId}`, 'i')
+      : /\/approve-kernel|LGTM|Approved/i;
+
+    if (!approvalPattern.test(issue.body)) {
+      return { approved: false };
+    }
+
+    // 承認者を抽出（@mentionから）
+    const mentionPattern = /@(\w+)/;
+    const mentionMatch = issue.body.match(mentionPattern);
+    const approver = mentionMatch ? mentionMatch[1] : undefined;
+
+    return { approved: true, approver };
   }
 
   /**
@@ -566,8 +593,9 @@ export class SSOTAgent {
   /**
    * Deprecate command検出
    */
-  private hasDeprecateCommand(issue: GitHubIssue): boolean {
-    const deprecatePattern = /\/deprecate-kernel/i;
+  private hasDeprecateCommand(issue: GitHubIssue, kernelId: string): boolean {
+    // /deprecate-kernel KRN-XXX 形式をサポート
+    const deprecatePattern = new RegExp(String.raw`\/deprecate-kernel\s+${kernelId}`, 'i');
     return deprecatePattern.test(issue.body);
   }
 
@@ -583,13 +611,14 @@ export class SSOTAgent {
 
     // HTTPS Kernel例
     if (kernel.statement.match(/HTTPS/i)) {
-      const httpUsage = issueBody.match(/http:\/\//gi);
-      if (httpUsage) {
+      const httpPattern = /http:\/\/[^\s]+/gi;
+      const httpMatches = issueBody.match(httpPattern);
+      if (httpMatches) {
         violations.push({
           id: this.generateViolationId(),
           kernelId: kernel.id,
           violationType: 'contradiction',
-          detectedIn: `Issue body`,
+          detectedIn: httpMatches[0], // 実際のURLを含める
           description: `HTTP usage detected, violates Kernel ${kernel.id}: "${kernel.statement}"`,
           severity: 'critical',
           detectedAt: new Date().toISOString(),
@@ -597,19 +626,27 @@ export class SSOTAgent {
       }
     }
 
-    // JWT Kernel例
+    // JWT Kernel例 - session/cookie認証も検出
     if (kernel.statement.match(/JWT/i)) {
-      const basicAuthUsage = issueBody.match(/Basic Auth/i);
-      if (basicAuthUsage) {
-        violations.push({
-          id: this.generateViolationId(),
-          kernelId: kernel.id,
-          violationType: 'inconsistency',
-          detectedIn: `Issue body`,
-          description: `Basic Auth usage detected, violates Kernel ${kernel.id}`,
-          severity: 'high',
-          detectedAt: new Date().toISOString(),
-        });
+      const alternativeAuthPatterns = [
+        /basic\s+auth/i,
+        /session[- ]based/i,
+        /cookie/i,
+      ];
+
+      for (const pattern of alternativeAuthPatterns) {
+        if (pattern.test(issueBody)) {
+          violations.push({
+            id: this.generateViolationId(),
+            kernelId: kernel.id,
+            violationType: 'contradiction',
+            detectedIn: `Issue body`,
+            description: `Alternative authentication method detected, violates Kernel ${kernel.id}`,
+            severity: 'high',
+            detectedAt: new Date().toISOString(),
+          });
+          break; // 最初のマッチで終了
+        }
       }
     }
 

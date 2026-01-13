@@ -95,6 +95,7 @@ export class ChangeControlAgent {
         if (changeRequest) {
           result.detectedChangeRequests.push(changeRequest);
           result.comments.push(this.buildChangeRequestComment(changeRequest, kernel));
+          this.addLabel(result.labels, 'Change:Pending');
           this.log(`Change request detected: ${changeRequest.id}`);
         }
       }
@@ -117,14 +118,19 @@ export class ChangeControlAgent {
           if (cmd.decision === 'approved') {
             result.approvedChanges.push(approval);
             result.approvals.push(approval);
+            this.addLabel(result.labels, 'Change:Approved');
 
             // 変更実行
             const kernel = ssotData.kernels?.find((k) => k.id === changeRequest.kernelId);
             if (kernel) {
               const updatedKernel = await this.executeChange(changeRequest, kernel);
               result.executedChanges.push(updatedKernel);
-              result.comments.push(this.buildApprovalComment(approval, changeRequest));
             }
+            result.comments.push(this.buildApprovalComment(approval, changeRequest));
+          } else if (cmd.decision === 'conditional') {
+            result.approvals.push(approval);
+            this.addLabel(result.labels, 'Change:Approved');
+            result.comments.push(this.buildConditionalApprovalComment(approval, changeRequest));
           } else {
             result.rejectedChanges.push(approval);
             result.rejections.push(approval);
@@ -321,23 +327,23 @@ export class ChangeControlAgent {
       fullText.toLowerCase().includes(kw.toLowerCase())
     );
 
-    // Update検出（change/update/modifyキーワードと関連性）
-    const updatePattern = /\b(update|modify|change)\b/i;
-    if (updatePattern.test(fullText) && hasRelevantKeywords) {
-      return {
-        type: 'update',
-        description: 'Kernel update proposed',
-        reason: this.extractReason(body),
-        affectedComponents: this.extractAffectedComponents(body),
-      };
-    }
-
     // Deprecate検出（deprecate/retireキーワードと関連性）
     const deprecatePattern = /\b(deprecate|retire)\b/i;
     if (deprecatePattern.test(fullText) && hasRelevantKeywords) {
       return {
         type: 'deprecate',
         description: 'Kernel deprecation proposed',
+        reason: this.extractReason(body),
+        affectedComponents: this.extractAffectedComponents(body),
+      };
+    }
+
+    // Update検出（change/update/modifyキーワードと関連性）
+    const updatePattern = /\b(update|modify|change)\b/i;
+    if (updatePattern.test(fullText) && hasRelevantKeywords) {
+      return {
+        type: 'update',
+        description: 'Kernel update proposed',
         reason: this.extractReason(body),
         affectedComponents: this.extractAffectedComponents(body),
       };
@@ -425,6 +431,11 @@ export class ChangeControlAgent {
       return 'major';
     }
 
+    // Kernel Categoryで判定（影響が小さくても重要度を優先）
+    if (kernel.category === 'interface' || kernel.category === 'architecture') {
+      return 'major';
+    }
+
     // Affected Components数でImpact判定
     if (changeIntent.affectedComponents.length > 10) {
       return 'breaking';
@@ -432,11 +443,6 @@ export class ChangeControlAgent {
       return 'major';
     } else if (changeIntent.affectedComponents.length > 2) {
       return 'minor';
-    }
-
-    // Kernel Categoryで判定
-    if (kernel.category === 'interface' || kernel.category === 'architecture') {
-      return 'major';
     }
 
     return 'patch';
@@ -476,30 +482,57 @@ export class ChangeControlAgent {
       conditions?: string[];
     }> = [];
 
-    // Approve検出
-    const approvePattern = /\/approve\s+(CHG-\d{3})/gi;
-    const approveMatches = body.matchAll(approvePattern);
+    const lines = body.split(/\r?\n/);
 
-    for (const match of approveMatches) {
-      commands.push({
-        changeRequestId: match[1],
-        approver: 'Guardian', // Default
-        decision: 'approved',
-        comments: 'Approved',
-      });
-    }
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      const approveMatch = line.match(/\/approve\s+(CHG-\d{3})(?:\s+--conditional)?/i);
+      if (approveMatch) {
+        const isConditional = /--conditional/i.test(line);
+        const conditions: string[] = [];
+        let comments = isConditional ? 'Conditionally approved' : 'Approved';
 
-    // Reject検出
-    const rejectPattern = /\/reject\s+(CHG-\d{3})/gi;
-    const rejectMatches = body.matchAll(rejectPattern);
+        if (isConditional) {
+          for (let j = i + 1; j < lines.length; j++) {
+            const nextLine = lines[j].trim();
+            if (nextLine.length === 0) {
+              break;
+            }
+            if (/^conditions:/i.test(nextLine)) {
+              continue;
+            }
+            if (nextLine.startsWith('- ')) {
+              conditions.push(nextLine.slice(2).trim());
+              continue;
+            }
+            if (nextLine.startsWith('/')) {
+              break;
+            }
+          }
+          if (conditions.length > 0) {
+            comments = `Conditional approval: ${conditions.join('; ')}`;
+          }
+        }
 
-    for (const match of rejectMatches) {
-      commands.push({
-        changeRequestId: match[1],
-        approver: 'Guardian',
-        decision: 'rejected',
-        comments: 'Rejected',
-      });
+        commands.push({
+          changeRequestId: approveMatch[1],
+          approver: 'Guardian',
+          decision: isConditional ? 'conditional' : 'approved',
+          comments,
+          conditions: isConditional ? conditions : undefined,
+        });
+        continue;
+      }
+
+      const rejectMatch = line.match(/\/reject\s+(CHG-\d{3})/i);
+      if (rejectMatch) {
+        commands.push({
+          changeRequestId: rejectMatch[1],
+          approver: 'Guardian',
+          decision: 'rejected',
+          comments: 'Rejected',
+        });
+      }
     }
 
     return commands;
@@ -614,6 +647,33 @@ Use \`/approve ${changeRequest.id}\` or \`/reject ${changeRequest.id}\` to respo
   }
 
   /**
+   * 条件付き承認コメント
+   */
+  private buildConditionalApprovalComment(
+    approval: ChangeApproval,
+    changeRequest: ChangeRequest
+  ): string {
+    const conditions =
+      approval.conditions && approval.conditions.length > 0
+        ? approval.conditions.join('\n- ')
+        : 'None specified';
+
+    return `🟡 **Conditional Approval: ${changeRequest.id}**
+
+**Approver**: @${approval.approver}
+**Decision**: Conditional
+**Approved At**: ${approval.approvedAt}
+
+**Conditions**:
+- ${conditions}
+
+**Comments**: ${approval.comments}
+
+---
+*Automated by ChangeControlAgent*`;
+  }
+
+  /**
    * 却下コメント
    */
   private buildRejectionComment(approval: ChangeApproval, changeRequest: ChangeRequest): string {
@@ -648,5 +708,11 @@ Use \`/approve ${changeRequest.id}\` or \`/reject ${changeRequest.id}\` to respo
    */
   private capitalizeFirst(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  private addLabel(labels: string[], label: string): void {
+    if (!labels.includes(label)) {
+      labels.push(label);
+    }
   }
 }

@@ -1,0 +1,283 @@
+dest_theory:
+  meta:
+    name_ja: "判断内蔵システム思考（DEST: Decision-Embedded Systems Thinking）"
+    name_en: "Decision-Embedded Systems Thinking (DEST)"
+    version: "0.6"
+    language: "ja"
+    foundation:
+      base: "システム思考（循環・フィードバック）"
+      extended_with:
+        - "制御工学の知見（遅れ、連打、介入強度、評価の分離、運用/設計の二重ループ）"
+        - "Meadowsのレバレッジポイント（介入点の階層化と運用手順）"
+        - "CrePS 6箱スキーム（Real/Thinking分離、ゲート、再現可能記録）"
+    core_problem_statement: >
+      現実は 観測→評価→判断→介入→（遅れ）→状態変化→観測… の輪で動く。
+      しかし現場は、(a) 良否の判定が曖昧、(b) 症状いじりに偏る、(c) 記録が再現不能、になりやすい。
+      DESTは保証レベル（AL）で良否を一目化し、AL0Reasonで失敗パターンを有限化して次手へ誘導する。
+      さらに CrePS を案件運用OSとして統合し、Real/Thinking分離・ゲート・記録仕様で品質保証する。
+
+  # ------------------------------------------------------------
+  # 1) AL（良否の一目化）
+  # ------------------------------------------------------------
+  section_4_assurance_level_definition:
+    id: "4"
+    title: "保証レベル（AL2/AL1/AL0）"
+    axes:
+      outcome: { meaning: "目的に近づいているか（値より傾向）" }
+      safety: { meaning: "暴走・増幅の兆候がないか（最低ライン）" }
+    assurance_level:
+      values:
+        - { id: "AL2", label: "Assured", meaning: "成果OK かつ 安全OK（保証成立）" }
+        - { id: "AL1", label: "Qualified", meaning: "条件付き保証（不確実性あり）" }
+        - { id: "AL0", label: "NotAssured", meaning: "保証なし（安全NG等）" }
+      rules:
+        AL0: "NOT safety_ok"
+        AL2: "outcome_ok AND safety_ok"
+        AL1: "otherwise"
+
+  # ------------------------------------------------------------
+  # 2) Meadows（介入点の質を上げる）
+  # ------------------------------------------------------------
+  leverage_points_integration:
+    catalog:
+      levels:
+        - { id: 12, ja: "定数・パラメータ・数値" }
+        - { id: 11, ja: "バッファ（余裕）の大きさ" }
+        - { id: 10, ja: "ストック＆フロー構造" }
+        - { id: 9,  ja: "遅れ（delay）の長さ" }
+        - { id: 8,  ja: "負のフィードバック（制御）の強さ" }
+        - { id: 7,  ja: "正のフィードバック（増幅）の増幅度" }
+        - { id: 6,  ja: "情報フローの構造" }
+        - { id: 5,  ja: "ルール（権限・評価・罰・制約）" }
+        - { id: 4,  ja: "自己組織化（進化する余地）" }
+        - { id: 3,  ja: "目的（ゴール）" }
+        - { id: 2,  ja: "パラダイム（前提）" }
+        - { id: 1,  ja: "パラダイムを超越する力" }
+    safety_checks:
+      C1: { question: "悪い正のフィードバック（7）を強めていないか？", focus_levels: [7] }
+      C2: { question: "遅れ（9）を無視して過剰修正し、振動を増やしていないか？", focus_levels: [9] }
+      C3: { question: "負のフィードバック（8）を削って逸脱が戻らなくなっていないか？", focus_levels: [8] }
+      C4: { question: "パラメータ（12）だけで構造/情報/ルール/目的（10..3）を放置していないか？", focus_levels: [12, 11, 10, 6, 5, 3] }
+
+  # ------------------------------------------------------------
+  # 3) AL0Reason（保証なし理由の有限化）— 既存v0.5を維持
+  # ------------------------------------------------------------
+  al0_reason_standard_set:
+    protocol_priority_order:
+      - "P0: 破壊的増幅を止める（連打/燃料遮断/制御復元）"
+      - "P1: 観測を直す（情報フロー）"
+      - "P2: 遅れと介入の整合を取る（Wait/Freeze/変化速度の調整）"
+      - "P3: 低レバレッジ偏重を止める（12だけ禁止）"
+      - "P4: それでもダメなら上位介入（目的/前提）へエスカレーション"
+    reasons_ref:
+      note: "理由セット（R01..R11）はv0.5と同一。ここでは省略せずに保持されている前提。"
+
+  # ------------------------------------------------------------
+  # 4) CrePS 統合（案件運用OS）
+  # ------------------------------------------------------------
+  creps_integration:
+    meta:
+      name: "CrePS (Creative Problem Solving) - Six-Box Scheme Integration for DEST"
+      version: "1.0"
+      language: "ja"
+    core_value_to_dest:
+      - "Real/Thinking分離で『対象/主体』『現実/モデル』の混線を禁止できる"
+      - "ゲートで『先に進めない』を明文化し、品質を手続き化できる"
+      - "B1..B6をケースレコード（再現可能な状態）として保存できる"
+    world_mapping:
+      real_world_boxes: ["B1", "B6"]
+      thinking_world_boxes: ["B2", "B3", "B4", "B5"]
+      dest_mapping:
+        real_world: "制御対象の実態（x_t）と実装・運用結果"
+        thinking_world: "観測設計（y_t）、仮説、介入案（u_t）、成立コンセプト"
+    role_mapping:
+      case_owner:
+        maps_to: "最終意思決定者（目的/成功条件/実装判断/現場妥当性判定）"
+        dest_alignment: "主体側の『Revise/Freeze/Go』の最終権限を持つ"
+      facilitator:
+        maps_to: "品質責任者（ゲート運用・問い・記録・戻り制御）"
+        dest_alignment: "『連打防止・観測修復・設計ループ』を強制できる"
+      domain_expert:
+        maps_to: "成立性責任者（技術/業務/制度/安全/倫理）"
+        dest_alignment: "B5（成立コンセプト）承認と制約適合を担保する"
+    invariants_alignment:
+      - id: "X1"
+        statement: "AL（良否判定）とLP（介入点）を混ぜない。ALは評価、LPは打ち手の分類。"
+      - id: "X2"
+        statement: "B4（アイデア）では成立性議論をやり過ぎない。成立性はB5で確定する。"
+      - id: "X3"
+        statement: "B6（実装）では測定と再現条件を必須にし、会話で結論を出さない。"
+      - id: "X4"
+        statement: "AL0が出たら『次手の思いつき』は禁止。必ずAL0Reason→標準処方→ゲート戻りで処理する。"
+
+    # --- DEST と CrePS を“完全に噛み合わせる”中核：箱ごとのDEST統合仕様 ---
+    boxes_with_dest_extensions:
+      B1:
+        name: "ユーザの具体問題（Real World）"
+        required_outputs_extension:
+          - "initial_AL_view: 現時点での暫定AL（不明ならunknownでよい）"
+          - "initial_layer: society|organization|individual のどれが主戦場か（暫定）"
+        common_failures_extension:
+          - "問題が『手段』で書かれる（例：ツール導入）→ B2でOutcomeへ戻す"
+
+      B2:
+        name: "適切に定義された具体的問題（Thinking入口）"
+        required_outputs_extension:
+          - "dest_success_criteria_mapping: success_criteria → outcome_ok 判定規則（暫定）"
+          - "dest_safety_criteria_mapping: failure_criteria/constraints → safety_ok 判定規則（暫定）"
+          - "assurance_gate_spec: AL判定の最小仕様（いつ、誰が、何で判定するか）"
+        integration_rule:
+          - "B2はDESTの『Outcome/Safety定義』の唯一の正本。後工程で勝手に変えない（変えるならB2へ戻る）。"
+
+      B3:
+        name: "現状理解＋理想理解（Thinking World）"
+        required_outputs_extension:
+          - "system_mechanism_5set: stock/flow/delay/feedback/decision-info を最低限1つずつ記述"
+          - "candidate_al0_reasons: 起きていそうなAL0Reason候補（R01..）を複数仮置き"
+          - "lp_focus_hypothesis: 介入点（12..1）の当たり所仮説（例：6/8/7優先）"
+        integration_rule:
+          - "B3は『AL0Reasonの仮説生成』の場所。確定はB6の観測結果で行う。"
+
+      B4:
+        name: "アイデア生成（Thinking World）"
+        required_outputs_extension:
+          idea_catalog_schema_extension:
+            required_fields_additional:
+              - "lp_level_id: 1..12（必須）"
+              - "linked_checks: [C1..C4] のうち関係するもの"
+              - "expected_AL_move: AL0→AL1 など、狙うAL遷移"
+              - "candidate_AL0Reason_coverage: この案が潰す想定Reason（R01..）"
+        hard_rules_extension:
+          - "lp_level_id が無い案は採用候補にしない"
+          - "rationale_link（B3仮説/矛盾/理想）無しは採用候補にしない"
+
+      B5:
+        name: "解決策コンセプト構築（Thinking World）"
+        required_outputs_extension:
+          - "dest_control_posture: Wait/Freeze/Revise を含む運用姿勢（連打防止と遅れ吸収）"
+          - "al0_reason_handling: 想定されるAL0Reasonごとのフェイルセーフ（標準処方の採用）"
+          - "measurement_and_decision_timing: 観測窓と判定タイミング（遅れ整合）"
+        decision_rule_extension:
+          approve_by:
+            - "case_owner"
+            - "domain_expert"
+          must_include:
+            - "side_effects と mitigations"
+            - "validation_plan（合格基準）"
+            - "lp_level_id（主介入点）"
+        integration_rule:
+          - "B5は『成立するコンセプト』。ここで初めて“実装してよい”が出る。"
+
+      B6:
+        name: "実装・運用・制度化（Real World）"
+        required_outputs_extension:
+          - "assurance_observation: 観測からALを判定した記録（いつ/誰/根拠）"
+          - "al0_reason_finalization: AL0ならReasonを確定し、標準処方に従ったかを記録"
+          - "learning_to_rules: 学習を B2/B5 のどこへ反映するか（戻り先を明示）"
+        integration_rule:
+          - "B6でAL0になった場合、次の一手は『思いつき』禁止。Reason→処方→ゲート戻りで扱う。"
+
+    gates_with_dest_alignment:
+      gate_policy:
+        enforcement_rule: "G2→G3→G4→G5→G6 の順に通過しないと次へ進めない（例外は明文化）"
+      gate_catalog_extensions:
+        G2_problem_definition_additional_must:
+          - "Outcome/Safety が DESTの outcome_ok/safety_ok へ写像されている（暫定で可）"
+        G3_understanding_hypotheses_additional_must:
+          - "stock/flow/delay/feedback/decision-info の5点セットが最低1つある"
+        G4_idea_traceability_additional_must:
+          - "各アイデアに lp_level_id（12..1）が付与されている"
+          - "linked_checks（C1..C4）のどれを意識した案かが書かれている"
+        G5_concept_feasibility_additional_must:
+          - "Wait/Freeze/Revise の運用姿勢が仕様化されている"
+          - "副作用がAL0Reason（どれに対応するか）と接続されている"
+        G6_field_validity_additional_must:
+          - "AL判定ログ（assurance_observation）がある"
+          - "AL0ならReason確定と標準処方実行の記録がある"
+
+    case_record_schema:
+      name: "DEST×CrePS Case Record（再現可能な状態）"
+      required_top_fields:
+        - "case_id"
+        - "title"
+        - "domain: technical|organizational|societal"
+        - "primary_layer: society|organization|individual"
+        - "roles (case_owner/facilitator/domain_expert)"
+        - "B1..B6"
+        - "gate_results"
+        - "assurance_history (ALの時系列)"
+        - "intervention_history (LPタグ付き)"
+      minimal_running_fields:
+        assurance_history_item:
+          fields: ["date", "AL", "basis", "decided_by"]
+        intervention_history_item:
+          fields: ["date", "intervention_name", "lp_level_id", "linked_checks", "expected_AL_move", "observed_effect"]
+
+  # ------------------------------------------------------------
+  # 5) 可視化（CrePSを載せた運用可視化）
+  # ------------------------------------------------------------
+  visualization_guidance:
+    title: "可視化の必須項目（AL0ReasonとCrePSの状態を“見える”化）"
+    per_layer_state_machine:
+      must_show:
+        - "現在のAL（AL2/AL1/AL0）"
+        - "AL0Reason（複数可）と linked_checks（C1..C4）"
+        - "NextAction（標準処方）と LPタグ（12..1）"
+        - "CrePSの現在箱（B1..B6）と、直近ゲート（G2..G6）の状態（pass/warn/fail）"
+      must_include_agent_states:
+        - "Evaluate（AL判定）"
+        - "Freeze（連打防止）"
+        - "WaitEffect（遅れ吸収）"
+        - "Revise（設計ループ）"
+
+solution_space_binding:
+  target_solution_space:
+    artifact: unified_planning_and_ssot_framework.yaml
+    root_key: unified_planning_and_ssot_framework
+    assumed_version: "1.3"
+    binding_intent:
+      - DEST（問題空間/保証モデル）を Problem Space として保持し、Planning-to-SSOT を Solution Space として実装・運用へ接続する
+      - B1..B6 と Planning/SSOT の対応を固定し、AL・ゲート・例外・証跡を相互参照できるようにする
+
+  id_crosswalk:
+    dest.case_id: planning_layer.core_objects.Opportunity.id (primary) + planning_layer.core_objects.DecisionRecord.decision_id (linked)
+    dest.roles.case_owner: ssot_layer.capabilities.capability_roles[id=role.product_owner] (primary)
+    dest.roles.facilitator: ssot_layer.capabilities.capability_roles[id=role.ssot_reviewer] (primary) + role.ssot_steward (secondary)
+    dest.roles.domain_expert: ssot_layer.capabilities.capability_roles[id=role.ssot_author] (domain adapter; if technical then add Audit Readiness Owner)
+    dest.intervention_history_item.lp_level_id: planning_layer.core_objects.OptionSet.options[*].lp_level_id (added by adapter)
+    dest.gate_ids.G2..G6: ssot_layer.change_control.stage_gate_profiles[profile_id=dest_creps].sequence
+
+  box_to_solution_mapping:
+    - dest_box: B1
+      meaning: Real: 課題/機会の生の記述
+      unified_binding: [planning_layer.core_objects.Opportunity, ssot_layer.operating_playbook.inputs.context_sources_X]
+    - dest_box: B2
+      meaning: Thinking入口: Outcome/Safetyの正本
+      unified_binding: [planning_layer.core_objects.ConstraintModel, planning_layer.core_objects.ValueModel, planning_layer.core_objects.EvaluationRecord]
+    - dest_box: B3
+      meaning: 理解/仮説/モデル
+      unified_binding: [planning_layer.core_objects.Assumption]
+    - dest_box: B4
+      meaning: 案生成（LPタグ＋安全チェック）
+      unified_binding: [planning_layer.core_objects.OptionSet]
+    - dest_box: B5
+      meaning: 成立コンセプト＋運用姿勢(Wait/Freeze/Revise)
+      unified_binding: [planning_layer.core_objects.EvaluationRecord, planning_layer.core_objects.DecisionRecord, planning_layer.core_objects.ReevaluationPolicy]
+    - dest_box: B6
+      meaning: 実装・運用・制度化＋AL観測
+      unified_binding: [ssot_layer.change_control, ssot_layer.evidence_governance, ssot_layer.exception_registry]
+
+  loop_events_and_routes:
+    - event: assurance_drop_to_AL0
+      detected_in: B6.assurance_observation
+      required_actions:
+        - "ChangeRequest作成（u.record_decision/u.raise_exception/u.set_state）"
+        - "ExceptionRecord作成（期限・監視信号・緩和策）"
+        - "AL0_reason_finalization + protocol_priority_order の適用ログ"
+      route_back:
+        - to: B2
+          when: Outcome/Safety定義の誤り/不十分が原因
+        - to: B5
+          when: 成立コンセプト/運用姿勢(Wait/Freeze/Revise)の不備が原因
+        - to: B3
+          when: 仮説/遅れ/フィードバック理解不足が原因

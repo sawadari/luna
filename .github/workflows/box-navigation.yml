@@ -1,0 +1,277 @@
+name: 📦 CrePS Box Navigation
+
+# CrePS 6-Box Navigation Automation
+# BoxNavigatorAgentを自動実行してBox遷移を管理
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+  pull_request:
+    types: [opened, ready_for_review, closed]
+  schedule:
+    # 1時間ごとに滞留監視
+    - cron: '0 * * * *'
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  # ==========================================================================
+  # 1. Box Navigation - Issue/PR作成・更新時
+  # ==========================================================================
+
+  box-navigation:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' || github.event_name == 'pull_request'
+    name: Box Navigation
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run BoxNavigatorAgent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPO: ${{ github.event.repository.name }}
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}
+          npm run agents:box-nav -- --issue=${ISSUE_NUMBER}
+
+      - name: Upload navigation result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: box-navigation-result-${{ github.event.issue.number || github.event.pull_request.number }}
+          path: .ai/box-navigation-*.json
+          retention-days: 7
+
+  # ==========================================================================
+  # 2. Initial Box Assignment - 新規Issue作成時
+  # ==========================================================================
+
+  initial-box-assignment:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    name: Initial Box Assignment (B1)
+
+    steps:
+      - name: Assign B1 label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: context.payload.issue.number,
+              labels: ['Box:B1-RealProblem']
+            });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: context.payload.issue.number,
+              body: `🎯 **CrePS Box割り当て: B1 (Real Problem)**
+
+このIssueは**B1: Real Problem（現実問題空間）**から開始します。
+
+**次のステップ（B1 → B2）**:
+1. Issue本文に「## 問題定義」セクションを追加
+2. 現状（Current state）を記述（50文字以上）
+3. 目標（Target state）を記述（50文字以上）
+4. 制約（Constraints）を記述
+
+**DEST統合**:
+- 「## Outcome Assessment」セクションも追加推奨
+- 「## Safety Assessment」セクションも追加推奨
+
+詳細: [BoxNavigatorAgent仕様](.claude/agents/box-navigator-agent.md)
+
+---
+*自動投稿: Box Navigation Workflow*`
+            });
+
+  # ==========================================================================
+  # 3. PR Creation - B4への自動遷移
+  # ==========================================================================
+
+  pr-box-transition:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.action == 'opened'
+    name: PR Created - Box Transition
+
+    steps:
+      - name: Find linked issue
+        id: find-issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const match = body.match(/#(\d+)/);
+            if (match) {
+              return match[1];
+            }
+            return null;
+          result-encoding: string
+
+      - name: Add B4 label to linked issue
+        if: steps.find-issue.outputs.result != 'null'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = parseInt('${{ steps.find-issue.outputs.result }}');
+
+            // B3ラベル削除
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: issueNumber,
+                name: 'Box:B3-SolutionIdeas'
+              });
+            } catch (error) {
+              // ラベルが存在しない場合は無視
+            }
+
+            // B4ラベル追加
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: issueNumber,
+              labels: ['Box:B4-DevelopedSolution']
+            });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: issueNumber,
+              body: `🎯 **Box遷移: B3 → B4**
+
+Pull Request #${{ github.event.pull_request.number }} が作成されたため、**B4: Developed Solution（開発された解決策）**へ遷移しました。
+
+**次のステップ（B4 → B5）**:
+1. コード実装を完了
+2. Draft状態を解除
+3. ReviewAgentによる品質チェック（80点以上）
+
+---
+*自動投稿: Box Navigation Workflow*`
+            });
+
+  # ==========================================================================
+  # 4. PR Merged - B6への自動遷移
+  # ==========================================================================
+
+  pr-merged-box-transition:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true
+    name: PR Merged - Box Transition
+
+    steps:
+      - name: Find linked issue
+        id: find-issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+            const match = body.match(/#(\d+)/);
+            if (match) {
+              return match[1];
+            }
+            return null;
+          result-encoding: string
+
+      - name: Add B6 label to linked issue
+        if: steps.find-issue.outputs.result != 'null'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issueNumber = parseInt('${{ steps.find-issue.outputs.result }}');
+
+            // B5ラベル削除
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: issueNumber,
+                name: 'Box:B5-ImplementedSolution'
+              });
+            } catch (error) {
+              // ラベルが存在しない場合は無視
+            }
+
+            // B6ラベル追加
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: issueNumber,
+              labels: ['Box:B6-AcceptedSolution']
+            });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: issueNumber,
+              body: `🎯 **Box遷移: B5 → B6**
+
+Pull Request #${{ github.event.pull_request.number }} がマージされたため、**B6: Accepted Solution（受け入れられた解決策）**へ遷移しました。
+
+**次のステップ（B6 → Done）**:
+1. デプロイ成功を確認
+2. 本番動作確認
+3. AL2維持を確認（DESTAgent再実行）
+
+---
+*自動投稿: Box Navigation Workflow*`
+            });
+
+  # ==========================================================================
+  # 5. Dwell Time Monitoring - 1時間ごとの滞留監視
+  # ==========================================================================
+
+  dwell-time-monitoring:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    name: Box Dwell Time Monitoring
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Monitor all open issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPO: ${{ github.event.repository.name }}
+        run: |
+          npm run agents:box-nav -- --monitor
+
+      - name: Upload monitoring report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: box-dwell-monitoring-${{ github.run_id }}
+          path: .ai/box-monitoring-*.json
+          retention-days: 30

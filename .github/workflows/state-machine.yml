@@ -2,6 +2,16 @@ name: 🔄 State Machine Automation
 
 # Automatically manage Issue/PR state based on labels
 # Constitutional requirement: "Labels are the OS's state management"
+#
+# Phase 2: CrePS Box Integration
+# - miyabi state labels work alongside CrePS Box labels
+# - Box labels (B1-B6) managed by box-navigation.yml
+# - Box-State mapping:
+#   - pending → B1 (Real Problem)
+#   - analyzing → B2 (Defined Problem) → B3 (Solution Ideas)
+#   - implementing → B4 (Developed Solution) → B5 (Implemented Solution)
+#   - testing/deploying → B5 → B6 (Accepted Solution)
+#   - done → B6 + G6 passed + AL2
 
 on:
   issues:
@@ -304,3 +314,157 @@ jobs:
               issue_number: context.payload.issue.number,
               labels: ['⚠️ severity:Sev.2-High']
             });
+
+  # ==========================================================================
+  # 7. AL Gate Check - Block implementing if AL0
+  # ==========================================================================
+
+  al-gate-check-implementing:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      contains(github.event.label.name, 'state:implementing')
+    name: AL Gate Check (Implementing)
+
+    steps:
+      - name: Check AL status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.issue.labels.map(l => l.name);
+
+            // Check if Issue has AL0 label
+            if (labels.includes('AL:AL0-NotAssured')) {
+              console.log('❌ AL0 detected - Blocking implementing state');
+
+              // Remove implementing label
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.name,
+                  issue_number: context.payload.issue.number,
+                  name: '🏗️ state:implementing'
+                });
+              } catch (error) {
+                console.log('Label removal failed:', error.message);
+              }
+
+              // Add blocked label
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: context.payload.issue.number,
+                labels: ['🚫 state:blocked']
+              });
+
+              // Post blocking comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: context.payload.issue.number,
+                body: `🚫 **Implementation Blocked: AL0 Gate Check Failed**
+
+This issue cannot proceed to \`implementing\` state because it has **AL:AL0-NotAssured** status.
+
+**Required Actions**:
+1. Resolve the AL0 Reason(s) identified in the DEST judgment
+2. Follow the Protocol instructions (P0-P4)
+3. Re-evaluate using DESTAgent
+4. Achieve AL1 (Qualified) or AL2 (Assured) status
+
+**AL0 Reasons**:
+${labels.filter(l => l.startsWith('AL0:')).map(l => \`- ${l}\`).join('\\n') || 'See DEST judgment comment'}
+
+**Protocol**:
+${labels.filter(l => l.startsWith('Protocol:')).join(', ') || 'See DEST judgment comment'}
+
+---
+*Automated by [State Machine AL Gate](.github/workflows/state-machine.yml)*`
+              });
+
+              core.setFailed('AL0 blocks implementation');
+            } else {
+              console.log('✅ AL gate check passed (AL1 or AL2)');
+            }
+
+  # ==========================================================================
+  # 8. AL Gate Check - Block deploying if not AL2
+  # ==========================================================================
+
+  al-gate-check-deploying:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      contains(github.event.label.name, 'state:deploying')
+    name: AL Gate Check (Deploying)
+
+    steps:
+      - name: Check AL2 status
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.issue.labels.map(l => l.name);
+
+            // Check if Issue has AL2 label
+            if (!labels.includes('AL:AL2-Assured')) {
+              console.log('❌ AL2 not detected - Blocking deploying state');
+
+              // Remove deploying label
+              try {
+                await github.rest.issues.removeLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.name,
+                  issue_number: context.payload.issue.number,
+                  name: '🚀 state:deploying'
+                });
+              } catch (error) {
+                console.log('Label removal failed:', error.message);
+              }
+
+              // Add blocked label
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: context.payload.issue.number,
+                labels: ['🚫 state:blocked']
+              });
+
+              // Determine current AL
+              let currentAL = 'unknown';
+              if (labels.includes('AL:AL0-NotAssured')) {
+                currentAL = 'AL0 (Not Assured)';
+              } else if (labels.includes('AL:AL1-Qualified')) {
+                currentAL = 'AL1 (Qualified)';
+              }
+
+              // Post blocking comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: context.payload.issue.number,
+                body: `🚫 **Deployment Blocked: AL2 Gate Check Failed**
+
+This issue cannot proceed to \`deploying\` state because it does not have **AL:AL2-Assured** status.
+
+**Current AL**: ${currentAL}
+
+**Required Actions**:
+1. Ensure all testing is complete with successful results
+2. Verify system is progressing toward target state (outcome_ok)
+3. Verify safety constraints are met (safety_ok)
+4. Re-evaluate using DESTAgent to achieve AL2 status
+
+**Deployment requires**:
+- ✅ Outcome OK (progressing toward target)
+- ✅ Safety OK (stable feedback loops, no violations)
+
+---
+*Automated by [State Machine AL Gate](.github/workflows/state-machine.yml)*`
+              });
+
+              core.setFailed('Deployment requires AL2');
+            } else {
+              console.log('✅ AL2 gate check passed - Deployment approved');
+            }

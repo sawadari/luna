@@ -1,0 +1,298 @@
+name: 🔍 DEST Assurance Level Judgment
+
+# Trigger on Issue and Pull Request events
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+  pull_request:
+    types: [opened, edited, labeled, unlabeled, ready_for_review]
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  dest-al-judgment:
+    name: AL Judgment
+    runs-on: ubuntu-latest
+
+    # Skip if Issue/PR was created by a bot
+    if: |
+      github.actor != 'github-actions[bot]' &&
+      github.actor != 'dependabot[bot]'
+
+    steps:
+      # ========================================================================
+      # Setup
+      # ========================================================================
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ========================================================================
+      # Run DESTAgent
+      # ========================================================================
+
+      - name: Run DESTAgent
+        id: dest-agent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REPOSITORY: ${{ github.repository }}
+          ENABLE_DEST_JUDGMENT: 'true'
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}
+
+          echo "Running DESTAgent on Issue #${ISSUE_NUMBER}"
+
+          npm run agents:dest -- --issue ${ISSUE_NUMBER}
+
+          # Check if judgment file was created
+          if [ -f .ai/dest-judgment.json ]; then
+            echo "judgment_created=true" >> $GITHUB_OUTPUT
+          else
+            echo "judgment_created=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ========================================================================
+      # Process Judgment Result
+      # ========================================================================
+
+      - name: Apply labels from judgment
+        if: steps.dest-agent.outputs.judgment_created == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync('.ai/dest-judgment.json', 'utf8'));
+
+            if (!result || !result.labels) {
+              console.log('No labels to apply');
+              return;
+            }
+
+            console.log(`Applying labels: ${result.labels.join(', ')}`);
+
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: result.issueNumber,
+              labels: result.labels
+            });
+
+      - name: Post judgment comment
+        if: steps.dest-agent.outputs.judgment_created == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync('.ai/dest-judgment.json', 'utf8'));
+
+            if (!result) {
+              console.log('No judgment result found');
+              return;
+            }
+
+            // Build comment
+            const alEmoji = {
+              AL0: '❌',
+              AL1: '⚠️',
+              AL2: '✅'
+            }[result.al];
+
+            let comment = `## 🔍 DEST Assurance Level Judgment\n\n`;
+            comment += `**AL**: ${result.al} ${alEmoji}\n\n`;
+
+            if (result.al === 'AL0' && result.al0Reasons && result.al0Reasons.length > 0) {
+              comment += `**AL0 Reason(s)**:\n`;
+              result.al0Reasons.forEach(reason => {
+                comment += `- ${reason}\n`;
+              });
+              comment += `\n`;
+            }
+
+            if (result.protocol) {
+              comment += `**Protocol**: ${result.protocol} 🛑\n\n`;
+            }
+
+            comment += `**Rationale**:\n${result.rationale}\n\n`;
+
+            if (result.nextActions && result.nextActions.length > 0) {
+              comment += `**Next Actions**:\n`;
+              result.nextActions.forEach(action => {
+                comment += `${action}\n`;
+              });
+              comment += `\n`;
+            }
+
+            if (result.escalation) {
+              comment += `**Escalation**: ${result.escalation}\n\n`;
+            }
+
+            comment += `---\n`;
+            comment += `🤖 DESTAgent | Judgment ID: ${result.judgmentId} | ${result.judgedAt}\n`;
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: result.issueNumber,
+              body: comment
+            });
+
+      # ========================================================================
+      # Handle Escalations
+      # ========================================================================
+
+      - name: Escalate P0 Protocol (Stop Amplification)
+        if: steps.dest-agent.outputs.judgment_created == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync('.ai/dest-judgment.json', 'utf8'));
+
+            if (result.protocol === 'P0-StopAmplification') {
+              // Add escalation labels
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: result.issueNumber,
+                labels: ['🚨escalated', '👑needs-guardian', '🔥 priority:P0-Critical']
+              });
+
+              // Block implementation state
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: result.issueNumber,
+                labels: ['🚫 state:blocked']
+              });
+
+              // Create escalation comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: result.issueNumber,
+                body: `🚨 **P0 Protocol Activated - Guardian Escalation Required**
+
+This issue has been automatically blocked due to P0 (Stop Amplification) protocol.
+
+**Detected AL0 Reasons**: ${result.al0Reasons.join(', ')}
+
+**Immediate Actions Required**:
+1. 🛑 **HALT**: All current interventions must be frozen immediately
+2. 🔍 Identify the positive feedback loop causing destructive amplification
+3. 🏗️ Design damping mechanism (negative feedback control)
+4. 📊 Re-evaluate system after structural changes are implemented
+
+@${{ github.repository_owner }} - **Guardian review required immediately**
+
+---
+This issue is blocked from implementation until AL0 is resolved and re-evaluated to AL1 or AL2.`
+              });
+            }
+
+      - name: Escalate P4 Protocol (Guardian Review)
+        if: steps.dest-agent.outputs.judgment_created == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync('.ai/dest-judgment.json', 'utf8'));
+
+            if (result.protocol === 'P4-Escalate') {
+              // Add escalation labels
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: result.issueNumber,
+                labels: ['🚨escalated', '👑needs-guardian', '⚠️ priority:P1-High']
+              });
+
+              // Block implementation state
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: result.issueNumber,
+                labels: ['🚫 state:blocked']
+              });
+
+              // Create escalation comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: result.issueNumber,
+                body: `🚨 **P4 Protocol Activated - Guardian Escalation Required**
+
+This issue requires paradigm/goal-level intervention.
+
+**Detected AL0 Reasons**: ${result.al0Reasons.join(', ')}
+
+**Strategic Review Required**:
+1. 🎯 Re-examine fundamental assumptions and goals
+2. 🏗️ Consider paradigm shift (LP2) or goal redefinition (LP3)
+3. 📊 Strategic decision needed before technical implementation
+
+@${{ github.repository_owner }} - **Guardian strategic review required**
+
+---
+This issue is blocked from implementation until strategic direction is clarified.`
+              });
+            }
+
+      - name: Escalate R11 (Safety Violation) to CISO
+        if: steps.dest-agent.outputs.judgment_created == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const result = JSON.parse(fs.readFileSync('.ai/dest-judgment.json', 'utf8'));
+
+            if (result.al0Reasons && result.al0Reasons.includes('R11-SafetyViolation')) {
+              // Add critical security labels
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: result.issueNumber,
+                labels: ['🚨escalated', '🔒 type:security', '🔥 priority:P0-Critical']
+              });
+
+              // Create CISO escalation comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: result.issueNumber,
+                body: `🚨 **R11 Safety Violation Detected - CISO Escalation**
+
+**CRITICAL**: Explicit safety constraint has been violated.
+
+This requires immediate security review and intervention.
+
+@${{ github.repository_owner }} - **CISO immediate review required**
+
+---
+This issue is blocked until safety compliance is restored.`
+              });
+            }
+
+      # ========================================================================
+      # Upload judgment artifact
+      # ========================================================================
+
+      - name: Upload judgment artifact
+        if: steps.dest-agent.outputs.judgment_created == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dest-judgment-${{ github.event.issue.number || github.event.pull_request.number }}
+          path: .ai/dest-judgment.json
+          retention-days: 30

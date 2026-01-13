@@ -1,0 +1,862 @@
+unified_planning_and_ssot_framework:
+  meta:
+    name: "Planning-to-SSOT Unified Theory & Operating Playbook"
+    version: "1.3"
+    language: "ja"
+    status: "complete_integrated"
+    intent:
+      - "企画（意思決定）とSSOT（収束・統治）を上下レイヤとして統合し、矛盾なく接続する"
+      - "創造性（逸脱）を許容しつつ、外乱下での整合性・監査可能性・再評価可能性を保つ"
+      - "評価（Evaluation）と決定（Decision）を分離し、決定責任の主語を固定する（Product Owner）"
+    assumptions_fixed_for_operation:
+      - "Product Owner は境界ごとに存在する（PO_i / PO_ij）"
+      - "成熟度状態遷移の権限は、遷移段階ごとにロールで分離する"
+      - "監査は社内監査に加え、顧客/取引先監査および規制対応を含む最低要件とする"
+
+  # ============================================================
+  # L0) Planning Layer（上位概念：Why/What/Decide）
+  # ============================================================
+  planning_layer:
+    statement: >
+      Planning Layer は、価値（正負）・選択肢集合・制約をもとに、
+      採否・延期・探索継続といった意思決定を生成する。
+      ここでは「正解の一意性」を仮定しない。
+      ただし、決定には責任主体と反証条件（覆す条件）が必須である。
+
+    axioms:
+      A1_value_is_inevitable_and_signed:
+        statement: "プロダクトが存在する限り、価値は必ず発生し、正負を持つ"
+      A2_physical_truth_non_negotiable:
+        statement: "物理的制約は交渉不可能である"
+      A3_normative_truth_is_binding:
+        statement: "法規・安全・契約などの外部規範は強制力を持つ"
+      A4_value_truth_is_contextual:
+        statement: "価値は市場・文化・時間・組織によって変化する"
+      A5_evaluation_vs_decision:
+        statement: "評価（測る/推定）と決定（選ぶ）は分離される"
+      A6_creativity_requires_deviation:
+        statement: "創造性は逸脱を含む。逸脱の型は有限集合で管理する"
+      A7_re_evaluation_is_default_but_controlled:
+        statement: "再評価は原則すべて対象。ただしトリガーと影響範囲で制御する"
+      A8_accountability_requires_owner:
+        statement: "意思決定には責任主体が必須である"
+
+    core_objects:
+      Opportunity:
+        description: "価値が発生しうる機会の定義（誰に/何を/なぜ）"
+        required_fields:
+          - id
+          - target_customer_or_user
+          - problem_or_desired_outcome
+          - usage_context
+          - time_horizon
+          - success_description
+
+      OptionSet:
+        description: >
+          単一案ではなく複数案の集合。制約確定とともに集合を絞り込む。
+          （単一案への早期コミットを避ける）
+        required_fields:
+          - option_id
+          - option_hypothesis
+          - functional_scope
+          - architectural_implications
+          - differentiating_points
+          - known_unknowns
+          - evidence_references
+
+      ConstraintModel:
+        description: "制約を Hard/Soft に分離して管理する（上書き可否で分類する）"
+        categories:
+          hard_constraints:
+            absolute:
+              - physical_limits
+              - legal_or_regulatory_requirements
+              - safety_requirements
+            conditional:
+              - contract_mandates
+              - security_requirements
+          soft_constraints:
+            - cost_preferences
+            - schedule_preferences
+            - organizational_capacity
+            - supplier_or_partner_conditions
+        required_fields:
+          - classification_rationale
+          - scope_of_applicability
+
+      ValueModel:
+        description: >
+          価値を多次元かつ正負で表す。単一スカラー化を前提にしない。
+          （価値は不変条件Φには入れない：交渉不能条件と混同しないため）
+        dimensions:
+          user_value: { sign: "+/-", description: "使いやすさ、体験、効率" }
+          business_value: { sign: "+/-", description: "収益性、競争力、戦略整合" }
+          risk_value: { sign: "-", description: "安全、法務、品質、評判、セキュリティ等の負価値" }
+          societal_value: { sign: "+/-", description: "環境、社会受容、倫理" }
+          technical_asset_value: { sign: "+", description: "不採用でも残る技術資産価値（再利用）" }
+
+      EvaluationRecord:
+        description: >
+          評価の記録。決定ではない。
+          QCD等の観測軸はここに置く（SSOT運用KPIと混同しない）。
+        required_fields:
+          - evaluation_id
+          - evaluated_by
+          - evaluation_axes
+          - findings_summary
+          - supporting_evidence
+        evaluation_axes_examples:
+          - "Q_quality: 要求品質/製品品質/体験品質など（複数可）"
+          - "C_cost: 原価・運用費・変更コスト（数値は外出し可）"
+          - "D_delivery: リリース/マイルストン（複数可）"
+          - "Risk: 重大リスク分類と観測指標"
+          - "Uncertainty: 未確定点の量と種類"
+
+      DecisionRecord:
+        description: >
+          採否・延期・探索継続の決定を固定する記録。
+          必ず「責任主体」と「反証条件」を持つ。
+        required_fields:
+          - decision_id
+          - decided_by
+          - decision_type
+          - rationale_summary
+          - tradeoff_summary
+          - linked_evaluation_ids
+          - remaining_risks
+          - dissenting_views
+          - falsification_conditions
+          - impact_scope
+          - linked_evidence
+        decision_type_enum:
+          - adopt
+          - defer
+          - reject
+          - continue_explore
+        falsification_conditions_schema:
+          - id
+          - signal_id
+          - signal_source
+          - operator
+          - threshold
+          - observation_window
+          - evaluation_method_ref
+          - linked_trigger_type
+
+      Assumption:
+        description: "重要前提（TBD/Issue含む）。再評価と意思決定に直結する第一級オブジェクト。"
+        required_fields:
+          - assumption_id
+          - statement
+          - owner
+          - confidence_level
+          - validation_method
+          - falsification_signal_ref
+          - expiry_or_review_date
+          - linked_option_ids
+          - linked_decision_ids
+          - status
+        status_enum:
+          - active
+          - invalidated
+          - superseded
+
+      ReevaluationPolicy:
+        description: >
+          無限再評価を避けつつ、変化に追随する枠。
+          トリガーと影響範囲（scope）で制御する。
+        required_fields:
+          - triggers
+          - scope_rules
+          - cadence
+          - stop_rules
+        triggers:
+          - regulation_change
+          - safety_or_quality_incident
+          - market_or_customer_shift
+          - key_assumption_invalidated
+          - cost_or_schedule_disruption
+          - supplier_or_boundary_change
+          - AI_generated_contamination
+        scope_rules_examples:
+          - trigger: "regulation_change"
+            affected_objects: ["ConstraintModel", "ValueModel", "DecisionRecord", "OptionSet"]
+          - trigger: "key_assumption_invalidated"
+            affected_objects: ["Opportunity", "OptionSet", "EvaluationRecord", "DecisionRecord", "Assumption"]
+        cadence:
+          periodic_review: "defined_per_organization"
+        stop_rules:
+          - "再評価は必ず新しいDecisionRecord（またはDecision更新）を生成して終了する"
+
+      ResponsibilityModel:
+        description: "決定責任と評価責任の主語を固定する"
+        roles:
+          - role_id: "role.product_owner"
+            responsibility:
+              - "価値衝突（正負）を裁定する"
+              - "DecisionRecordを承認・発行する"
+              - "例外（逸脱）を承認し、期限・条件を設定する"
+          - role_id: "role.engineering_lead"
+            responsibility:
+              - "物理・技術成立性を評価する（EvaluationRecord）"
+          - role_id: "role.compliance_owner"
+            responsibility:
+              - "法規・安全・契約など外部規範の適合を評価する（Hard constraint）"
+          - role_id: "role.product_owner_shared"
+            responsibility:
+              - "共有核（S_ij）における矛盾の最終裁定主語となる"
+              - "境界裁定のDecisionを承認・固定する"
+
+      ExceptionProposal:
+        description: "例外の提案（正本ではない）。承認されるとSSOT側ExceptionRecordになる。"
+        required_fields:
+          - proposal_id
+          - type
+          - rationale
+          - requested_by
+          - linked_decision_id
+          - requested_expiry_condition
+          - proposed_mitigation_plan
+          - monitoring_signal
+        exception_type_enum:
+          - E_quality_over_speed
+          - E_differentiation_over_cost
+          - E_new_value_axis
+
+  # ============================================================
+  # L1) SSOT / Convergence Layer（中位：Converge/Govern）
+  # ============================================================
+  ssot_layer:
+    meta:
+      name: "SSOT Unified Theory & Operating Playbook"
+      version: "1.2"
+      status: "complete_integrated_with_change_control"
+      note: >
+        本レイヤは、Planning Layerで生成されたDecisionRecordを核（Kernel）に固定し、
+        境界・外乱下でも不変条件とトレーサビリティを保って反復収束させる。
+
+    agent_model:
+      statement: >
+        SSOTは、Intent を入力とし、外乱を含む World 上で、
+        有限操作を反復適用することで安定状態へ収束するエージェントとして定式化される。
+      formal_definition:
+        equation: >
+          Agent(Intent, World_0)
+          = StableRegion(Intent, World_0)
+        note: >
+          収束は数学的な極限保証ではなく、実務的収束判定（convergence_criteria）で定義する。
+      operators:
+        θ_understand:
+          description: "入力コンテキストXを解釈し、核Kへ正準化する"
+          yaml_binding:
+            - "ssot_layer.definition.unified_model.transforms.h"
+            - "ssot_layer.operating_playbook.inputs"
+        θ_generate:
+          description: "仮説・構造・候補（概念・粒度・関係）を生成する"
+          yaml_binding:
+            - "ssot_layer.operating_playbook.decisions_to_make.stepwise"
+        θ_allocate:
+          description: "責任・境界・秘匿・所有権を割当てる"
+          yaml_binding:
+            - "ssot_layer.boundary_composition"
+            - "ssot_layer.capabilities.capability_roles"
+            - "planning_layer.core_objects.ResponsibilityModel"
+        θ_execute:
+          description: "核Kから成果物Bを生成し、運用に供する"
+          yaml_binding:
+            - "ssot_layer.definition.unified_model.transforms.g"
+            - "ssot_layer.operating_playbook.rules_of_use"
+        θ_integrate:
+          description: "境界間で共有核を整合し、全体不変条件を保つ"
+          yaml_binding:
+            - "ssot_layer.boundary_composition.shared_kernel"
+            - "ssot_layer.boundary_composition.alignment_mapping"
+        θ_learn:
+          description: "違反・滞留・コストを観測し、設計を更新する"
+          yaml_binding:
+            - "ssot_layer.operating_playbook.continuous_improvement"
+            - "ssot_layer.operating_playbook.kpi_examples"
+
+    intent_model:
+      statement: >
+        Intentは「最適化の唯一目的」ではなく、SSOT運用モード（規範の優先順位）を与える。
+        価値判断（ValueModel）はPlanning Layer側で扱い、ここでは運用の重み付けを定義する。
+      dimensions:
+        quality: "監査適合性・正当性・再利用性（SSOT運用品質）"
+        cost: "作成・変更・証跡生成コスト（SSOT運用コスト）"
+        speed: "意思決定反映・変更反映の速さ（SSOT運用速度）"
+      intent_types:
+        - id: "audit_ready"
+          weights: { quality: 0.6, cost: 0.2, speed: 0.2 }
+        - id: "reuse_max"
+          weights: { quality: 0.5, cost: 0.3, speed: 0.2 }
+        - id: "speed_first"
+          weights: { quality: 0.3, cost: 0.2, speed: 0.5 }
+      effect:
+        description: >
+          Intentの重みは、粒度方針・ゲート厳格度・Φ違反許容度・改善サイクル頻度に反映される。
+
+    convergence:
+      statement: >
+        SSOTは「完成」ではなく、実用上の安定状態に収束する。
+        以下の条件を満たすとき、当該Intentに対して収束とみなす。
+      convergence_criteria:
+        invariant_stability:
+          description: "不変条件Φ違反が再発しない"
+          metric: "Φ違反再発率"
+          threshold: "< 5% / review_cycle"
+        flow_stability:
+          description: "未合意状態が滞留しない"
+          metric: "under_review 平均滞留日数"
+          threshold: "< flow_stability_T_days (by intent)"
+        impact_predictability:
+          description: "変更影響範囲が即座に特定できる"
+          metric: "影響分析平均時間"
+          threshold: "< impact_predictability_Delta_hours (by intent)"
+        audit_readiness:
+          description: "監査連鎖が共有核で即時再構成できる"
+          metric: "証跡再構成時間"
+          threshold: "< audit_readiness_A_hours (by intent)"
+      non_convergence_signals:
+        - "同一Φ違反の周期的再発"
+        - "例外IDの増殖"
+        - "核Kの肥大化による更新頻度低下"
+      thresholds_by_intent:
+        audit_ready:
+          flow_stability_T_days: 10
+          impact_predictability_Delta_hours: 4
+          audit_readiness_A_hours: 8
+        reuse_max:
+          flow_stability_T_days: 14
+          impact_predictability_Delta_hours: 8
+          audit_readiness_A_hours: 12
+        speed_first:
+          flow_stability_T_days: 3
+          impact_predictability_Delta_hours: 1
+          audit_readiness_A_hours: 24
+      threshold_change_policy:
+        rule: "閾値変更は必ず DecisionRecord を発行し、Kernelに固定する"
+        required_roles: ["role.product_owner", "role.ssot_reviewer"]
+
+    world_model:
+      world:
+        description: "SSOTが作用する現実環境"
+      disturbances_d_t:
+        categories:
+          - "要求変更・仕様追加"
+          - "組織圧・期限短縮"
+          - "境界変更（サプライヤ・秘匿）"
+          - "AI生成物・要約の混入"
+          - "法規・監査要求の追加"
+          - "重大不具合・品質事故"
+          - "市場/顧客の急変"
+      handling_principle:
+        statement: >
+          外乱は排除対象ではなく、状態遷移として吸収する。
+          外乱が来てもΦとトレーサビリティを失わないことが性能指標である。
+      signals_catalog:
+        - signal_id: "sig.audit_nonconformity"
+          description: "監査不適合の発生"
+        - signal_id: "sig.field_incident_rate"
+          description: "市場不具合率の上振れ"
+        - signal_id: "sig.security_critical_cve"
+          description: "重大脆弱性（高深刻度）が公開/検知された"
+        - signal_id: "sig.contract_sla_breach"
+          description: "契約SLA違反が発生した"
+
+    definition:
+      ssot:
+        statement: >
+          SSOTとは、発散するコンテキスト（自然言語＋時間）から、
+          正準化された「核（Kernel）」を経由して成果物を反復生成する過程を、
+          情報の圧縮（情報ボトルネック）と制御（外乱下での安定化）によって成立させる統治構造である。
+          SSOTは単一データ置き場ではなく、核・変換規則・状態遷移・不変条件・監査可能性を含む。
+        key_points:
+          - "SSOTは『点（データ）』ではなく『反復可能な収束機構（プロトコル）』である"
+          - "成果物（View/文書/図/AI生成物）は派生物であり、正本は核（Kernel）である"
+          - "時間・境界・外乱を前提に、開ループ（人力同期）を閉ループ（検出→修正）へ変える"
+
+      unified_model:
+        variables:
+          X_t: "時刻tのコンテキスト（自然言語断片＋時間＋状況＋根拠）"
+          K_t: >
+            時刻tの核（正準表現/骨格SSOT）。
+            Kernelの第一級要素として DecisionRecord を含む（Planning Layerの決定を固定するため）。
+          B_t: "時刻tの成果物（仕様・図・帳票・監査証跡パック等の派生物）"
+        transforms:
+          h: "X_t -> K_t（正準化/抽象化/同一視/構造化）"
+          g: "K_t -> B_t（表示/整形/帳票/説明/出力）"
+        dynamics:
+          state_update: "K_{t+1} = F(K_t, u_t, d_t)"
+          u_t: "許された操作（有限集合）"
+          d_t: "外乱（変更要求・解釈差・期限・秘匿制約・AI要約混入 等）"
+        info_theory_view:
+          principle: "核Kは情報ボトルネックとして振る舞い、保持情報と運用コストのトレードオフを支配する"
+          knobs:
+            compression_strength: "核を薄くするほど運用は軽くなるが、根拠/再利用/監査適合を失いやすい"
+            usefulness: "成果物Bに必要な骨格情報（要求↔設計↔検証の骨）は落とさない"
+
+    boundary_composition:
+      premise:
+        statement: >
+          境界（部門/会社/秘匿区分）がある限り、単一の全域核Kは成立しにくい。
+          よって境界iごとに部分核K^(i)を持ち、共有核S_ijと整合写像α_ijおよび不変条件Φ_ijで合成する。
+      elements:
+        local_kernel:
+          K_i: "境界iの部分核（ローカルSSOT）"
+          local_context: "X^(i)_t"
+          local_outputs: "B^(i)_t"
+        shared_kernel:
+          S_ij:
+            statement: "境界iとjで共有できる最小の核（インタフェース核）"
+            projection_sigma:
+              description: "K^(i)からS_ijへ：秘匿除去・契約範囲化・要約（ただし検証可能性を残す）"
+              notation: "σ_{i->ij}: K^(i) -> S^(i)_{ij}"
+        alignment_mapping:
+          alpha_ij:
+            statement: "S^(i)_{ij} と S^(j)_{ij} を対応付ける写像（語彙/粒度/ID/関係の整合）"
+
+      arbitration:
+        roles:
+          - "role.boundary_integrator"
+          - "role.product_owner_shared"
+        ArbitrationRecord:
+          required_fields:
+            - arb_id
+            - boundary_pair
+            - conflict_summary
+            - competing_claims_refs
+            - decided_by
+            - decision_record_ref
+            - applied_alignment_changes
+            - resulting_shared_baseline_ref
+
+      invariants:
+        Phi_i:
+          description: "境界iのK^(i)が満たすべき整合性制約"
+          typical:
+            - "型制約：概念モデルに従う（関係の両端の型が正しい）"
+            - "必須属性：責任、成熟度、版、根拠参照、状態遷移履歴"
+            - "必須リンク：派生根拠、割当、検証計画/結果へのリンク"
+            - "DecisionRecordの主語（decided_by）が存在し、追跡可能である"
+        Phi_ij:
+          description: "共有核S_ij上で満たすべき整合性制約"
+          categories:
+            identity:
+              - "同一性：同じ概念を一意に判定できる（ID体系・正規化・別名同義）"
+            trace:
+              - "可追跡性：派生・割当・検証のリンクが境界を跨いで閉じる"
+            time_baseline:
+              - "版・時刻：どのベースライン/合意時点かが共有核で一意"
+            confidentiality:
+              - "秘匿整合：σで秘匿しても『存在・対応・結果・差分』を検証可能に残す"
+        Phi_star:
+          description: "全体として破綻しないための最小セット"
+          minimal:
+            - "最新版/適用版の一意性（少なくとも共有核上で）"
+            - "成熟度（draft/under_review/agreed/frozen/deprecated）の状態機械が定義されている"
+            - "変更が状態遷移として記録され、差分が追える"
+            - "監査連鎖（要求↔設計↔検証↔証拠）が共有核で検証できる"
+            - "Hard constraint（物理/法規/安全/契約）が価値判断で上書きされない（交渉対象化しない）"
+
+    evidence_governance:
+      EvidenceItem:
+        required_fields:
+          - evidence_id
+          - source_type
+          - origin_ref
+          - created_at
+          - hash_or_signature
+          - verification_status
+          - verifier
+          - verification_method
+          - linked_kernel_refs
+      source_type_enum:
+        - human_doc
+        - tool_output
+        - ai_generated
+        - transcript
+      verification_status_enum:
+        - unverified
+        - verified
+        - disputed
+        - quarantined
+      promotion_gate_X_to_K:
+        rule: "source_type=ai_generated は verification_status=verified になるまで Kernel 第一級要素へ昇格禁止"
+        exceptions_allowed_via: "u.raise_exception"
+
+    change_control:
+      statement: >
+        外乱(d_t)を ChangeRequest(CR) に正規化し、
+        適用操作(u)・対象(K/S/α/σ)・レビューゲート・状態遷移・Decision更新を一手続きとして実行する。
+      ChangeRequest:
+        description: "外乱d_tをKernel更新手続きへ落とすための変更要求"
+        required_fields:
+          - cr_id
+          - raised_by
+          - trigger_type
+          - affected_scope
+          - proposed_operations
+          - required_reviews
+          - gate_outcome
+          - state_transitions
+          - decision_update_rule
+          - evidence_pack_refs
+          - rollback_plan_ref
+      gates:
+        gate_catalog:
+          - id: "gate.review"
+            required_roles: ["role.ssot_reviewer"]
+          - id: "gate.po_approval"
+            required_roles: ["role.product_owner"]
+          - id: "gate.boundary_arbitration"
+            required_roles: ["role.boundary_integrator", "role.product_owner_shared"]
+          - id: "gate.evidence_verification"
+            required_roles: ["role.audit_ready_owner", "role.ssot_reviewer"]
+      disturbance_to_cr_rules:
+        - trigger_type: "regulation_change"
+          default_proposed_operations: ["u.link_evidence", "u.record_decision", "u.set_state", "u.create_baseline"]
+          required_reviews: ["gate.review", "gate.po_approval", "gate.evidence_verification"]
+          decision_update_rule: "must_update_decision"
+        - trigger_type: "AI_generated_contamination"
+          default_proposed_operations: ["u.quarantine_evidence", "u.link_evidence", "u.raise_exception"]
+          required_reviews: ["gate.review", "gate.evidence_verification"]
+          decision_update_rule: "may_update_decision"
+
+    operating_playbook:
+      prerequisites:
+        organizational:
+          - "目的（成果物B）を明示し、スコープ外を明確にする（万能SSOTを狙わない）"
+          - "境界（部門/会社/秘匿）を列挙し、共有核S_ijの範囲を先に決める"
+          - "正本（核K）と派生物（View/文書/AI生成物）の扱いを規程で固定する"
+          - "Planning LayerのDecisionRecordを核Kの第一級要素として扱うことを合意する"
+        technical:
+          - "ID体系（永続ID、版、参照方式）を先に定義する"
+          - "二層化：骨格（Kernel）と肉（自然言語/証拠）を分離する"
+          - "自動検査（lint/validation）を前提に『開ループ運用』を禁止する"
+
+      inputs:
+        context_sources_X:
+          examples:
+            - "要求文書、仕様書、議事録、メール、チケット、レビューコメント"
+            - "IF仕様、信号表、データ辞書"
+            - "試験計画、試験結果、ログ、証拠ファイル"
+            - "安全・法規資料（秘匿区分付き）"
+            - "企画資料：Opportunity/OptionSet/ValueModel/EvaluationRecord/DecisionRecord/Assumption"
+        evidence_meat_layer:
+          principle: "肉（原文/証拠）を捨てずに参照で保持し、骨格Kからリンクする"
+
+      decisions_to_make:
+        stepwise:
+          - id: "D1_define_B"
+            decision: "成果物Bの集合を固定"
+            output: "B_catalog"
+          - id: "D2_define_concepts"
+            decision: "概念モデル/オントロジー（型・関係・用語）を定義"
+            output: "ontology_O"
+          - id: "D3_define_invariants"
+            decision: "不変条件Φ_i/Φ_ij/Φ_*を定義（Hard constraintを含む）"
+            output: "invariants_Phi"
+          - id: "D4_define_granularity"
+            decision: "粒度方針（衝突箇所だけ細分化）を定義"
+            output: "granularity_policy"
+          - id: "D5_define_operations"
+            decision: "許された操作u（有限集合）とゲートを定義"
+            output: "operator_set_and_gates"
+          - id: "D6_define_metrics"
+            decision: "KPIとチェック周期（チューニング手段）を定義"
+            output: "kpi_and_audit_plan"
+
+      operator_set_u:
+        statement: "核Kの更新は許された操作uのみで行う（自由編集は禁止）"
+        finite_operators:
+          - id: "u.split"
+            meaning: "1要素を複数に分割（粒度を上げる）"
+          - id: "u.merge"
+            meaning: "複数要素を統合（重複解消）"
+          - id: "u.retype"
+            meaning: "型の変更（概念修正）"
+          - id: "u.rewire"
+            meaning: "関係の付け替え（トレース修正）"
+          - id: "u.alias"
+            meaning: "同義・別名の登録（同一性の解決。要素統合はしない）"
+          - id: "u.normalize_id"
+            meaning: "ID体系への正規化（参照切れを防ぐ移行を伴う）"
+          - id: "u.link_evidence"
+            meaning: "根拠（肉）への参照リンク付与"
+          - id: "u.quarantine_evidence"
+            meaning: "Evidenceを隔離（quarantined）し、Kernel昇格対象から除外"
+          - id: "u.set_state"
+            meaning: "成熟度状態遷移（draft→under_review→agreed→frozen等）"
+          - id: "u.create_baseline"
+            meaning: "ベースライン作成（合意点の固定）"
+          - id: "u.deprecate"
+            meaning: "非推奨化（deprecatedへ）"
+          - id: "u.raise_exception"
+            meaning: "例外の起票（期限・責任・暫定措置を必須）"
+          - id: "u.close_exception"
+            meaning: "例外の終結（mitigated/closed）"
+          - id: "u.record_decision"
+            meaning: "DecisionRecordをKernelへ登録/更新（PO主語必須）"
+
+      rules_of_use:
+        ssot_rules:
+          - "正本は核K（骨格）であり、View/資料/AI出力は派生物として扱う"
+          - "核Kの更新は許された操作uのみ"
+          - "核Kの変更は状態遷移と差分として記録（いつ/誰が/なぜ/何を）"
+          - "境界間は共有核S_ijを唯一の合意対象とし、Φ_ijを満たすことを要求する"
+        maturity_and_baseline:
+          states: ["draft", "under_review", "agreed", "frozen", "deprecated"]
+          baseline_policy:
+            - "agreedをベースライン化できる条件を定義する"
+            - "frozenは変更禁止。変更は新ベースラインとして扱う"
+          transition_authority:
+            - transition: "draft -> under_review"
+              allowed_roles: ["role.ssot_author", "role.ssot_steward"]
+            - transition: "under_review -> agreed"
+              allowed_roles: ["role.ssot_reviewer", "role.product_owner"]
+            - transition: "agreed -> frozen"
+              allowed_roles: ["role.product_owner", "role.ssot_reviewer"]
+            - transition: "agreed -> deprecated"
+              allowed_roles: ["role.product_owner", "role.ssot_reviewer"]
+            - transition: "frozen -> deprecated"
+              allowed_roles: ["role.product_owner", "role.ssot_reviewer"]
+        exception_handling:
+          - "Φ違反の例外は例外IDを付与し、期限・責任者・暫定措置を必須とする"
+          - "例外が増殖する場合は粒度/概念/操作集合を見直す（改善ループ）"
+          - "例外は有限の型で分類する（planning_layer.core_objects.ExceptionProposal.exception_type_enum）"
+
+      continuous_improvement:
+        periodic_checks:
+          cadence:
+            weekly:
+              - "Φ違反数・再発率（領域別）"
+              - "under_review滞留の棚卸し（デッドロック検出）"
+              - "DecisionRecord未整備（主語/反証条件欠落）の検出"
+              - "Assumption（期限切れ/invalidated）の棚卸し"
+            monthly:
+              - "境界間Φ_ijの違反（ID不一致、トレース欠落、版ズレ、秘匿射影不足）"
+              - "変更影響分析の所要時間（Kが機能しているか）"
+              - "例外の期限切れ検出と強制終結/更新"
+              - "Evidence検証ステータス（unverified/disputed/quarantined）の棚卸し"
+            quarterly:
+              - "監査対応リハーサル（連鎖が共有核で証明できるか）"
+              - "粒度最適化レビュー（過圧縮/圧縮不足）"
+              - "Planning Layerの再評価トリガー妥当性見直し"
+        kpi_examples:
+          quality:
+            - "リンク欠落率（要求↔検証等）"
+            - "不整合件数（結合前後）"
+            - "監査差戻し件数"
+          cost:
+            - "影響範囲特定の平均時間"
+            - "証跡パック作成工数"
+            - "仕様差分の検出・反映工数"
+          stability_signals:
+            - "同一Φ違反の再発率"
+            - "ゲート渋滞（under_review滞留）"
+            - "核K肥大化指標（ノード/関係数、更新頻度低下）"
+        improvement_actions:
+          - "Φ違反が多い領域のみ粒度を上げる（全域細分化は避ける）"
+          - "K肥大化時は骨格と肉を再分離し、骨格の最小性を再確立"
+          - "AI出力混入が多い場合は核への昇格ゲートを強化し、参照元の強制を導入"
+
+    exception_registry:
+      ExceptionRecord:
+        required_fields:
+          - exception_id
+          - type
+          - approved_by
+          - expiry_condition
+          - monitoring_signal
+          - mitigation_plan
+          - status
+          - linked_decision_id
+          - linked_cr_id
+      status_enum:
+        - open
+        - mitigated
+        - closed
+        - expired
+
+    capabilities:
+      capability_roles:
+        - id: "role.ssot_author"
+          name: "SSOT Author"
+          responsibility: "入力Xから核Kへ正準化し、リンクと根拠を付与"
+        - id: "role.ssot_steward"
+          name: "SSOT Steward"
+          responsibility: "概念モデル・ID体系・不変条件の維持、改善サイクル運営"
+        - id: "role.ssot_reviewer"
+          name: "SSOT Reviewer"
+          responsibility: "Φ違反の判断、例外処理、ゲート（承認/凍結）の運用"
+        - id: "role.boundary_integrator"
+          name: "Boundary Integrator"
+          responsibility: "共有核S_ijと対応写像α_ij、秘匿射影σの整備、境界矛盾の一次裁定"
+        - id: "role.audit_ready_owner"
+          name: "Audit Readiness Owner"
+          responsibility: "監査連鎖と証跡整合の継続監視、Evidence検証の統制"
+        - id: "role.product_owner"
+          name: "Product Owner (Local)"
+          responsibility:
+            - "Planning LayerのDecisionRecordを最終承認し、Kernelへ登録する主語となる"
+            - "価値衝突の裁定と反証条件（再評価条件）の設定"
+            - "例外の承認（期限・条件）"
+        - id: "role.product_owner_shared"
+          name: "Product Owner (Shared Kernel)"
+          responsibility:
+            - "共有核S_ijにおける最終裁定主語となる"
+            - "境界裁定のDecisionを承認・固定する"
+
+  # ============================================================
+  # L2) Layer Coupling（接続写像：Planning → SSOT）
+  # ============================================================
+  layer_coupling:
+    statement: >
+      Planning Layerで生成されるDecisionRecordを、SSOT LayerのKernelの第一級要素として固定する。
+      ValueModelやOptionSetは「企画の探索空間」として保持し、Φ（不変条件）には入れない。
+      Hard constraintのみがΦとしてKernelの整合性制約に入る。
+
+    mapping_table:
+      - planning_object: "Opportunity"
+        ssot_binding: "ssot_layer.operating_playbook.inputs.context_sources_X (企画資料として入力)"
+        meaning: "何を狙うか（Why/What）の起点"
+      - planning_object: "OptionSet"
+        ssot_binding: "ssot_layer.agent_model.operators.θ_generate"
+        meaning: "案の集合生成と保持（単一案に潰さない）"
+      - planning_object: "ConstraintModel.hard_constraints"
+        ssot_binding: "ssot_layer.boundary_composition.invariants (Phi_i/Phi_star)"
+        meaning: "交渉不能条件として不変条件に入る"
+      - planning_object: "ConstraintModel.soft_constraints"
+        ssot_binding: "ssot_layer.intent_model.effect (運用モード調整) / gates"
+        meaning: "運用上の優先度・ゲート厳格度に反映"
+      - planning_object: "ValueModel"
+        ssot_binding: "evidence_governance.EvidenceItem + DecisionRecord.rationale_summary/tradeoff_summary に反映"
+        meaning: "価値は決定理由として記録される（不変条件ではない）"
+      - planning_object: "EvaluationRecord"
+        ssot_binding: "DecisionRecord.linked_evaluation_ids / evidence links"
+        meaning: "評価は決定にリンクするが、決定そのものではない"
+      - planning_object: "Assumption"
+        ssot_binding: "world_model.signals_catalog / ReevaluationPolicy.triggers と接続"
+        meaning: "前提の反証が再評価のトリガーになる"
+      - planning_object: "DecisionRecord"
+        ssot_binding: "definition.unified_model.variables.K_t (第一級要素)"
+        meaning: "決定を核として固定（主語・反証条件必須）"
+      - planning_object: "ReevaluationPolicy"
+        ssot_binding: "world_model.disturbances_d_t + change_control.ChangeRequest"
+        meaning: "外乱からCRへ落として、再評価を運用可能にする"
+      - planning_object: "ResponsibilityModel"
+        ssot_binding: "capabilities.capability_roles"
+        meaning: "決定責任（PO）と運用責任（Steward等）を分離して主語を固定"
+      - planning_object: "ExceptionProposal"
+        ssot_binding: "exception_registry.ExceptionRecord + operator_set_u.u.raise_exception"
+        meaning: "例外の正本をSSOT側へ集約し、期限検出・状態管理を可能にする"
+      - planning_object: "Boundary conflicts"
+        ssot_binding: "boundary_composition.arbitration.ArbitrationRecord"
+        meaning: "境界矛盾の裁定者と記録先を固定する"
+
+  # ============================================================
+  # Integrated Consistency Checks（統合後の矛盾検査）
+  # ============================================================
+  integrated_consistency_checks:
+    invariants_about_separation:
+      - "ValueModelがPhi（不変条件）に直接含まれていないこと（価値の交渉性を保持）"
+      - "Hard constraints（物理/法規/安全/契約/条件付きHard）が価値トレードオフで上書きされないこと"
+      - "EvaluationRecordとDecisionRecordが分離され、DecisionRecordがKernelに固定されること"
+      - "DecisionRecordにdecided_by（PO）と構造化されたfalsification_conditionsが必須であること"
+
+    convergence_safety:
+      - "外乱(d_t)がChangeRequest(CR)に正規化されること（手続きの一本化）"
+      - "CRが提案操作(u)・レビューゲート・状態遷移・Decision更新規則を持つこと"
+      - "再評価が必ずDecisionRecord更新で終了すること（無限再評価の禁止）"
+
+    evidence_integrity:
+      - "Evidenceがprovenance（source_type/origin_ref/hash）とverification_statusを持つこと"
+      - "ai_generatedがverifiedになるまでKernel第一級要素へ昇格できないこと（例外は明示手続き）"
+      - "quarantinedが運用上検出・隔離されること"
+
+    exception_control:
+      - "例外のID正本がSSOT側ExceptionRecordで一意であること"
+      - "例外に期限/終結条件があり、期限切れが検出されること"
+      - "例外増殖がnon_convergence_signalsとして検出されること"
+
+    boundary_integrity:
+      - "境界間の共有核S_ijが合意対象として固定されていること"
+      - "秘匿射影σが『検証可能性を残す』制約を持つこと"
+      - "ID/版/合意時点が共有核で一意であること"
+      - "境界矛盾の裁定者と裁定記録が存在し、結果がDecisionとして固定されること"
+
+    minimum_artifacts_required:
+      - "Opportunityが存在する"
+      - "OptionSetが集合として存在する（単一案化していない）"
+      - "ConstraintModelが上書き可否でHard/Soft分離されている"
+      - "ValueModelが正負・多次元で存在する"
+      - "EvaluationRecordがDecisionRecordにリンクされている"
+      - "DecisionRecordがKernelに存在する"
+      - "Assumptionが第一級として存在し、反証シグナルが定義されている"
+      - "ReevaluationPolicyが存在する"
+      - "ChangeRequestが存在し、運用手続きが一本化されている"
+      - "ExceptionがSSOT側で一意管理されている"
+
+problem_space_interfaces:
+  - id: problem_space.dest
+    artifact: dest.yaml
+    root_key: dest_theory
+    assumed_version: "0.6"
+    purpose:
+      - Problem Space（Outcome/Safety/Assurance/LP介入点）をDESTで保持し、Solution Space（Planning+SSOT）へ接続する
+      - ゲート・例外・証跡の循環（再評価→再決定）を機械的に回せるようにする
+    required_bindings:
+      - dest.case_id ↔ Opportunity.id
+      - dest.B2.dest_success_criteria_mapping ↔ DecisionRecord（outcome_ok判定）
+      - dest.B2.dest_safety_criteria_mapping ↔ ConstraintModel（safety_ok判定）
+      - dest.B4.lp_level_id ↔ OptionSet.options[*].lp_level_id
+      - dest.B4.linked_checks ↔ OptionSet.options[*].linked_checks
+      - dest.B6.assurance_observation ↔ AssuranceObservationRecord
+
+planning_layer:
+  assurance_model:
+    assurance_level_enum:
+      - { id: AL2, label: Assured,   rule: "outcome_ok AND safety_ok" }
+      - { id: AL1, label: Qualified, rule: "(outcome_ok XOR safety_ok) OR (outcome_ok AND safety_ok AND uncertainty_high)" }
+      - { id: AL0, label: NotAssured, rule: "NOT safety_ok OR severe_uncertainty" }
+    required_boolean_predicates: [outcome_ok, safety_ok]
+    notes:
+      - outcome_ok/safety_ok の判定規則の正本は Problem Space（DEST.B2）である
+      - Solution Space は判定ログ（観測・根拠・主体）を固定し、必要時にB2へ戻す
+    AssuranceObservationRecord:
+      required_fields: [observation_id, observed_at, assurance_level, basis, decided_by, linked_decision_id, linked_evidence_ids]
+
+ssot_layer:
+  change_control:
+    stage_gate_profiles:
+      - profile_id: dest_creps
+        sequence:
+          - id: dest_creps.G2
+            meaning: "Problem Definition (Outcome/Safety写像)"
+            must: ["Outcome/Safety→outcome_ok/safety_ok写像(暫定可)"]
+            recommended_reviews: [gate.review, gate.po_approval]
+          - id: dest_creps.G3
+            meaning: "Understanding (5点セット)"
+            must: ["stock/flow/delay/feedback/decision-info の最低1セット"]
+            recommended_reviews: [gate.review]
+          - id: dest_creps.G4
+            meaning: "Idea Traceability (LP + Checks)"
+            must: ["各案にlp_level_id(12..1)", "linked_checks(C1..C4)"]
+            recommended_reviews: [gate.review]
+          - id: dest_creps.G5
+            meaning: "Concept Feasibility (Wait/Freeze/Revise)"
+            must: ["運用姿勢(Wait/Freeze/Revise)仕様", "副作用→AL0Reason接続"]
+            recommended_reviews: [gate.review, gate.po_approval]
+          - id: dest_creps.G6
+            meaning: "Field Validity (AL観測)"
+            must: ["AssuranceObservationRecord", "AL0時はReason確定+処方ログ"]
+            recommended_reviews: [gate.evidence_verification, gate.po_approval]
+        enforcement: "G2→G3→G4→G5→G6 を順に通過。例外はExceptionRecordで明文化し期限・監視信号を持つ"
+
+    disturbance_to_cr_rules:
+      - trigger_type: assurance_drop_to_AL0
+        default_proposed_operations: [u.raise_exception, u.record_decision, u.set_state, u.create_baseline]
+        required_reviews: [gate.review, gate.po_approval, gate.evidence_verification]
+        decision_update_rule: must_update_decision

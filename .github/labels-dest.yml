@@ -1,0 +1,332 @@
+# DEST Theory Label Definitions
+# Decision-Embedded Systems Thinking (DEST) - AL/AL0Reason/Protocol/SafetyCheck/LeveragePoint
+# Total: 35 labels across 5 categories
+
+# =============================================================================
+# Category 1: AL (Assurance Level) - 3 labels
+# =============================================================================
+
+- name: "AL:AL2-Assured"
+  color: "0E8A16"
+  description: "Assured: Outcome OK AND Safety OK (保証成立)"
+
+- name: "AL:AL1-Qualified"
+  color: "FFA500"
+  description: "Qualified: Conditional assurance (条件付き保証・不確実性あり)"
+
+- name: "AL:AL0-NotAssured"
+  color: "D73A4A"
+  description: "Not Assured: Safety NG or severe uncertainty (保証なし)"
+
+# =============================================================================
+# Category 2: AL0Reason (Failure Patterns) - 11 labels
+# =============================================================================
+
+- name: "AL0:R01-BadPositiveFeedback"
+  color: "8B0000"
+  description: "R01: Destructive amplification detected (悪い正のフィードバック強化)"
+
+- name: "AL0:R02-DelayIgnored"
+  color: "8B0000"
+  description: "R02: Delay ignored, oscillation risk (遅れ無視・過剰修正・振動リスク)"
+
+- name: "AL0:R03-NegativeFBWeakened"
+  color: "8B0000"
+  description: "R03: Negative feedback control weakened (負のフィードバック弱体化)"
+
+- name: "AL0:R04-RepetitiveIntervention"
+  color: "8B0000"
+  description: "R04: Intervention spam / continuous override (連打・継続的上書き)"
+
+- name: "AL0:R05-ObservationFailure"
+  color: "8B0000"
+  description: "R05: Observation system broken (観測システム故障・フィードバック断絶)"
+
+- name: "AL0:R06-WrongObservable"
+  color: "8B0000"
+  description: "R06: Wrong signal observed (誤った信号を観測)"
+
+- name: "AL0:R07-ParameterOnlyFix"
+  color: "8B0000"
+  description: "R07: LP12 only - ignoring structure/info/rules/goals (パラメータのみ・構造無視)"
+
+- name: "AL0:R08-DelayMismatch"
+  color: "8B0000"
+  description: "R08: Intervention timing mismatched with delay (介入タイミングと遅れの不整合)"
+
+- name: "AL0:R09-GoalStructureConflict"
+  color: "8B0000"
+  description: "R09: Goal conflicts with system structure (目標とシステム構造の矛盾)"
+
+- name: "AL0:R10-ParadigmBlindness"
+  color: "8B0000"
+  description: "R10: Paradigm-level intervention needed but not considered (パラダイム介入必要だが未検討)"
+
+- name: "AL0:R11-SafetyViolation"
+  color: "8B0000"
+  description: "R11: Explicit safety constraint violated (安全制約の明示的違反)"
+
+# =============================================================================
+# Category 3: Protocol (Standard Response) - 5 labels
+# =============================================================================
+
+- name: "Protocol:P0-StopAmplification"
+  color: "B60205"
+  description: "P0: Stop destructive amplification (破壊的増幅を止める: 連打・燃料遮断・制御復元)"
+
+- name: "Protocol:P1-FixObservation"
+  color: "D93F0B"
+  description: "P1: Fix observation system (観測を直す: 情報フロー修復)"
+
+- name: "Protocol:P2-AlignDelay"
+  color: "FBCA04"
+  description: "P2: Align intervention with delay (遅れと介入の整合: Wait/Freeze/変化速度調整)"
+
+- name: "Protocol:P3-RaiseLeverage"
+  color: "0E8A16"
+  description: "P3: Move to higher leverage point (低レバレッジ偏重を止める: LP12以外へ)"
+
+- name: "Protocol:P4-Escalate"
+  color: "5319E7"
+  description: "P4: Escalate to goal/paradigm level (上位介入へエスカレーション: 目的・前提)"
+
+# =============================================================================
+# Category 4: SafetyCheck - 4 labels
+# =============================================================================
+
+- name: "SafetyCheck:C1-PositiveFB"
+  color: "C5DEF5"
+  description: "C1: Checks bad positive feedback (LP7) (悪い正のフィードバックを強めていないか)"
+
+- name: "SafetyCheck:C2-DelayOscillation"
+  color: "C5DEF5"
+  description: "C2: Checks delay-induced oscillation (LP9) (遅れ無視で振動を増やしていないか)"
+
+- name: "SafetyCheck:C3-NegativeFB"
+  color: "C5DEF5"
+  description: "C3: Checks negative feedback deletion (LP8) (負のフィードバック削除で逸脱が戻らないか)"
+
+- name: "SafetyCheck:C4-LowLeverage"
+  color: "C5DEF5"
+  description: "C4: Checks parameter-only bias (LP12) (パラメータだけで構造・情報・ルール・目的を放置していないか)"
+
+# =============================================================================
+# Category 5: LeveragePoint (Meadows 12 Levels) - 12 labels
+# =============================================================================
+
+- name: "LP:LP1-Transcend"
+  color: "EDEDED"
+  description: "LP1: Transcend paradigm (パラダイムを超越する力) - Highest leverage"
+
+- name: "LP:LP2-Paradigm"
+  color: "EDEDED"
+  description: "LP2: Paradigm shift (パラダイム・前提の変更)"
+
+- name: "LP:LP3-Goal"
+  color: "EDEDED"
+  description: "LP3: Goal redefinition (目的・ゴールの再定義)"
+
+- name: "LP:LP4-SelfOrganize"
+  color: "EDEDED"
+  description: "LP4: Self-organization capacity (自己組織化・進化する余地)"
+
+- name: "LP:LP5-Rules"
+  color: "EDEDED"
+  description: "LP5: Rules (authority/incentive/punishment) (ルール・権限・評価・罰・制約)"
+
+- name: "LP:LP6-InfoFlow"
+  color: "EDEDED"
+  description: "LP6: Information flow structure (情報フローの構造)"
+
+- name: "LP:LP7-PositiveFB"
+  color: "EDEDED"
+  description: "LP7: Positive feedback gain (正のフィードバックの増幅度)"
+
+- name: "LP:LP8-NegativeFB"
+  color: "EDEDED"
+  description: "LP8: Negative feedback strength (負のフィードバックの強さ・制御)"
+
+- name: "LP:LP9-Delay"
+  color: "EDEDED"
+  description: "LP9: Delay length (遅れの長さ)"
+
+- name: "LP:LP10-StockFlow"
+  color: "EDEDED"
+  description: "LP10: Stock & flow structure (ストック＆フロー構造)"
+
+- name: "LP:LP11-Buffer"
+  color: "EDEDED"
+  description: "LP11: Buffer size (バッファ・余裕の大きさ)"
+
+- name: "LP:LP12-Parameter"
+  color: "EDEDED"
+  description: "LP12: Constants & parameters (定数・パラメータ・数値) - Lowest leverage"
+
+# =============================================================================
+# Category 6: CrePS Box (6-Box Creative Problem Solving) - 6 labels
+# =============================================================================
+
+- name: "Box:B1-RealProblem"
+  color: "1D76DB"
+  description: "B1: Real Problem Space (現実問題空間: 混沌・漠然とした問題状況)"
+
+- name: "Box:B2-DefinedProblem"
+  color: "5319E7"
+  description: "B2: Defined Problem (定義された問題: 明確化・構造化された問題)"
+
+- name: "Box:B3-SolutionIdeas"
+  color: "0E8A16"
+  description: "B3: Solution Ideas (解決アイデア: 発散的アイデア生成)"
+
+- name: "Box:B4-DevelopedSolution"
+  color: "FBCA04"
+  description: "B4: Developed Solution (開発された解決策: 詳細設計・実装計画)"
+
+- name: "Box:B5-ImplementedSolution"
+  color: "D93F0B"
+  description: "B5: Implemented Solution (実装された解決策: コード・システム完成)"
+
+- name: "Box:B6-AcceptedSolution"
+  color: "0E8A16"
+  description: "B6: Accepted Solution (受け入れられた解決策: 本番稼働・効果検証)"
+
+# =============================================================================
+# Category 7: CrePS Gate (Gate Checks) - 6 labels
+# =============================================================================
+
+- name: "Gate:G1-Understanding"
+  color: "BFD4F2"
+  description: "G1: Understanding Gate (理解ゲート: B1→B2 問題を正しく理解できたか)"
+
+- name: "Gate:G2-ProblemDef"
+  color: "BFD4F2"
+  description: "G2: Problem Definition Gate (問題定義ゲート: B2→B3 問題定義は適切か)"
+
+- name: "Gate:G3-IdeaSelection"
+  color: "BFD4F2"
+  description: "G3: Idea Selection Gate (アイデア選択ゲート: B3→B4 実現可能なアイデアか)"
+
+- name: "Gate:G4-Development"
+  color: "BFD4F2"
+  description: "G4: Development Gate (開発ゲート: B4→B5 実装品質は十分か)"
+
+- name: "Gate:G5-Implementation"
+  color: "BFD4F2"
+  description: "G5: Implementation Gate (実装ゲート: B5→B6 テスト・品質基準を満たすか)"
+
+- name: "Gate:G6-Acceptance"
+  color: "BFD4F2"
+  description: "G6: Acceptance Gate (受け入れゲート: B6→Done 本番受け入れ基準を満たすか)"
+
+# =============================================================================
+# Category 8: Decision (Planning Layer) - 4 labels
+# =============================================================================
+
+- name: "Decision:Adopt"
+  color: "0E8A16"
+  description: "Decision to adopt this option (このオプションを採用する決定)"
+
+- name: "Decision:Defer"
+  color: "FBCA04"
+  description: "Decision deferred for later consideration (決定を後回しにする)"
+
+- name: "Decision:Reject"
+  color: "D73A4A"
+  description: "Decision to reject this option (このオプションを却下する決定)"
+
+- name: "Decision:Explore"
+  color: "1D76DB"
+  description: "Further exploration needed before decision (決定前にさらなる調査が必要)"
+
+# =============================================================================
+# Category 9: Constraint (Planning Layer) - 2 labels
+# =============================================================================
+
+- name: "Constraint:Hard"
+  color: "8B0000"
+  description: "Hard constraint that cannot be violated (絶対に違反できない制約)"
+
+- name: "Constraint:Soft"
+  color: "FFA500"
+  description: "Soft constraint that is preferred but can be relaxed (望ましいが緩和可能な制約)"
+
+# =============================================================================
+# Category 10: Assumption (Planning Layer) - 2 labels
+# =============================================================================
+
+- name: "Assumption:Active"
+  color: "5319E7"
+  description: "Active assumption being tracked (追跡中の有効な仮定)"
+
+- name: "Assumption:Invalidated"
+  color: "D73A4A"
+  description: "Invalidated assumption requiring re-planning (無効化された仮定・再計画必要)"
+
+# =============================================================================
+# Category 11: Maturity (SSOT Layer) - 5 labels
+# =============================================================================
+
+- name: "Maturity:Draft"
+  color: "BFDADC"
+  description: "Draft: Work in progress, not yet ready for review (草案・作業中)"
+
+- name: "Maturity:UnderReview"
+  color: "FBCA04"
+  description: "Under Review: Ready for review, awaiting approval (レビュー中・承認待ち)"
+
+- name: "Maturity:Agreed"
+  color: "0E8A16"
+  description: "Agreed: Approved and agreed upon by stakeholders (合意済み・承認完了)"
+
+- name: "Maturity:Frozen"
+  color: "5319E7"
+  description: "Frozen: Locked, no changes allowed without formal process (凍結・変更管理必須)"
+
+- name: "Maturity:Deprecated"
+  color: "D73A4A"
+  description: "Deprecated: Obsolete, should not be used (非推奨・使用禁止)"
+
+# =============================================================================
+# Category 12: Evidence (SSOT Layer) - 3 labels
+# =============================================================================
+
+- name: "Evidence:Verified"
+  color: "0E8A16"
+  description: "Evidence Verified: Validated by authoritative source (証拠検証済み・信頼できる)"
+
+- name: "Evidence:Unverified"
+  color: "FFA500"
+  description: "Evidence Unverified: Not yet validated, use with caution (未検証・要注意)"
+
+- name: "Evidence:Quarantined"
+  color: "D73A4A"
+  description: "Evidence Quarantined: AI-generated content, not verified (隔離中・AI生成未検証)"
+
+# =============================================================================
+# Category 13: Exception (SSOT Layer) - 2 labels
+# =============================================================================
+
+- name: "Exception:Active"
+  color: "FBCA04"
+  description: "Active Exception: Temporary deviation approved with timeout (例外承認中・期限付き)"
+
+- name: "Exception:Expired"
+  color: "D73A4A"
+  description: "Expired Exception: Timeout reached, must converge to Kernel (例外期限切れ・収束必須)"
+
+# =============================================================================
+# Total: 65 labels (Phase 1: 35 + Phase 2: 12 + Phase 3: 8 + Phase 4: 10)
+# - AL: 3 labels
+# - AL0Reason: 11 labels
+# - Protocol: 5 labels
+# - SafetyCheck: 4 labels
+# - LeveragePoint: 12 labels
+# - CrePS Box: 6 labels
+# - CrePS Gate: 6 labels
+# - Decision: 4 labels
+# - Constraint: 2 labels
+# - Assumption: 2 labels
+# - Maturity: 5 labels
+# - Evidence: 3 labels
+# - Exception: 2 labels
+# =============================================================================

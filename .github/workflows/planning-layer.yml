@@ -1,0 +1,354 @@
+name: 📋 Planning Layer Automation
+
+# Planning Layer: Decision Management & Assumption Tracking
+# Automatically manage Opportunities, Options, Decisions, and Assumptions
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+  pull_request:
+    types: [opened, edited]
+  schedule:
+    # 1日1回、Assumption検証期限をチェック
+    - cron: '0 0 * * *'
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  # ==========================================================================
+  # 1. Planning Layer - Issue/PR作成・更新時
+  # ==========================================================================
+
+  planning-layer:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' || github.event_name == 'pull_request'
+    name: Planning Layer Processing
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run PlanningAgent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPO: ${{ github.event.repository.name }}
+        run: |
+          ISSUE_NUMBER=${{ github.event.issue.number || github.event.pull_request.number }}
+          npm run agents:planning -- --issue=${ISSUE_NUMBER}
+
+      - name: Upload planning result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: planning-result-${{ github.event.issue.number || github.event.pull_request.number }}
+          path: .ai/planning-*.json
+          retention-days: 7
+
+  # ==========================================================================
+  # 2. Initial Planning - 新規Issue作成時
+  # ==========================================================================
+
+  initial-planning:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issues' && github.event.action == 'opened'
+    name: Initial Planning Setup
+
+    steps:
+      - name: Add planning guidance comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: context.payload.issue.number,
+              body: `📋 **Planning Layer ガイド**
+
+このIssueでは **Planning Layer** を使用して意思決定プロセスを管理できます。
+
+## 📝 Opportunity 定義
+
+まず、以下のセクションを追加してください:
+
+\`\`\`markdown
+## 問題定義
+- Current state: 現在の状態を記述
+- Target state: 目標の状態を記述
+- Target Customer: 誰のための解決策か
+- Constraints: 制約条件
+\`\`\`
+
+## 💡 Options 追加
+
+次に、解決策の選択肢を追加:
+
+\`\`\`markdown
+## 解決アイデア
+
+### Option 1: [タイトル]
+**Hypothesis**: なぜこれが機能すると考えるか
+
+**Pros**:
+- 利点1
+- 利点2
+
+**Cons**:
+- 欠点1
+
+**Risks**:
+- リスク1
+
+**Assumptions**:
+- 仮定1 (例: "ユーザーの80%がこの機能を使う")
+\`\`\`
+
+## ✅ Decision 選択
+
+最適な Option を選んだら、✅ マークを追加:
+
+\`\`\`markdown
+- ✅ **Option 1**: Chosen option
+- Option 2: Alternative
+\`\`\`
+
+PlanningAgent が自動的に DecisionRecord を作成します。
+
+## 🔍 Assumption 追跡
+
+"assuming that..." や "仮定として..." などのフレーズを使うと、
+AssumptionTrackerAgent が自動的に追跡を開始します。
+
+---
+*Automated by Planning Layer*`
+            });
+
+  # ==========================================================================
+  # 3. Planning at B3 - Solution Ideas Box
+  # ==========================================================================
+
+  planning-at-b3:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      contains(github.event.label.name, 'Box:B3-SolutionIdeas')
+    name: Planning at B3 (Solution Ideas)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Trigger PlanningAgent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPO: ${{ github.event.repository.name }}
+        run: |
+          npm run agents:planning -- --issue=${{ github.event.issue.number }}
+
+      - name: Add planning reminder
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: context.payload.issue.number,
+              body: `📋 **B3 (Solution Ideas) - Planning Reminder**
+
+このBoxでは、以下を完成させてください:
+
+1. **Options**: 3個以上の解決策を追加
+2. **Leverage Point 分析**: 各Optionの介入レベルを確認
+3. **Assumptions**: 各Optionの前提条件を明記
+4. **Decision**: 最適なOptionを選択（✅ マーク）
+
+完了後、PlanningAgentが自動的にDecisionRecordを作成します。
+
+---
+*Automated by Planning Layer*`
+            });
+
+  # ==========================================================================
+  # 4. Assumption Tracking - 定期チェック
+  # ==========================================================================
+
+  assumption-tracking:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    name: Assumption Validation Tracking
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Track all open issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPO: ${{ github.event.repository.name }}
+        run: |
+          npm run agents:assumption -- --monitor
+
+      - name: Upload tracking report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: assumption-tracking-${{ github.run_id }}
+          path: .ai/assumption-tracking-*.json
+          retention-days: 30
+
+  # ==========================================================================
+  # 5. Decision Label Sync
+  # ==========================================================================
+
+  decision-label-sync:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      startsWith(github.event.label.name, 'Decision:')
+    name: Decision Label Applied
+
+    steps:
+      - name: Record decision
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const label = context.payload.label.name;
+            const decisionType = label.replace('Decision:', '');
+
+            let emoji = '';
+            let message = '';
+
+            switch(decisionType) {
+              case 'Adopt':
+                emoji = '✅';
+                message = 'この Option が採用されました';
+                break;
+              case 'Defer':
+                emoji = '⏸️';
+                message = '決定が延期されました';
+                break;
+              case 'Reject':
+                emoji = '❌';
+                message = 'この Option は却下されました';
+                break;
+              case 'Explore':
+                emoji = '🔍';
+                message = 'さらなる調査が必要です';
+                break;
+            }
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: context.payload.issue.number,
+              body: `${emoji} **Decision Label Applied: ${decisionType}**
+
+${message}
+
+**次のステップ**:
+- Adopt: 実装計画を作成、B4へ遷移
+- Defer: 再評価日を設定
+- Reject: 代替案を検討
+- Explore: 調査タスクを作成
+
+---
+*Automated by Planning Layer*`
+            });
+
+  # ==========================================================================
+  # 6. Assumption Invalidation Alert
+  # ==========================================================================
+
+  assumption-invalidation:
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issues' &&
+      github.event.action == 'labeled' &&
+      contains(github.event.label.name, 'Assumption:Invalidated')
+    name: Assumption Invalidation Alert
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run impact analysis
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_OWNER: ${{ github.repository_owner }}
+          GITHUB_REPO: ${{ github.event.repository.name }}
+        run: |
+          npm run agents:assumption -- --issue=${{ github.event.issue.number }} --impact-analysis
+
+      - name: Escalate to Product Owner
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: context.payload.issue.number,
+              labels: ['🚨escalated', '👑needs-product-owner']
+            });
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              issue_number: context.payload.issue.number,
+              body: `🚨 **Assumption Invalidation - Product Owner Escalation**
+
+重要な Assumption が無効化されました。
+
+@${{ github.repository_owner }} - 以下を確認してください:
+1. 無効化された Assumption の影響範囲
+2. 関連する DecisionRecord の妥当性
+3. 代替案の必要性
+
+**Action Required**:
+- 関連する Decision を再評価
+- 必要に応じて Planning を再実行
+
+---
+*Automated by Planning Layer*`
+            });

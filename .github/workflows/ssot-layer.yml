@@ -1,0 +1,345 @@
+name: 🔒 SSOT Layer - Kernel Convergence & Governance
+
+on:
+  issues:
+    types: [opened, edited, labeled]
+  pull_request:
+    types: [opened, edited, synchronize, ready_for_review]
+  schedule:
+    # Daily monitoring for expired exceptions
+    - cron: '0 0 * * *'  # 00:00 UTC daily
+
+permissions:
+  issues: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  ssot-agent:
+    name: SSOT Agent - Kernel Management
+    runs-on: ubuntu-latest
+    if: |
+      github.event_name == 'issues' ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run SSOTAgent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          npm run agents:ssot -- \
+            --issue ${{ github.event.issue.number || github.event.pull_request.number }} \
+            --verbose
+
+      - name: Upload SSOT results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ssot-results
+          path: .ai/ssot-results.json
+          retention-days: 7
+
+  evidence-governance-agent:
+    name: Evidence Governance - AI Content Detection
+    runs-on: ubuntu-latest
+    needs: ssot-agent
+    if: |
+      github.event_name == 'issues' ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run EvidenceGovernanceAgent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          npm run agents:evidence -- \
+            --issue ${{ github.event.issue.number || github.event.pull_request.number }} \
+            --verbose
+
+      - name: Upload Evidence results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-results
+          path: .ai/evidence-results.json
+          retention-days: 7
+
+  change-control-agent:
+    name: Change Control - Kernel Change Management
+    runs-on: ubuntu-latest
+    needs: evidence-governance-agent
+    if: |
+      github.event_name == 'issues' ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ChangeControlAgent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          npm run agents:change -- \
+            --issue ${{ github.event.issue.number || github.event.pull_request.number }} \
+            --verbose
+
+      - name: Upload Change Control results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: change-control-results
+          path: .ai/change-control-results.json
+          retention-days: 7
+
+  exception-registry-agent:
+    name: Exception Registry - Timeout Management
+    runs-on: ubuntu-latest
+    needs: change-control-agent
+    if: |
+      github.event_name == 'issues' ||
+      github.event_name == 'pull_request'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ExceptionRegistryAgent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          npm run agents:exception -- \
+            --issue ${{ github.event.issue.number || github.event.pull_request.number }} \
+            --verbose
+
+      - name: Upload Exception Registry results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exception-results
+          path: .ai/exception-results.json
+          retention-days: 7
+
+  exception-monitoring:
+    name: Exception Monitoring - Daily Timeout Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fetch all open Issues
+        id: fetch-issues
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.name,
+              state: 'open',
+              labels: 'Exception:Active'
+            });
+
+            core.setOutput('issue_numbers', issues.data.map(i => i.number).join(','));
+
+      - name: Run Exception Monitoring
+        if: steps.fetch-issues.outputs.issue_numbers != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          IFS=',' read -ra ISSUE_NUMS <<< "${{ steps.fetch-issues.outputs.issue_numbers }}"
+          for issue_num in "${ISSUE_NUMS[@]}"; do
+            echo "Checking exception timeout for issue #$issue_num"
+            npm run agents:exception -- --issue $issue_num --monitor --verbose
+          done
+
+      - name: Upload monitoring results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: exception-monitoring-results
+          path: .ai/exception-monitoring-*.json
+          retention-days: 30
+
+  convergence-report:
+    name: Convergence Report
+    runs-on: ubuntu-latest
+    needs: [ssot-agent, evidence-governance-agent, change-control-agent, exception-registry-agent]
+    if: |
+      always() &&
+      (github.event_name == 'issues' || github.event_name == 'pull_request')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: .ai/
+
+      - name: Generate Convergence Report
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            // Load all results
+            const ssotResult = fs.existsSync('.ai/ssot-results/ssot-results.json')
+              ? JSON.parse(fs.readFileSync('.ai/ssot-results/ssot-results.json', 'utf8'))
+              : null;
+
+            const evidenceResult = fs.existsSync('.ai/evidence-results/evidence-results.json')
+              ? JSON.parse(fs.readFileSync('.ai/evidence-results/evidence-results.json', 'utf8'))
+              : null;
+
+            const changeResult = fs.existsSync('.ai/change-control-results/change-control-results.json')
+              ? JSON.parse(fs.readFileSync('.ai/change-control-results/change-control-results.json', 'utf8'))
+              : null;
+
+            const exceptionResult = fs.existsSync('.ai/exception-results/exception-results.json')
+              ? JSON.parse(fs.readFileSync('.ai/exception-results/exception-results.json', 'utf8'))
+              : null;
+
+            // Generate report
+            let report = `## 🔒 SSOT Layer Convergence Report\n\n`;
+
+            // SSOT Agent
+            if (ssotResult) {
+              report += `### Kernel Management\n`;
+              report += `- **Suggested Kernels**: ${ssotResult.suggestedKernels?.length || 0}\n`;
+              report += `- **Maturity Transitions**: ${ssotResult.maturityTransitions?.length || 0}\n`;
+              report += `- **Violations Detected (Φ)**: ${ssotResult.violations?.length || 0}\n`;
+              report += `- **Convergence Status**: ${ssotResult.isConverged ? '✅ Converged' : '⚠️ Not Converged'}\n\n`;
+            }
+
+            // Evidence Governance Agent
+            if (evidenceResult) {
+              report += `### Evidence Governance\n`;
+              report += `- **AI Content Detected**: ${evidenceResult.detectedAIContent?.length || 0}\n`;
+              report += `- **Validated Evidence**: ${evidenceResult.validatedEvidence?.length || 0}\n`;
+              report += `- **Quarantined Content**: ${evidenceResult.quarantinedContent?.length || 0}\n\n`;
+            }
+
+            // Change Control Agent
+            if (changeResult) {
+              report += `### Change Control\n`;
+              report += `- **Change Requests Detected**: ${changeResult.detectedChangeRequests?.length || 0}\n`;
+              report += `- **Approvals**: ${changeResult.approvals?.length || 0}\n`;
+              report += `- **Rejections**: ${changeResult.rejections?.length || 0}\n\n`;
+            }
+
+            // Exception Registry Agent
+            if (exceptionResult) {
+              report += `### Exception Registry\n`;
+              report += `- **Created Exceptions**: ${exceptionResult.createdExceptions?.length || 0}\n`;
+              report += `- **Expired Exceptions**: ${exceptionResult.expiredExceptions?.length || 0}\n`;
+              report += `- **Extended Exceptions**: ${exceptionResult.extendedExceptions?.length || 0}\n\n`;
+            }
+
+            report += `---\n*Generated by SSOT Layer Workflow*`;
+
+            // Post report as comment
+            const issueNumber = context.payload.issue?.number || context.payload.pull_request?.number;
+
+            if (issueNumber) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: issueNumber,
+                body: report
+              });
+            }
+
+      - name: Check blocking conditions
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const issueNumber = context.payload.issue?.number || context.payload.pull_request?.number;
+            if (!issueNumber) return;
+
+            // Check for Evidence:Quarantined
+            const evidenceResult = fs.existsSync('.ai/evidence-results/evidence-results.json')
+              ? JSON.parse(fs.readFileSync('.ai/evidence-results/evidence-results.json', 'utf8'))
+              : null;
+
+            if (evidenceResult?.quarantinedContent?.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: issueNumber,
+                labels: ['🚫 blocked']
+              });
+
+              core.warning('AI-generated content quarantined. Blocking merge until verified.');
+            }
+
+            // Check for Exception:Expired
+            const exceptionResult = fs.existsSync('.ai/exception-results/exception-results.json')
+              ? JSON.parse(fs.readFileSync('.ai/exception-results/exception-results.json', 'utf8'))
+              : null;
+
+            if (exceptionResult?.expiredExceptions?.length > 0) {
+              await github.rest.issues.addLabels({
+                owner: context.repo.owner,
+                repo: context.repo.name,
+                issue_number: issueNumber,
+                labels: ['🚫 blocked', '🚨escalated']
+              });
+
+              core.setFailed('Exception expired. Convergence required before proceeding.');
+            }

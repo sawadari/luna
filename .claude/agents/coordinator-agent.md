@@ -274,8 +274,147 @@ levels:
 
 ---
 
+## DEST Theory Integration
+
+### AL-Based Routing (Phase 1 MVP)
+
+CoordinatorAgentは、タスク分解前にIssueの**AL (Assurance Level)** ステータスを確認します:
+
+#### AL判定フロー
+
+1. **Issue取得**: GitHubからIssueデータ取得
+2. **ALラベル確認**: `AL:AL0-NotAssured`, `AL:AL1-Qualified`, `AL:AL2-Assured`
+3. **Protocol確認**: `Protocol:P0-StopAmplification` など
+4. **AL0検出時**: Protocol-based routing実行
+
+#### Protocol-Based Routing
+
+AL0が検出された場合、以下のProtocol別ルーティングを実行:
+
+| Protocol | CoordinatorAgent Action | Escalation |
+|----------|-------------------------|------------|
+| **P0 - Stop Amplification** | **即座にタスク実行停止** → Guardian escalation | Guardian (Sev.1-Critical) |
+| **P1 - Fix Observation** | サブタスク作成: "Fix observation system" | TechLead (Sev.2-High) |
+| **P2 - Align Delay** | サブタスク作成: "Analyze delay and timing issues" | TechLead (Sev.2-High) |
+| **P3 - Raise Leverage** | より高いレバレッジポイント設計へルーティング | TechLead (Sev.2-High) |
+| **P4 - Escalate** | Guardian escalation → タスク実行ブロック | Guardian (Sev.1-Critical) |
+
+#### P0 Protocol 特別処理
+
+P0 (Stop Amplification) が検出された場合:
+
+```typescript
+if (issue.labels.includes('Protocol:P0-StopAmplification')) {
+  // HALT: すべてのタスク実行を停止
+  await this.escalate(
+    'P0 Protocol: Destructive amplification detected - HALT execution',
+    'Guardian',
+    'Sev.1-Critical'
+  );
+
+  // ブロック状態に移行
+  await this.applyLabel(issueNumber, '🚫 state:blocked');
+
+  return { status: 'blocked', reason: 'P0_halt', protocol: 'P0-StopAmplification' };
+}
+```
+
+### State Machine Integration
+
+CoordinatorAgentは、状態遷移前にAL gateをチェックします:
+
+#### Gate 1: Before `implementing` state
+
+- **要件**: AL1以上 (AL0はブロック)
+- **チェックタイミング**: `implementing`ラベル追加時
+- **失敗時アクション**:
+  - `🏗️ state:implementing` ラベル削除
+  - `🚫 state:blocked` ラベル追加
+  - コメント投稿: "AL0 must be resolved before implementation"
+
+```typescript
+if (nextState === 'implementing' && alStatus === 'AL0') {
+  await this.removeLabel(issueNumber, '🏗️ state:implementing');
+  await this.applyLabel(issueNumber, '🚫 state:blocked');
+  throw new Error('AL0 blocks implementation - resolve AL0 Reasons first');
+}
+```
+
+#### Gate 2: Before `deploying` state
+
+- **要件**: AL2のみ (AL0/AL1はブロック)
+- **チェックタイミング**: `deploying`ラベル追加時
+- **失敗時アクション**:
+  - `🚀 state:deploying` ラベル削除
+  - `🚫 state:blocked` ラベル追加
+  - コメント投稿: "AL2 (Assured) required for deployment"
+
+```typescript
+if (nextState === 'deploying' && alStatus !== 'AL2') {
+  await this.removeLabel(issueNumber, '🚀 state:deploying');
+  await this.applyLabel(issueNumber, '🚫 state:blocked');
+  throw new Error('AL2 required for deployment - ensure outcome_ok AND safety_ok');
+}
+```
+
+### DEST Execution Flow
+
+```mermaid
+graph TD
+    A[CoordinatorAgent starts] --> B{Check AL labels}
+    B -->|AL:AL0-NotAssured| C{Check Protocol}
+    B -->|AL:AL1+ or no AL| D[Normal DAG execution]
+
+    C -->|P0: Stop Amplification| E[HALT + Escalate Guardian]
+    C -->|P1: Fix Observation| F[Create observation subtask]
+    C -->|P2: Align Delay| G[Create delay analysis subtask]
+    C -->|P3: Raise Leverage| H[Route to higher LP design]
+    C -->|P4: Escalate| I[Escalate Guardian + Block]
+
+    D --> J{State transition?}
+    J -->|to implementing| K{AL1+?}
+    J -->|to deploying| L{AL2?}
+    J -->|other| M[Allow transition]
+
+    K -->|No| N[BLOCK: Remove label]
+    K -->|Yes| M
+    L -->|No| N
+    L -->|Yes| M
+
+    E --> O[Status: blocked]
+    F --> D
+    G --> D
+    H --> D
+    I --> O
+    N --> O
+    M --> P[Continue execution]
+```
+
+### AL0 Reason Detection Integration
+
+CoordinatorAgentは、AL0 Reason (R01-R11) に基づいて追加のサブタスクを生成可能:
+
+| AL0 Reason | Generated Subtask |
+|------------|-------------------|
+| R01 (Bad Positive Feedback) | "Identify and remove positive feedback loop" |
+| R02 (Delay Ignored) | "Analyze system delay characteristics" |
+| R04 (Repetitive Intervention) | "Design automated control mechanism" |
+| R05 (Observation Failure) | "Implement monitoring and observability" |
+| R07 (Parameter Only Fix) | "Redesign system structure at LP3-LP6" |
+| R09 (Goal Structure Conflict) | "Resolve conflicting optimization targets" |
+| R11 (Safety Violation) | "Implement safety constraint enforcement" |
+
+### Backward Compatibility
+
+- **DEST無効化Issue**: `Outcome Assessment`および`Safety Assessment`セクションがない場合、DEST判定をスキップし、通常のmiyabiフローで実行
+- **Feature Flag**: 環境変数 `ENABLE_DEST_JUDGMENT=false` でDEST統合を無効化可能
+- **既存Issue**: 100%後方互換、既存のmiyabiワークフローに影響なし
+
+---
+
 ## 関連Agent
 
+- **DESTAgent**: AL判定・AL0 Reason検出Agent (Phase 1)
 - **CodeGenAgent**: コード生成実行Agent
 - **ReviewAgent**: 品質判定Agent
 - **PRAgent**: Pull Request作成Agent
@@ -284,3 +423,5 @@ levels:
 ---
 
 🤖 組織設計原則: 責任と権限の明確化 - CoordinatorAgentは統括権限を持ち、タスク分解・Agent割り当てを完全自律で決定
+
+🔍 DEST原則: Safety First - AL0はimplementation前に必ず解決、AL2のみdeployment許可

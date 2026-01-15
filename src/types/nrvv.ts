@@ -3,6 +3,8 @@
  * ISO/IEC/IEEE 15288 準拠
  */
 
+import { TransitionHistory } from './authority';
+
 // =============================================================================
 // Traceability Types
 // =============================================================================
@@ -228,6 +230,9 @@ export interface KernelWithNRVV {
 
   // History
   history: KernelHistory[];
+
+  // ✨ NEW: Maturity State Transition History (Phase 1)
+  maturityHistory?: TransitionHistory[];
 
   // Related Artifacts
   relatedArtifacts?: RelatedArtifact[];

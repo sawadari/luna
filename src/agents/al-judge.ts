@@ -42,14 +42,33 @@ export class ALJudge {
   static parseOutcomeAssessment(issueBody: string): OutcomeAssessment {
     const currentStateMatch = issueBody.match(/Current state:\s*(.+)/i);
     const targetStateMatch = issueBody.match(/Target state:\s*(.+)/i);
-    const progressMatch = issueBody.match(/Progress:\s*(improving|stable|degrading|unknown)/i);
+    const progressMatch = issueBody.match(/Progress:\s*(improving|stable|degrading|unknown|better|worse)/i);
 
     const currentState = currentStateMatch?.[1]?.trim() || 'unknown';
     const targetState = targetStateMatch?.[1]?.trim() || 'unknown';
-    const progress = (progressMatch?.[1]?.toLowerCase() || 'unknown') as ProgressStatus;
+    let progress = (progressMatch?.[1]?.toLowerCase() || 'unknown') as ProgressStatus;
 
-    // Determine outcome_ok based on progress
-    const outcomeOk = this.evaluateOutcomeOk(progress);
+    // Map "better" -> "improving", "worse" -> "degrading"
+    if (progress === 'better' as any) progress = 'improving';
+    if (progress === 'worse' as any) progress = 'degrading';
+
+    // Check for explicit outcome_ok declaration
+    const explicitOutcomeOkMatch = issueBody.match(/✅.*outcome_ok:\s*true/i) ||
+                                   issueBody.match(/outcome_ok:\s*true/i);
+    const explicitOutcomeNgMatch = issueBody.match(/❌.*outcome_ok:\s*false/i) ||
+                                   issueBody.match(/outcome_ok:\s*false/i);
+
+    let outcomeOk: boolean;
+    if (explicitOutcomeOkMatch) {
+      // Explicit OK declaration
+      outcomeOk = true;
+    } else if (explicitOutcomeNgMatch) {
+      // Explicit NG declaration
+      outcomeOk = false;
+    } else {
+      // Fallback: Determine from progress
+      outcomeOk = this.evaluateOutcomeOk(progress);
+    }
 
     return {
       currentState,
@@ -63,11 +82,15 @@ export class ALJudge {
    * Parse Issue body for Safety Assessment
    */
   static parseSafetyAssessment(issueBody: string): SafetyAssessment {
-    const feedbackMatch = issueBody.match(/Feedback loops:\s*(stable|oscillating|amplifying|unknown)/i);
+    const feedbackMatch = issueBody.match(/Feedback loops:\s*(stable|oscillating|amplifying|unknown|present|absent)/i);
     const constraintsMatch = issueBody.match(/Safety constraints:\s*(.+)/i);
     const violationsMatch = issueBody.match(/Violations:\s*(.+)/i);
 
-    const feedbackLoops = (feedbackMatch?.[1]?.toLowerCase() || 'unknown') as FeedbackStatus;
+    let feedbackLoops = (feedbackMatch?.[1]?.toLowerCase() || 'unknown') as FeedbackStatus;
+
+    // Map "present" -> "stable", "absent" -> "unknown"
+    if (feedbackLoops === 'present' as any) feedbackLoops = 'stable';
+    if (feedbackLoops === 'absent' as any) feedbackLoops = 'unknown';
 
     // Parse safety constraints (comma or newline separated)
     const constraintsText = constraintsMatch?.[1]?.trim() || '';
@@ -81,8 +104,23 @@ export class ALJudge {
       ? []
       : violationsText.split(/[,\n]/).map(v => v.trim()).filter(Boolean);
 
-    // Determine safety_ok
-    const safetyOk = this.evaluateSafetyOk(feedbackLoops, violations);
+    // Check for explicit safety_ok declaration
+    const explicitSafetyOkMatch = issueBody.match(/✅.*safety_ok:\s*true/i) ||
+                                  issueBody.match(/safety_ok:\s*true/i);
+    const explicitSafetyNgMatch = issueBody.match(/❌.*safety_ok:\s*false/i) ||
+                                  issueBody.match(/safety_ok:\s*false/i);
+
+    let safetyOk: boolean;
+    if (explicitSafetyOkMatch) {
+      // Explicit OK declaration
+      safetyOk = true;
+    } else if (explicitSafetyNgMatch) {
+      // Explicit NG declaration
+      safetyOk = false;
+    } else {
+      // Fallback: Determine from feedback and violations
+      safetyOk = this.evaluateSafetyOk(feedbackLoops, violations);
+    }
 
     return {
       feedbackLoops,

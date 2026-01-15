@@ -37,6 +37,8 @@ import { ReviewAgent } from './review-agent';
 import { TestAgent } from './test-agent';
 import { DeploymentAgent } from './deployment-agent';
 import { MonitoringAgent } from './monitoring-agent';
+import { KernelRegistryService } from '../ssot/kernel-registry';
+import type { KernelWithNRVV } from '../types/nrvv';
 
 export class CoordinatorAgent {
   private octokit: Octokit;
@@ -49,6 +51,7 @@ export class CoordinatorAgent {
   private testAgent: TestAgent;
   private deploymentAgent: DeploymentAgent;
   private monitoringAgent: MonitoringAgent;
+  private kernelRegistry: KernelRegistryService;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -61,6 +64,7 @@ export class CoordinatorAgent {
     this.testAgent = new TestAgent(config);
     this.deploymentAgent = new DeploymentAgent(config);
     this.monitoringAgent = new MonitoringAgent(config);
+    this.kernelRegistry = new KernelRegistryService();
   }
 
   private log(message: string): void {
@@ -258,7 +262,7 @@ export class CoordinatorAgent {
   /**
    * Decompose Issue into DAG of tasks
    */
-  private async decomposeToDAG(issue: GitHubIssue, _executionContext: any = {}): Promise<TaskDAG> {
+  private async decomposeToDAG(issue: GitHubIssue, executionContext: any = {}): Promise<TaskDAG> {
     const nodes = new Map<string, TaskNode>();
     const edges: TaskEdge[] = [];
 
@@ -274,8 +278,71 @@ export class CoordinatorAgent {
     const typeLabel = issue.labels.find((l) => l.name.startsWith('type:'));
     const type = typeLabel ? typeLabel.name.split(':')[1] : 'feature';
 
-    // Task decomposition based on type and complexity
-    const taskDefinitions = this.getTaskDefinitions(type, complexity);
+    // ========================================================================
+    // Kernel-driven task generation (NEW)
+    // ========================================================================
+    let taskDefinitions: Array<{
+      name: string;
+      description: string;
+      agent: TaskNode['agent'];
+      duration: number;
+      dependencies?: string[];
+    }> = [];
+
+    try {
+      // 1. Load Kernel Registry
+      await this.kernelRegistry.load();
+
+      // 2. Get related Kernels from SSOT Agent
+      const suggestedKernels = executionContext.ssotResult?.suggestedKernels || [];
+      this.log(`  Found ${suggestedKernels.length} suggested Kernels from SSOT`);
+
+      if (suggestedKernels.length > 0) {
+        const relatedKernels: KernelWithNRVV[] = [];
+        for (const kernelId of suggestedKernels) {
+          const kernel = await this.kernelRegistry.getKernel(kernelId);
+          if (kernel) {
+            relatedKernels.push(kernel);
+            this.log(`  Loaded Kernel: ${kernel.id} (${kernel.requirements.length} requirements)`);
+          }
+        }
+
+        // 3. Generate tasks from Kernel Requirements
+        for (const kernel of relatedKernels) {
+          for (const req of kernel.requirements || []) {
+            taskDefinitions.push({
+              name: `Implement: ${req.statement}`,
+              description: req.rationale || req.statement,
+              agent: 'codegen',
+              duration: this.estimateDurationFromRequirement(req),
+              dependencies: [],
+            });
+          }
+
+          // 4. Generate test tasks from Verification patterns
+          if (kernel.verification && kernel.verification.length > 0) {
+            taskDefinitions.push({
+              name: `Run tests (based on ${kernel.id} Verification patterns)`,
+              description: `Execute tests based on ${kernel.verification.length} verification patterns`,
+              agent: 'test',
+              duration: 20,
+              dependencies: [], // Will be set later
+            });
+          }
+        }
+
+        this.log(`  Generated ${taskDefinitions.length} tasks from Kernels`);
+      }
+    } catch (error) {
+      this.log(`  ⚠️  Kernel loading failed: ${(error as Error).message}`);
+      // Fallback to traditional task definitions
+    }
+
+    // Fallback: Use traditional task definitions if no Kernel tasks generated
+    if (taskDefinitions.length === 0) {
+      this.log(`  Using traditional task definitions (no Kernel tasks)`);
+      taskDefinitions = this.getTaskDefinitions(type, complexity);
+    }
 
     // Create task nodes
     for (const [index, taskDef] of taskDefinitions.entries()) {
@@ -421,6 +488,19 @@ export class CoordinatorAgent {
         dependencies: newDependencies,
       };
     });
+  }
+
+  /**
+   * Estimate duration from Requirement complexity
+   */
+  private estimateDurationFromRequirement(req: any): number {
+    const constraintCount = (req.constraints || []).length;
+    const baseTime = 30; // minutes
+
+    // More constraints = more complex implementation
+    if (constraintCount > 5) return baseTime * 2;
+    if (constraintCount > 2) return baseTime * 1.5;
+    return baseTime;
   }
 
   // ========================================================================

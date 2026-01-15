@@ -14,7 +14,6 @@ import {
   Option,
   DecisionRecord,
   Constraint,
-  DecisionType,
   LeveragePoint,
 } from '../types';
 
@@ -62,7 +61,7 @@ export class PlanningAgent {
     };
 
     // 2. Planning Data抽出
-    const planningData = this.parsePlanningData(githubIssue.body);
+    const planningData = this.parsePlanningData(githubIssue.body || '');
     const context = this.extractPlanningContext(issueNumber, planningData);
 
     const comments: string[] = [];
@@ -103,7 +102,7 @@ export class PlanningAgent {
       context.planningData.options.length >= 2
     ) {
       const selectedOption = this.findSelectedOption(
-        githubIssue.body,
+        githubIssue.body || '',
         context.planningData.options
       );
 
@@ -137,7 +136,7 @@ export class PlanningAgent {
 
     // 7. Planning Data埋め込み
     if (context.planningData) {
-      const updatedBody = this.embedPlanningData(githubIssue.body, context.planningData);
+      const updatedBody = this.embedPlanningData(githubIssue.body || '', context.planningData);
 
       if (!this.config.dryRun) {
         await this.octokit.issues.update({
@@ -174,10 +173,15 @@ export class PlanningAgent {
       this.log(`Labels applied: ${labels.join(', ')}`);
     }
 
+    this.log(`Planning Layer processed: ${comments.length} comments, ${labels.length} labels`);
+
     return {
       status: 'success',
       data: context,
-      message: `Planning Layer processed: ${comments.length} comments, ${labels.length} labels`,
+      metrics: {
+        durationMs: 0,
+        timestamp: new Date().toISOString(),
+      },
     };
   }
 
@@ -263,10 +267,10 @@ export class PlanningAgent {
     const id = this.generateOpportunityId();
 
     // Issue本文から情報を抽出
-    const targetCustomer = this.extractFieldValue(issue.body, 'Target Customer') || 'Unknown';
-    const problem = this.extractFieldValue(issue.body, 'Current state') || 'Problem not defined';
+    const targetCustomer = this.extractFieldValue(issue.body || '', 'Target Customer') || 'Unknown';
+    const problem = this.extractFieldValue(issue.body || '', 'Current state') || 'Problem not defined';
     const desiredOutcome =
-      this.extractFieldValue(issue.body, 'Target state') || 'Outcome not defined';
+      this.extractFieldValue(issue.body || '', 'Target state') || 'Outcome not defined';
 
     return {
       id,

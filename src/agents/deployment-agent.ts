@@ -20,10 +20,13 @@ import {
   DeploymentStatus,
   HealthCheckResult,
 } from '../types';
+import { KernelRegistryService } from '../ssot/kernel-registry';
+import type { Validation } from '../types/nrvv';
 
 export class DeploymentAgent {
   private octokit: Octokit;
   private config: AgentConfig;
+  private kernelRegistry: KernelRegistryService;
   private defaultDeploymentConfig: DeploymentConfig = {
     environment: 'staging',
     autoRollback: true,
@@ -34,6 +37,7 @@ export class DeploymentAgent {
   constructor(config: AgentConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.kernelRegistry = new KernelRegistryService();
   }
 
   private log(message: string): void {
@@ -131,6 +135,16 @@ export class DeploymentAgent {
         overallSuccess,
         timestamp: new Date().toISOString(),
       };
+
+      // 6. Validation記録 (dry-runモードではスキップ)
+      if (!this.config.dryRun && overallSuccess) {
+        try {
+          await this.recordValidation(issueNumber, context);
+          this.log('✅ Validation recorded to kernels.yaml');
+        } catch (error) {
+          this.log(`⚠️  Failed to record validation: ${(error as Error).message}`);
+        }
+      }
 
       return {
         status: overallSuccess ? 'success' : 'blocked',
@@ -409,5 +423,77 @@ export class DeploymentAgent {
       rolled_back: '🔄',
     };
     return emojis[status];
+  }
+
+  /**
+   * Validation記録
+   */
+  private async recordValidation(
+    issueNumber: number,
+    context: DeploymentContext
+  ): Promise<void> {
+    this.log('📝 Recording Validation to Kernel Registry...');
+
+    // kernels.yaml内のIssueに対応するKernelを検索
+    const kernels = await this.kernelRegistry.searchKernels({
+      tag: `issue-${issueNumber}`,
+    });
+
+    if (kernels.length === 0) {
+      this.log(`⚠️  No kernel found for issue #${issueNumber}, skipping validation recording`);
+      return;
+    }
+
+    const kernel = kernels[0]; // 最初のKernelを使用
+
+    // Validation ID生成
+    const validationId = this.generateValidationId(kernel.id);
+
+    // デプロイ結果から情報を集計
+    const deploymentResult = context.deploymentResults[0];
+    const environment = deploymentResult?.environment || 'unknown';
+
+    // Validation作成
+    const validation: Validation = {
+      id: validationId,
+      statement: 'システムが本番環境で正常に動作することを確認',
+      method: 'field_test',
+      criteria: [
+        'デプロイ成功',
+        'ヘルスチェック通過',
+        `環境: ${environment}`,
+      ],
+      traceability: {
+        upstream: [...kernel.needs.map((n) => n.id), ...kernel.requirements.map((r) => r.id)],
+        downstream: [],
+      },
+      status: context.overallSuccess ? 'passed' : 'failed',
+      validatedAt: new Date().toISOString(),
+      validatedBy: 'DeploymentAgent',
+      evidence: [
+        {
+          type: 'field_data',
+          path: 'deployment-log.json',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      notes: `Issue #${issueNumber}: ${context.issue.title}`,
+    };
+
+    // Kernel Registryに記録
+    await this.kernelRegistry.addValidationToKernel(kernel.id, validation);
+
+    this.log(`✅ Validation ${validationId} recorded for Kernel ${kernel.id}`);
+  }
+
+  /**
+   * Validation ID生成
+   */
+  private generateValidationId(kernelId: string): string {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0');
+    return `VAL-${kernelId}-${timestamp}-${random}`;
   }
 }

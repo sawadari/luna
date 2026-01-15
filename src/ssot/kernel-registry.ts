@@ -378,6 +378,90 @@ export class KernelRegistryService {
     return (convergedCount / relevantKernels.length) * 100;
   }
 
+  /**
+   * Add Verification to a Kernel
+   */
+  async addVerificationToKernel(
+    kernelId: string,
+    verification: any
+  ): Promise<void> {
+    const kernel = await this.getKernel(kernelId);
+
+    if (!kernel) {
+      throw new Error(`Kernel ${kernelId} not found`);
+    }
+
+    // Add verification
+    if (!kernel.verification) {
+      kernel.verification = [];
+    }
+    kernel.verification.push(verification);
+
+    // Update traceability: link verification to requirements
+    for (const reqId of verification.traceability?.upstream || []) {
+      const req = kernel.requirements.find((r) => r.id === reqId);
+      if (req) {
+        if (!req.traceability.downstream) {
+          req.traceability.downstream = [];
+        }
+        if (!req.traceability.downstream.includes(verification.id)) {
+          req.traceability.downstream.push(verification.id);
+        }
+      }
+    }
+
+    // Save kernel
+    await this.saveKernel(kernel);
+  }
+
+  /**
+   * Add Validation to a Kernel
+   */
+  async addValidationToKernel(
+    kernelId: string,
+    validation: any
+  ): Promise<void> {
+    const kernel = await this.getKernel(kernelId);
+
+    if (!kernel) {
+      throw new Error(`Kernel ${kernelId} not found`);
+    }
+
+    // Add validation
+    if (!kernel.validation) {
+      kernel.validation = [];
+    }
+    kernel.validation.push(validation);
+
+    // Update traceability: link validation to requirements and needs
+    for (const upstreamId of validation.traceability?.upstream || []) {
+      // Link to requirement
+      const req = kernel.requirements.find((r) => r.id === upstreamId);
+      if (req) {
+        if (!req.traceability.downstream) {
+          req.traceability.downstream = [];
+        }
+        if (!req.traceability.downstream.includes(validation.id)) {
+          req.traceability.downstream.push(validation.id);
+        }
+      }
+
+      // Link to need
+      const need = kernel.needs.find((n) => n.id === upstreamId);
+      if (need) {
+        if (!need.traceability.downstream) {
+          need.traceability.downstream = [];
+        }
+        if (!need.traceability.downstream.includes(validation.id)) {
+          need.traceability.downstream.push(validation.id);
+        }
+      }
+    }
+
+    // Save kernel
+    await this.saveKernel(kernel);
+  }
+
   // ========================================================================
   // Private helpers
   // ========================================================================

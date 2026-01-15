@@ -18,14 +18,18 @@ import {
   CoverageReport,
   CoverageMetric,
 } from '../types';
+import { KernelRegistryService } from '../ssot/kernel-registry';
+import type { Verification } from '../types/nrvv';
 
 export class TestAgent {
   private octokit: Octokit;
   private config: AgentConfig;
+  private kernelRegistry: KernelRegistryService;
 
   constructor(config: AgentConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.kernelRegistry = new KernelRegistryService();
   }
 
   private log(message: string): void {
@@ -124,6 +128,16 @@ export class TestAgent {
         coverageMet,
         timestamp: new Date().toISOString(),
       };
+
+      // 6. Verification記録 (dry-runモードではスキップ)
+      if (!this.config.dryRun && overallPassed && coverageMet) {
+        try {
+          await this.recordVerification(issueNumber, context);
+          this.log('✅ Verification recorded to kernels.yaml');
+        } catch (error) {
+          this.log(`⚠️  Failed to record verification: ${(error as Error).message}`);
+        }
+      }
 
       return {
         status: overallPassed && coverageMet ? 'success' : 'blocked',
@@ -427,5 +441,77 @@ export class TestAgent {
     }
 
     return summary.join('\n');
+  }
+
+  /**
+   * Verification記録
+   */
+  private async recordVerification(
+    issueNumber: number,
+    context: TestContext
+  ): Promise<void> {
+    this.log('📝 Recording Verification to Kernel Registry...');
+
+    // kernels.yaml内のIssueに対応するKernelを検索
+    const kernels = await this.kernelRegistry.searchKernels({
+      tag: `issue-${issueNumber}`,
+    });
+
+    if (kernels.length === 0) {
+      this.log(`⚠️  No kernel found for issue #${issueNumber}, skipping verification recording`);
+      return;
+    }
+
+    const kernel = kernels[0]; // 最初のKernelを使用
+
+    // Verification ID生成
+    const verificationId = this.generateVerificationId(kernel.id);
+
+    // テスト結果からカバレッジを集計
+    const totalPassed = context.testResults.reduce((sum, r) => sum + r.passed, 0);
+    const coveragePercent = context.coverage.statements.percentage.toFixed(2);
+
+    // Verification作成
+    const verification: Verification = {
+      id: verificationId,
+      statement: 'テストが正常に実行され、カバレッジ目標を達成することを確認',
+      method: 'test',
+      testCase: 'automated-tests',
+      criteria: [
+        `全テスト通過: ${totalPassed}件`,
+        `カバレッジ${coveragePercent}%達成 (≥80%)`,
+      ],
+      traceability: {
+        upstream: kernel.requirements.map((r) => r.id),
+        downstream: [],
+      },
+      status: context.overallPassed && context.coverageMet ? 'passed' : 'failed',
+      verifiedAt: new Date().toISOString(),
+      verifiedBy: 'TestAgent',
+      evidence: [
+        {
+          type: 'test_result',
+          path: 'test-results.json',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      notes: `Issue #${issueNumber}: ${context.issue.title}`,
+    };
+
+    // Kernel Registryに記録
+    await this.kernelRegistry.addVerificationToKernel(kernel.id, verification);
+
+    this.log(`✅ Verification ${verificationId} recorded for Kernel ${kernel.id}`);
+  }
+
+  /**
+   * Verification ID生成
+   */
+  private generateVerificationId(kernelId: string): string {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0');
+    return `VER-${kernelId}-${timestamp}-${random}`;
   }
 }

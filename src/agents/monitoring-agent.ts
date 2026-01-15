@@ -16,16 +16,20 @@ import {
   HealthStatus,
   HealthCheck,
 } from '../types';
+import { KernelRegistryService } from '../ssot/kernel-registry';
+import type { Validation } from '../types/nrvv';
 
 export class MonitoringAgent {
   private octokit: Octokit;
   private config: AgentConfig;
+  private kernelRegistry: KernelRegistryService;
   private metrics: Metric[] = [];
   private alerts: Alert[] = [];
 
   constructor(config: AgentConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.kernelRegistry = new KernelRegistryService();
   }
 
   private log(message: string): void {
@@ -120,6 +124,16 @@ export class MonitoringAgent {
         isHealthy,
         timestamp: new Date().toISOString(),
       };
+
+      // 7. Validation記録 (dry-runモードではスキップ)
+      if (!this.config.dryRun && isHealthy) {
+        try {
+          await this.recordValidation(issueNumber, context);
+          this.log('✅ Validation recorded to kernels.yaml');
+        } catch (error) {
+          this.log(`⚠️  Failed to record validation: ${(error as Error).message}`);
+        }
+      }
 
       return {
         status: isHealthy ? 'success' : 'blocked',
@@ -591,5 +605,79 @@ export class MonitoringAgent {
       critical: '🚨',
     };
     return emojis[severity];
+  }
+
+  /**
+   * Validation記録
+   */
+  private async recordValidation(
+    issueNumber: number,
+    context: MonitoringContext
+  ): Promise<void> {
+    this.log('📝 Recording Validation to Kernel Registry...');
+
+    // kernels.yaml内のIssueに対応するKernelを検索
+    const kernels = await this.kernelRegistry.searchKernels({
+      tag: `issue-${issueNumber}`,
+    });
+
+    if (kernels.length === 0) {
+      this.log(`⚠️  No kernel found for issue #${issueNumber}, skipping validation recording`);
+      return;
+    }
+
+    const kernel = kernels[0]; // 最初のKernelを使用
+
+    // Validation ID生成
+    const validationId = this.generateValidationId(kernel.id);
+
+    // メトリクスからデータを集計
+    const qualityScore = this.metrics.find((m) => m.name === 'code_quality_score')?.value || 0;
+    const testPassRate = this.metrics.find((m) => m.name === 'test_pass_rate')?.value || 0;
+    const coveragePercent = this.metrics.find((m) => m.name === 'code_coverage_percentage')?.value || 0;
+
+    // Validation作成
+    const validation: Validation = {
+      id: validationId,
+      statement: 'システムが継続的に安定稼働していることを確認',
+      method: 'audit',
+      criteria: [
+        `品質スコア: ${qualityScore.toFixed(2)}点`,
+        `テスト合格率: ${testPassRate.toFixed(2)}%`,
+        `カバレッジ: ${coveragePercent.toFixed(2)}%`,
+        `ヘルスステータス: ${context.healthStatus.status}`,
+      ],
+      traceability: {
+        upstream: [...kernel.needs.map((n) => n.id), ...kernel.requirements.map((r) => r.id)],
+        downstream: [],
+      },
+      status: context.isHealthy ? 'passed' : 'failed',
+      validatedAt: new Date().toISOString(),
+      validatedBy: 'MonitoringAgent',
+      evidence: [
+        {
+          type: 'field_data',
+          path: 'monitoring-metrics.json',
+          createdAt: new Date().toISOString(),
+        },
+      ],
+      notes: `Issue #${issueNumber}: ${context.issue.title}`,
+    };
+
+    // Kernel Registryに記録
+    await this.kernelRegistry.addValidationToKernel(kernel.id, validation);
+
+    this.log(`✅ Validation ${validationId} recorded for Kernel ${kernel.id}`);
+  }
+
+  /**
+   * Validation ID生成
+   */
+  private generateValidationId(kernelId: string): string {
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, '0');
+    return `VAL-${kernelId}-${timestamp}-${random}`;
   }
 }

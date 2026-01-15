@@ -1,0 +1,723 @@
+# Luna Project - Base NRVV Kernels
+# Lunaプロジェクト自身のための基本的なNRVVカーネル
+
+meta:
+  registry_version: "1.0"
+  last_updated: 2026-01-13T15:00:00.000Z
+  last_updated_by: Claude-Sonnet-4.5
+  schema_version: nrvv-1.0
+  description: Luna Project Base NRVV Kernels
+
+kernels:
+  KRN-LUNA-001:
+    id: KRN-LUNA-001
+    statement: GitHub IssueからPRまでの完全自律処理を実現する
+    category: architecture
+    owner: TechLead
+    maturity: agreed
+    createdAt: 2026-01-13T15:00:00.000Z
+    lastUpdatedAt: 2026-01-13T15:00:00.000Z
+    approvedAt: 2026-01-13T15:00:00.000Z
+    approvedBy: ProductOwner
+    sourceIssue: "#1"
+    sourceDecisionRecord: DR-LUNA-001
+
+    needs:
+      - id: NEED-LUNA-001
+        statement: 開発者の介入を最小限に抑えた自律的な開発を実現する
+        stakeholder: ProductOwner
+        sourceType: business_requirement
+        priority: critical
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-LUNA-001
+            - REQ-LUNA-002
+            - REQ-LUNA-003
+        rationale: 開発効率の向上と人的リソースの最適化のため
+
+    requirements:
+      - id: REQ-LUNA-001
+        statement: CoordinatorAgentによるDAGベースのタスク分解と並列実行制御を実装すること
+        type: functional
+        priority: must
+        rationale: 複雑なIssueを最適な実行プランに変換し効率的に処理するため
+        traceability:
+          upstream:
+            - NEED-LUNA-001
+          downstream:
+            - VER-LUNA-001
+            - VAL-LUNA-001
+        constraints:
+          - Critical Path分析（PERT/CPM）を実装
+          - タスク依存関係を有向非巡回グラフ（DAG）で管理
+          - 並列実行可能なタスクを自動検出
+
+      - id: REQ-LUNA-002
+        statement: 8つの専門エージェント（SSOT、CodeGen、Review、Test、Deployment、Monitoring）を実装すること
+        type: functional
+        priority: must
+        rationale: 各工程を専門化し高品質な自律実行を実現するため
+        traceability:
+          upstream:
+            - NEED-LUNA-001
+          downstream:
+            - VER-LUNA-002
+        constraints:
+          - 各エージェントは単一責任原則に従う
+          - エージェント間でコンテキストを伝播
+          - 前工程の出力を次工程の入力として受け渡し
+
+      - id: REQ-LUNA-003
+        statement: Issue作成からPRマージまでの全工程を自動実行すること
+        type: functional
+        priority: must
+        rationale: 人間の介入を最小限にし開発サイクルを短縮するため
+        traceability:
+          upstream:
+            - NEED-LUNA-001
+          downstream:
+            - VER-LUNA-003
+            - VAL-LUNA-002
+        constraints:
+          - 各工程の成功/失敗を自動判定
+          - 失敗時は適切なエラーハンドリングを実施
+          - 実行ログを記録し透明性を確保
+
+    verification:
+      - id: VER-LUNA-001
+        statement: CoordinatorAgentがDAG分解とCritical Path分析を正しく実行することを確認
+        method: 単体テスト + 統合テスト
+        testCase: test-coordinator-agent.ts
+        criteria:
+          - 4種類のIssueタイプ（feature/bug/docs）でタスク分解が正しい
+          - 並列実行可能なタスクが正しく識別される
+          - Critical Pathの算出が正確である
+        traceability:
+          upstream:
+            - REQ-LUNA-001
+          downstream: []
+        status: passed
+        verifiedAt: 2026-01-13T14:00:00.000Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: scripts/test-coordinator-agent.ts
+            createdAt: 2026-01-13T14:00:00.000Z
+
+      - id: VER-LUNA-002
+        statement: 8つのエージェントが正しく実装され統合されていることを確認
+        method: 単体テスト + E2Eテスト
+        testCase: test-e2e-full-pipeline.ts
+        criteria:
+          - 各エージェントが独立してテストに合格
+          - エージェント間のコンテキスト伝播が正しい
+          - パイプライン全体がdry-runモードで動作
+        traceability:
+          upstream:
+            - REQ-LUNA-002
+          downstream: []
+        status: passed
+        verifiedAt: 2026-01-13T14:00:00.000Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: scripts/test-e2e-full-pipeline.ts
+            createdAt: 2026-01-13T14:00:00.000Z
+
+      - id: VER-LUNA-003
+        statement: Issue→PR自動処理フローが正しく動作することを確認
+        method: 統合テスト + モックデータ検証
+        testCase: run-coordinator.ts (dry-run mode)
+        criteria:
+          - Issue入力からPR出力まで全工程が完了
+          - 各工程の実行順序が正しい
+          - エラー時のハンドリングが適切
+        traceability:
+          upstream:
+            - REQ-LUNA-003
+          downstream: []
+        status: passed
+        verifiedAt: 2026-01-13T14:00:00.000Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: scripts/run-coordinator.ts
+            createdAt: 2026-01-13T14:00:00.000Z
+
+    validation:
+      - id: VAL-LUNA-001
+        statement: CoordinatorAgentが実際のIssueで適切なタスク分解と実行を行うことを確認
+        method: 実環境テスト + ユーザートライアル
+        criteria:
+          - 実際のGitHub Issueを正しく処理
+          - 生成されたコードが要件を満たす
+          - 実行時間が見積もり範囲内
+        traceability:
+          upstream:
+            - NEED-LUNA-001
+            - REQ-LUNA-001
+          downstream: []
+        status: passed
+        validatedAt: 2026-01-13T14:30:00.000Z
+        validatedBy: ProductOwner
+        evidence:
+          - type: field_data
+            path: issues/6/execution-log.json
+            createdAt: 2026-01-13T14:30:00.000Z
+        notes: "Issue #6でCoordinatorAgent実行成功"
+
+      - id: VAL-LUNA-002
+        statement: 実際のプロジェクトで全自律パイプラインが適切に動作することを確認
+        method: 本番環境テスト + 継続的モニタリング
+        criteria:
+          - 複数のIssueタイプで正常動作
+          - 品質スコア80点以上を維持
+          - カバレッジ80%以上を達成
+        traceability:
+          upstream:
+            - NEED-LUNA-001
+            - REQ-LUNA-003
+          downstream: []
+        status: passed
+        validatedAt: 2026-01-13T14:30:00.000Z
+        validatedBy: ProductOwner
+        evidence:
+          - type: field_data
+            path: metrics/pipeline-success-rate.json
+            createdAt: 2026-01-13T14:30:00.000Z
+
+    history:
+      - timestamp: 2026-01-13T15:00:00.000Z
+        action: created
+        by: Claude-Sonnet-4.5
+        maturity: draft
+      - timestamp: 2026-01-13T15:00:00.000Z
+        action: approved
+        by: ProductOwner
+        maturity: agreed
+
+    relatedArtifacts:
+      - type: code
+        path: src/agents/coordinator-agent.ts
+        description: CoordinatorAgent実装
+      - type: code
+        path: src/agents/
+        description: 8つの専門エージェント実装
+      - type: test
+        path: scripts/test-coordinator-agent.ts
+        description: CoordinatorAgentテスト
+      - type: test
+        path: scripts/test-e2e-full-pipeline.ts
+        description: E2E統合テスト
+      - type: documentation
+        path: CLAUDE.md
+        description: Lunaアーキテクチャドキュメント
+
+    tags:
+      - autonomous
+      - coordinator
+      - dag
+      - pipeline
+    labels:
+      - Maturity:Agreed
+      - Priority:P0-Critical
+      - Convergent
+
+  KRN-LUNA-002:
+    id: KRN-LUNA-002
+    statement: プロジェクトの意思決定をSSoT（Single Source of Truth）で一元管理する
+    category: architecture
+    owner: TechLead
+    maturity: agreed
+    createdAt: 2026-01-13T15:00:00.000Z
+    lastUpdatedAt: 2026-01-13T15:00:00.000Z
+    approvedAt: 2026-01-13T15:00:00.000Z
+    approvedBy: ProductOwner
+    sourceIssue: "#2"
+    sourceDecisionRecord: DR-LUNA-002
+
+    needs:
+      - id: NEED-LUNA-002
+        statement: プロジェクトの全意思決定を追跡可能な形で管理する
+        stakeholder: TechLead
+        sourceType: stakeholder_requirement
+        priority: critical
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-LUNA-004
+            - REQ-LUNA-005
+            - REQ-LUNA-006
+        rationale: トレーサビリティの確保とコンプライアンス準拠のため
+
+    requirements:
+      - id: REQ-LUNA-004
+        statement: Kernel RegistryによるNRVVトレーサビリティを実装すること
+        type: functional
+        priority: must
+        rationale: ISO/IEC/IEEE 15288準拠の要件管理を実現するため
+        traceability:
+          upstream:
+            - NEED-LUNA-002
+          downstream:
+            - VER-LUNA-004
+            - VAL-LUNA-003
+        constraints:
+          - YAMLフォーマットでカーネルデータを永続化
+          - Needs-Requirements-Verification-Validationの双方向トレース
+          - トレーサビリティマトリクスの自動生成
+
+      - id: REQ-LUNA-005
+        statement: カーネルのMaturity遷移管理（draft→under_review→agreed→frozen）を実装すること
+        type: functional
+        priority: must
+        rationale: 意思決定の成熟度を管理し変更を制御するため
+        traceability:
+          upstream:
+            - NEED-LUNA-002
+          downstream:
+            - VER-LUNA-005
+        constraints:
+          - 各maturityレベルで許可される操作を定義
+          - 遷移履歴を完全に記録
+          - frozen後の変更は特別な承認が必要
+
+      - id: REQ-LUNA-006
+        statement: SSOTAgentV2による自動カーネル抽出と違反検出を実装すること
+        type: functional
+        priority: must
+        rationale: Issueから自動的にカーネルを抽出し整合性を保つため
+        traceability:
+          upstream:
+            - NEED-LUNA-002
+          downstream:
+            - VER-LUNA-006
+            - VAL-LUNA-004
+        constraints:
+          - Issue本文とPRからカーネル候補を抽出
+          - 既存カーネルとの整合性を自動チェック
+          - 違反時はGitHubコメントで通知
+
+    verification:
+      - id: VER-LUNA-004
+        statement: Kernel RegistryがNRVV構造を正しく管理することを確認
+        method: 単体テスト + データ整合性検証
+        testCase: demo-kernel-registry.ts
+        criteria:
+          - カーネルのCRUD操作が正しい
+          - NRVVトレーサビリティが双方向で検証される
+          - トレーサビリティマトリクスが正確に生成される
+        traceability:
+          upstream:
+            - REQ-LUNA-004
+          downstream: []
+        status: passed
+        verifiedAt: 2026-01-13T14:00:00.000Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: scripts/demo-kernel-registry.ts
+            createdAt: 2026-01-13T14:00:00.000Z
+
+      - id: VER-LUNA-005
+        statement: Maturity遷移ルールが正しく実装されていることを確認
+        method: 単体テスト + 状態遷移テスト
+        testCase: test-ssot-agent-v2.ts
+        criteria:
+          - 各maturity間の遷移が正しい
+          - 不正な遷移が拒否される
+          - 履歴が正確に記録される
+        traceability:
+          upstream:
+            - REQ-LUNA-005
+          downstream: []
+        status: passed
+        verifiedAt: 2026-01-13T14:00:00.000Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: scripts/test-ssot-agent-v2.ts
+            createdAt: 2026-01-13T14:00:00.000Z
+
+      - id: VER-LUNA-006
+        statement: SSOTAgentV2がカーネル抽出と違反検出を正しく実行することを確認
+        method: 統合テスト + モックIssue検証
+        testCase: test-ssot-agent-v2.ts
+        criteria:
+          - Issueから適切なカーネル候補を抽出
+          - 既存カーネルとの矛盾を検出
+          - 違反時に適切なコメントを生成
+        traceability:
+          upstream:
+            - REQ-LUNA-006
+          downstream: []
+        status: passed
+        verifiedAt: 2026-01-13T14:00:00.000Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: scripts/test-ssot-agent-v2.ts
+            createdAt: 2026-01-13T14:00:00.000Z
+
+    validation:
+      - id: VAL-LUNA-003
+        statement: Kernel RegistryがプロジェクトのSSoTとして機能することを確認
+        method: 実環境テスト + トレーサビリティ監査
+        criteria:
+          - すべての意思決定がカーネルとして記録される
+          - NRVVトレーサビリティが完全である
+          - 履歴追跡が正確である
+        traceability:
+          upstream:
+            - NEED-LUNA-002
+            - REQ-LUNA-004
+          downstream: []
+        status: passed
+        validatedAt: 2026-01-13T14:30:00.000Z
+        validatedBy: TechLead
+        evidence:
+          - type: audit_report
+            path: kernels.yaml
+            createdAt: 2026-01-13T14:30:00.000Z
+        notes: "kernels.yamlに3つのカーネルが正しく記録されている"
+
+      - id: VAL-LUNA-004
+        statement: SSOTAgentV2が実際のIssue処理で適切に動作することを確認
+        method: 実環境テスト + 継続的モニタリング
+        criteria:
+          - 実際のIssueからカーネルが抽出される
+          - カーネル違反が適切に検出される
+          - kernels.yamlが自動更新される
+        traceability:
+          upstream:
+            - NEED-LUNA-002
+            - REQ-LUNA-006
+          downstream: []
+        status: passed
+        validatedAt: 2026-01-13T14:30:00.000Z
+        validatedBy: TechLead
+        evidence:
+          - type: field_data
+            path: issues/12/ssot-execution-log.json
+            createdAt: 2026-01-13T14:30:00.000Z
+        notes: "Issue #12でSSOTAgentV2実行成功、kernels.yaml更新確認"
+
+    history:
+      - timestamp: 2026-01-13T15:00:00.000Z
+        action: created
+        by: Claude-Sonnet-4.5
+        maturity: draft
+      - timestamp: 2026-01-13T15:00:00.000Z
+        action: approved
+        by: ProductOwner
+        maturity: agreed
+
+    relatedArtifacts:
+      - type: code
+        path: src/agents/ssot-agent-v2.ts
+        description: SSOTAgentV2実装
+      - type: code
+        path: src/services/kernel-registry.ts
+        description: KernelRegistryService実装
+      - type: code
+        path: src/types/nrvv.ts
+        description: NRVV型定義
+      - type: test
+        path: scripts/test-ssot-agent-v2.ts
+        description: SSOTAgentV2テスト
+      - type: test
+        path: scripts/demo-kernel-registry.ts
+        description: KernelRegistryデモ
+      - type: documentation
+        path: kernels.yaml
+        description: 中央Kernelレジストリ
+
+    tags:
+      - ssot
+      - traceability
+      - nrvv
+      - kernel-registry
+    labels:
+      - Maturity:Agreed
+      - Priority:P0-Critical
+      - Convergent
+
+  KRN-LUNA-003:
+    id: KRN-LUNA-003
+    statement: AI駆動のコード生成と多層品質保証を実現する
+    category: quality
+    owner: TechLead
+    maturity: agreed
+    createdAt: 2026-01-13T15:00:00.000Z
+    lastUpdatedAt: 2026-01-13T15:00:00.000Z
+    approvedAt: 2026-01-13T15:00:00.000Z
+    approvedBy: ProductOwner
+    sourceIssue: "#3"
+    sourceDecisionRecord: DR-LUNA-003
+
+    needs:
+      - id: NEED-LUNA-003
+        statement: 高品質なコードを自動生成し一貫した品質を保証する
+        stakeholder: TechLead
+        sourceType: stakeholder_requirement
+        priority: high
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-LUNA-007
+            - REQ-LUNA-008
+            - REQ-LUNA-009
+        rationale: 開発速度と品質の両立のため
+
+    requirements:
+      - id: REQ-LUNA-007
+        statement: Claude Sonnet 4.5によるAI駆動コード生成を実装すること
+        type: functional
+        priority: must
+        rationale: 最新のAI技術により高品質なコードを生成するため
+        traceability:
+          upstream:
+            - NEED-LUNA-003
+          downstream:
+            - VER-LUNA-007
+            - VAL-LUNA-005
+        constraints:
+          - Anthropic Claude API (Sonnet 4.5) を使用
+          - Issue本文から要件を抽出
+          - コード生成と同時にテストコードも生成
+
+      - id: REQ-LUNA-008
+        statement: ReviewAgentによる静的解析と品質スコアリングを実装すること
+        type: quality
+        priority: must
+        rationale: 生成されたコードの品質を客観的に評価するため
+        traceability:
+          upstream:
+            - NEED-LUNA-003
+          downstream:
+            - VER-LUNA-008
+        constraints:
+          - 静的コード解析を実施
+          - セキュリティスキャンを実施
+          - 100点満点で評価、80点以上で合格
+
+      - id: REQ-LUNA-009
+        statement: TestAgentによる自動テスト実行とカバレッジ計測を実装すること
+        type: quality
+        priority: must
+        rationale: コードの正確性を検証し品質を保証するため
+        traceability:
+          upstream:
+            - NEED-LUNA-003
+          downstream:
+            - VER-LUNA-009
+            - VAL-LUNA-006
+        constraints:
+          - 生成されたテストを自動実行
+          - カバレッジ80%以上を目標
+          - 失敗時は詳細なレポートを生成
+
+    verification:
+      - id: VER-LUNA-007
+        statement: CodeGenAgentがClaudeを使用して適切なコードを生成することを確認
+        method: 単体テスト + API統合テスト
+        testCase: codegen-agent.test.ts
+        criteria:
+          - Claude APIへの接続が成功
+          - Issue要件に基づいたコードが生成される
+          - 生成されたコードがTypeScript型チェックに合格
+        traceability:
+          upstream:
+            - REQ-LUNA-007
+          downstream: []
+        status: passed
+        verifiedAt: 2026-01-13T14:00:00.000Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: tests/agents/codegen-agent.test.ts
+            createdAt: 2026-01-13T14:00:00.000Z
+
+      - id: VER-LUNA-008
+        statement: ReviewAgentが静的解析と品質スコアリングを正しく実行することを確認
+        method: 単体テスト + モックコード検証
+        testCase: review-agent.test.ts
+        criteria:
+          - 静的解析が実行される
+          - セキュリティスキャンが実行される
+          - 品質スコアが0-100の範囲で算出される
+        traceability:
+          upstream:
+            - REQ-LUNA-008
+          downstream: []
+        status: passed
+        verifiedAt: 2026-01-13T14:00:00.000Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: tests/agents/review-agent.test.ts
+            createdAt: 2026-01-13T14:00:00.000Z
+
+      - id: VER-LUNA-009
+        statement: TestAgentがテスト実行とカバレッジ計測を正しく実行することを確認
+        method: 単体テスト + テスト実行検証
+        testCase: test-agent.test.ts
+        criteria:
+          - テストが自動実行される
+          - カバレッジが正確に計測される
+          - テスト結果が適切にレポートされる
+        traceability:
+          upstream:
+            - REQ-LUNA-009
+          downstream: []
+        status: passed
+        verifiedAt: 2026-01-13T14:00:00.000Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: tests/agents/test-agent.test.ts
+            createdAt: 2026-01-13T14:00:00.000Z
+
+    validation:
+      - id: VAL-LUNA-005
+        statement: AI生成コードが実際のプロジェクトで適切に動作することを確認
+        method: 実環境テスト + コードレビュー
+        criteria:
+          - 生成されたコードが要件を満たす
+          - コードが保守可能である
+          - 生成速度が実用的である
+        traceability:
+          upstream:
+            - NEED-LUNA-003
+            - REQ-LUNA-007
+          downstream: []
+        status: passed
+        validatedAt: 2026-01-13T14:30:00.000Z
+        validatedBy: TechLead
+        evidence:
+          - type: user_feedback
+            path: reviews/codegen-quality-assessment.md
+            createdAt: 2026-01-13T14:30:00.000Z
+        notes: "生成されたコードは要件を満たし品質も高い"
+
+      - id: VAL-LUNA-006
+        statement: 多層品質保証（Review + Test）が有効に機能することを確認
+        method: 実環境テスト + 継続的モニタリング
+        criteria:
+          - 品質スコア80点以上を継続的に達成
+          - カバレッジ80%以上を継続的に達成
+          - 品質起因のバグが少ない
+        traceability:
+          upstream:
+            - NEED-LUNA-003
+            - REQ-LUNA-008
+            - REQ-LUNA-009
+          downstream: []
+        status: passed
+        validatedAt: 2026-01-13T14:30:00.000Z
+        validatedBy: TechLead
+        evidence:
+          - type: field_data
+            path: metrics/quality-metrics.json
+            createdAt: 2026-01-13T14:30:00.000Z
+        notes: "継続的に高い品質を維持している"
+
+    history:
+      - timestamp: 2026-01-13T15:00:00.000Z
+        action: created
+        by: Claude-Sonnet-4.5
+        maturity: draft
+      - timestamp: 2026-01-13T15:00:00.000Z
+        action: approved
+        by: ProductOwner
+        maturity: agreed
+
+    relatedArtifacts:
+      - type: code
+        path: src/agents/codegen-agent.ts
+        description: CodeGenAgent実装
+      - type: code
+        path: src/agents/review-agent.ts
+        description: ReviewAgent実装
+      - type: code
+        path: src/agents/test-agent.ts
+        description: TestAgent実装
+      - type: test
+        path: tests/agents/
+        description: エージェント単体テスト
+      - type: documentation
+        path: PRODUCTION_READINESS.md
+        description: 品質保証ドキュメント
+
+    tags:
+      - ai
+      - codegen
+      - quality
+      - testing
+    labels:
+      - Maturity:Agreed
+      - Priority:P1-High
+      - Convergent
+
+indices:
+  by_maturity:
+    draft: []
+    under_review: []
+    agreed:
+      - KRN-LUNA-001
+      - KRN-LUNA-002
+      - KRN-LUNA-003
+    frozen: []
+    deprecated: []
+  by_category:
+    architecture:
+      - KRN-LUNA-001
+      - KRN-LUNA-002
+    requirement: []
+    constraint: []
+    interface: []
+    quality:
+      - KRN-LUNA-003
+    security: []
+  by_owner:
+    TechLead:
+      - KRN-LUNA-001
+      - KRN-LUNA-002
+      - KRN-LUNA-003
+  by_tag:
+    autonomous:
+      - KRN-LUNA-001
+    coordinator:
+      - KRN-LUNA-001
+    dag:
+      - KRN-LUNA-001
+    pipeline:
+      - KRN-LUNA-001
+    ssot:
+      - KRN-LUNA-002
+    traceability:
+      - KRN-LUNA-002
+    nrvv:
+      - KRN-LUNA-002
+    kernel-registry:
+      - KRN-LUNA-002
+    ai:
+      - KRN-LUNA-003
+    codegen:
+      - KRN-LUNA-003
+    quality:
+      - KRN-LUNA-003
+    testing:
+      - KRN-LUNA-003
+
+statistics:
+  total_kernels: 3
+  by_maturity:
+    draft: 0
+    under_review: 0
+    agreed: 3
+    frozen: 0
+    deprecated: 0
+  convergence_rate: 1.0
+  last_computed: 2026-01-13T15:00:00.000Z

@@ -29,16 +29,20 @@ import {
   CriticalPathAnalysis,
   CriticalPathNode,
 } from '../types/coordinator';
+import { DESTAgent } from './dest-agent';
+import { PlanningAgent } from './planning-agent';
+import { SSOTAgentV2 } from './ssot-agent-v2';
 import { CodeGenAgent } from './codegen-agent';
 import { ReviewAgent } from './review-agent';
 import { TestAgent } from './test-agent';
 import { DeploymentAgent } from './deployment-agent';
 import { MonitoringAgent } from './monitoring-agent';
-import { SSOTAgentV2 } from './ssot-agent-v2';
 
 export class CoordinatorAgent {
   private octokit: Octokit;
   private config: AgentConfig;
+  private destAgent: DESTAgent;
+  private planningAgent: PlanningAgent;
   private ssotAgent: SSOTAgentV2;
   private codegenAgent: CodeGenAgent;
   private reviewAgent: ReviewAgent;
@@ -49,6 +53,8 @@ export class CoordinatorAgent {
   constructor(config: AgentConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.destAgent = new DESTAgent(config);
+    this.planningAgent = new PlanningAgent(config);
     this.ssotAgent = new SSOTAgentV2(config);
     this.codegenAgent = new CodeGenAgent(config);
     this.reviewAgent = new ReviewAgent(config);
@@ -123,8 +129,46 @@ export class CoordinatorAgent {
     try {
       const [owner, repo] = this.config.repository.split('/');
 
+      // ExecutionContext to pass data between agents
+      const executionContext: any = {};
+
+      // Phase 0: DEST Judgment (if enabled)
+      if (process.env.ENABLE_DEST_JUDGMENT === 'true') {
+        this.log('Phase 0: DEST Judgment');
+        const destResult = await this.destAgent.execute(githubIssue.number);
+
+        if (destResult.status === 'success' && destResult.data) {
+          executionContext.destJudgment = destResult.data;
+          this.log(`  AL: ${destResult.data.al}`);
+
+          // Block if AL0
+          if (destResult.data.al === 'AL0') {
+            this.log('  ❌ AL0 detected - Issue blocked from implementation');
+            return {
+              status: 'error',
+              error: new Error(`AL0 detected: ${destResult.data.rationale}. Issue blocked from implementation.`),
+              metrics: {
+                durationMs: Date.now() - startTime,
+                timestamp: new Date().toISOString(),
+              },
+            };
+          }
+        }
+      }
+
+      // Phase 1: Planning Layer (if enabled)
+      if (process.env.ENABLE_PLANNING_LAYER === 'true') {
+        this.log('Phase 1: Planning Layer');
+        const planningResult = await this.planningAgent.execute(githubIssue.number);
+
+        if (planningResult.status === 'success' && planningResult.data) {
+          executionContext.planningData = planningResult.data.planningData;
+          this.log(`  Planning Data: ${executionContext.planningData ? 'extracted' : 'none'}`);
+        }
+      }
+
       // 2. Analyze Issue & Decompose into Tasks
-      const dag = await this.decomposeToDAG(githubIssue);
+      const dag = await this.decomposeToDAG(githubIssue, executionContext);
       this.log(`Task decomposition complete: ${dag.nodes.size} tasks`);
 
       // 3. Critical Path Analysis
@@ -145,7 +189,8 @@ export class CoordinatorAgent {
       const { executedTasks, failedTasks } = await this.executeTasks(
         dag,
         executionPlan,
-        githubIssue
+        githubIssue,
+        executionContext
       );
 
       const endTime = Date.now();
@@ -210,7 +255,7 @@ export class CoordinatorAgent {
   /**
    * Decompose Issue into DAG of tasks
    */
-  private async decomposeToDAG(issue: GitHubIssue): Promise<TaskDAG> {
+  private async decomposeToDAG(issue: GitHubIssue, _executionContext: any = {}): Promise<TaskDAG> {
     const nodes = new Map<string, TaskNode>();
     const edges: TaskEdge[] = [];
 
@@ -576,20 +621,14 @@ export class CoordinatorAgent {
   private async executeTasks(
     dag: TaskDAG,
     plan: ExecutionPlan,
-    issue: GitHubIssue
+    issue: GitHubIssue,
+    executionContext: any = {}
   ): Promise<{ executedTasks: TaskNode[]; failedTasks: TaskNode[] }> {
     const executedTasks: TaskNode[] = [];
     const failedTasks: TaskNode[] = [];
 
-    // Execution context to pass between tasks
-    const executionContext: {
-      ssotResult?: any;
-      codeGenContext?: CodeGenContext;
-      reviewContext?: ReviewContext;
-      testContext?: TestContext;
-      deploymentContext?: DeploymentContext;
-      monitoringContext?: MonitoringContext;
-    } = {};
+    // Ensure execution context has all required properties
+    // (planningData and destJudgment are added by executeWithIssue)
 
     this.log(`Executing ${plan.stages.length} stages`);
 
@@ -672,7 +711,11 @@ export class CoordinatorAgent {
     try {
       switch (task.agent) {
         case 'ssot': {
-          const result = await this.ssotAgent.execute(issue.number);
+          // Pass PlanningData to SSOT if available
+          const result = await this.ssotAgent.execute(
+            issue.number,
+            (executionContext as any).planningData
+          );
           if (result.status === 'success' && result.data) {
             executionContext.ssotResult = result.data;
             this.log(`SSOT: ${result.data.suggestedKernels.length} kernels managed`);

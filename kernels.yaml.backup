@@ -1,0 +1,284 @@
+meta:
+  registry_version: "1.0"
+  last_updated: 2026-01-13T12:03:24.265Z
+  last_updated_by: KernelRegistryService
+  schema_version: nrvv-1.0
+  description: Central Kernel Registry with NRVV Traceability
+kernels:
+  KRN-001:
+    id: KRN-001
+    statement: すべてのAPI通信はHTTPSで行う
+    category: architecture
+    owner: TechLead
+    maturity: agreed
+    createdAt: 2025-01-13T00:00:00Z
+    lastUpdatedAt: 2025-01-15T00:00:00Z
+    approvedAt: 2025-01-15T00:00:00Z
+    approvedBy: ProductOwner
+    sourceIssue: "#123"
+    sourceDecisionRecord: DR-001
+    needs:
+      - id: NEED-001
+        statement: システムのセキュリティを確保する
+        stakeholder: CISO
+        sourceType: stakeholder_requirement
+        priority: critical
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-001
+    requirements:
+      - id: REQ-001
+        statement: すべてのHTTP通信をHTTPSに変換すること
+        type: functional
+        priority: must
+        rationale: 中間者攻撃を防止するため
+        traceability:
+          upstream:
+            - NEED-001
+          downstream:
+            - VER-001
+            - VAL-001
+        constraints:
+          - TLS 1.2以上を使用
+          - 証明書検証を必須とする
+    verification:
+      - id: VER-001
+        statement: HTTP通信が存在しないことを確認
+        method: 静的コード解析 + 動的テスト
+        testCase: TC-001
+        criteria:
+          - コード内にhttp://パターンが存在しない
+          - 実行時のネットワークトラフィックがすべてHTTPS
+        traceability:
+          upstream:
+            - REQ-001
+          downstream: []
+        status: passed
+        verifiedAt: 2025-01-16T00:00:00Z
+        verifiedBy: TestAgent
+        evidence:
+          - type: test_result
+            path: tests/security/https_verification.log
+            hash: sha256:abc123...
+    validation:
+      - id: VAL-001
+        statement: システムが安全な通信を実現していることを確認
+        method: セキュリティ監査 + ペネトレーションテスト
+        criteria:
+          - 本番環境でHTTP通信が検出されない
+          - セキュリティスキャンで脆弱性なし
+        traceability:
+          upstream:
+            - NEED-001
+            - REQ-001
+          downstream: []
+        status: passed
+        validatedAt: 2025-01-17T00:00:00Z
+        validatedBy: CISO
+        evidence:
+          - type: security_audit
+            path: audits/security_audit_20250117.pdf
+            hash: sha256:def456...
+    history:
+      - timestamp: 2025-01-13T00:00:00Z
+        action: created
+        by: TechLead
+        maturity: draft
+      - timestamp: 2025-01-14T00:00:00Z
+        action: submitted_for_review
+        by: TechLead
+        maturity: under_review
+      - timestamp: 2025-01-15T00:00:00Z
+        action: approved
+        by: ProductOwner
+        maturity: agreed
+      - timestamp: 2025-01-16T00:00:00Z
+        action: verified
+        by: TestAgent
+        notes: All verification tests passed
+      - timestamp: 2025-01-17T00:00:00Z
+        action: validated
+        by: CISO
+        notes: Security audit completed successfully
+    relatedArtifacts:
+      - type: code
+        path: src/api/client.ts
+        description: HTTPS通信実装
+      - type: test
+        path: tests/security/https_test.ts
+        description: HTTPS検証テスト
+      - type: documentation
+        path: docs/architecture/security.md
+        description: セキュリティアーキテクチャ
+    tags:
+      - security
+      - https
+      - api
+    labels:
+      - Maturity:Agreed
+      - Priority:P0-Critical
+      - Convergent
+  KRN-002:
+    id: KRN-002
+    statement: ユーザー認証はJWT方式を使用する
+    category: requirement
+    owner: TechLead
+    maturity: frozen
+    createdAt: 2025-01-10T00:00:00Z
+    lastUpdatedAt: 2025-01-20T00:00:00Z
+    approvedAt: 2025-01-12T00:00:00Z
+    approvedBy: ProductOwner
+    frozenAt: 2025-01-20T00:00:00Z
+    sourceIssue: "#100"
+    sourceDecisionRecord: DR-002
+    needs:
+      - id: NEED-002
+        statement: ユーザーを安全に認証する
+        stakeholder: ProductOwner
+        sourceType: business_requirement
+        priority: critical
+    requirements:
+      - id: REQ-002
+        statement: JWT（JSON Web Token）によるステートレス認証を実装
+        type: functional
+        priority: must
+        rationale: スケーラビリティと分散システム対応のため
+        constraints:
+          - HS256またはRS256アルゴリズムを使用
+          - トークン有効期限を15分に設定
+          - リフレッシュトークンを実装
+    verification:
+      - id: VER-002
+        statement: JWT認証が正しく実装されていることを確認
+        method: 単体テスト + 統合テスト
+        testCase: TC-002
+        status: passed
+        verifiedAt: 2025-01-13T00:00:00Z
+        verifiedBy: TestAgent
+    validation:
+      - id: VAL-002
+        statement: ユーザー認証が安全に動作することを確認
+        method: セキュリティレビュー + 本番環境テスト
+        status: passed
+        validatedAt: 2025-01-14T00:00:00Z
+        validatedBy: CISO
+    history:
+      - timestamp: 2025-01-10T00:00:00Z
+        action: created
+        by: TechLead
+      - timestamp: 2025-01-12T00:00:00Z
+        action: approved
+        by: ProductOwner
+      - timestamp: 2025-01-20T00:00:00Z
+        action: frozen
+        by: Guardian
+        notes: Production deployment completed
+    tags:
+      - authentication
+      - jwt
+      - security
+    labels:
+      - Maturity:Frozen
+      - Priority:P0-Critical
+  KRN-003:
+    id: KRN-003
+    statement: すべてのユーザー入力は検証してからDBに保存する
+    category: security
+    owner: TechLead
+    maturity: draft
+    createdAt: 2026-01-13T12:03:09.650Z
+    lastUpdatedAt: 2026-01-13T12:03:09.651Z
+    needs:
+      - id: NEED-003
+        statement: SQLインジェクション攻撃を防止する
+        stakeholder: CISO
+        sourceType: security_requirement
+        priority: critical
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-003
+    requirements:
+      - id: REQ-003
+        statement: すべてのユーザー入力に対してバリデーションとサニタイゼーションを実施
+        type: security
+        priority: must
+        rationale: SQLインジェクション、XSS等の攻撃を防止
+        traceability:
+          upstream:
+            - NEED-003
+          downstream: []
+        constraints:
+          - プレースホルダを使用したプリペアドステートメント
+          - HTMLエスケープ処理
+    verification: []
+    validation: []
+    history:
+      - timestamp: 2026-01-13T09:18:36.083Z
+        action: created
+        by: demo-script
+        maturity: draft
+      - timestamp: 2026-01-13T12:03:09.651Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+    tags:
+      - security
+      - validation
+      - input
+    labels:
+      - Maturity:Draft
+      - Priority:P0-Critical
+indices:
+  by_maturity:
+    draft:
+      - KRN-003
+    under_review: []
+    agreed:
+      - KRN-001
+    frozen:
+      - KRN-002
+    deprecated: []
+  by_category:
+    architecture:
+      - KRN-001
+    requirement:
+      - KRN-002
+    constraint: []
+    interface: []
+    quality: []
+    security:
+      - KRN-003
+  by_owner:
+    TechLead:
+      - KRN-001
+      - KRN-002
+      - KRN-003
+  by_tag:
+    security:
+      - KRN-001
+      - KRN-002
+      - KRN-003
+    https:
+      - KRN-001
+    api:
+      - KRN-001
+    authentication:
+      - KRN-002
+    jwt:
+      - KRN-002
+    validation:
+      - KRN-003
+    input:
+      - KRN-003
+statistics:
+  total_kernels: 3
+  by_maturity:
+    draft: 1
+    under_review: 0
+    agreed: 1
+    frozen: 1
+    deprecated: 0
+  convergence_rate: 0
+  last_computed: 2026-01-13T12:03:24.265Z

@@ -303,7 +303,7 @@ export class DESTAgent {
   private determineEscalation(
     al: AL,
     al0Reasons: AL0Reason[],
-    protocol: Protocol | null
+    _protocol: Protocol | null
   ): string | null {
     if (al !== 'AL0') return null;
 

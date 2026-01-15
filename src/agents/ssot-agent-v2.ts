@@ -60,8 +60,11 @@ export class SSOTAgentV2 {
   /**
    * メイン実行
    */
-  async execute(issueNumber: number): Promise<AgentResult<SSOTResult>> {
+  async execute(issueNumber: number, planningData?: any): Promise<AgentResult<SSOTResult>> {
     this.log(`✅ SSOT Agent V2 starting for issue #${issueNumber}`);
+    if (planningData) {
+      this.log(`  Planning Data available: ${planningData.opportunity ? 'with opportunity' : 'no opportunity'}`);
+    }
 
     const [owner, repo] = this.config.repository.split('/');
 
@@ -110,13 +113,31 @@ export class SSOTAgentV2 {
       this.log('No kernel references found, suggesting...');
 
       // Planning LayerからKernel提案
-      const planningData = this.parsePlanningData(githubIssue.body || '');
-      if (planningData) {
+      // First try to use planningData passed as argument
+      let planningDataToUse = planningData;
+
+      // If not provided, try to parse from Issue body
+      if (!planningDataToUse) {
+        planningDataToUse = this.parsePlanningData(githubIssue.body || '');
+      }
+
+      if (planningDataToUse) {
         const kernelsFromPlanning = await this.suggestKernelsFromDecisions(
-          planningData,
+          planningDataToUse,
           githubIssue
         );
         result.suggestedKernels.push(...kernelsFromPlanning);
+
+        // If DecisionRecord exists, automatically convert it to Kernel
+        if (planningDataToUse.decisionRecord) {
+          this.log('  DecisionRecord found - converting to Kernel');
+          const kernelFromDecision = await this.convertDecisionToKernel(
+            planningDataToUse.decisionRecord,
+            planningDataToUse.opportunity,
+            githubIssue
+          );
+          result.suggestedKernels.push(kernelFromDecision.id);
+        }
       }
 
       if (result.suggestedKernels.length > 0) {
@@ -676,6 +697,78 @@ ${violationList}
 
 ---
 *Automated by SSOTAgentV2*`;
+  }
+
+  /**
+   * Convert DecisionRecord to Kernel
+   */
+  private async convertDecisionToKernel(
+    decision: any,
+    opportunity: any,
+    issue: GitHubIssue
+  ): Promise<KernelWithNRVV> {
+    const kernelId = this.generateKernelId();
+
+    // Extract statement from decision
+    const statement = decision.rationale || opportunity?.title || issue.title;
+
+    // Create Kernel
+    const kernel: KernelWithNRVV = {
+      id: kernelId,
+      statement,
+      category: 'requirement',
+      owner: decision.decidedBy || 'TechLead',
+      maturity: 'draft',
+      createdAt: new Date().toISOString(),
+      lastUpdatedAt: new Date().toISOString(),
+      sourceIssue: `#${issue.number}`,
+      sourceDecisionRecord: decision.id,
+      needs: opportunity
+        ? [
+            {
+              id: `NEED-${kernelId}`,
+              statement: opportunity.problem || 'Requirement not defined',
+              stakeholder: 'ProductOwner',
+              sourceType: 'business_requirement' as any,
+              priority: 'high' as any,
+              traceability: {
+                upstream: [],
+                downstream: [`REQ-${kernelId}`],
+              },
+            },
+          ]
+        : [],
+      requirements: [
+        {
+          id: `REQ-${kernelId}`,
+          statement: statement,
+          type: 'functional',
+          priority: 'must',
+          rationale: decision.rationale || 'Decision from Planning Layer',
+          traceability: {
+            upstream: opportunity ? [`NEED-${kernelId}`] : [],
+            downstream: [],
+          },
+        },
+      ],
+      verification: [],
+      validation: [],
+      history: [
+        {
+          timestamp: new Date().toISOString(),
+          action: 'created',
+          by: 'SSOTAgentV2',
+          maturity: 'draft',
+        },
+      ],
+      tags: ['planning-layer', 'decision'],
+    };
+
+    // Save to registry
+    await this.kernelRegistry.saveKernel(kernel);
+    this.log(`  Kernel ${kernelId} created from DecisionRecord ${decision.id}`);
+
+    return kernel;
   }
 
   private capitalizeFirst(str: string): string {

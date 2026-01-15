@@ -1,599 +1,248 @@
 /**
- * ExceptionRegistryAgent - Exception & Timeout Management
+ * ExceptionRegistryAgent - Exception Management
  */
 
 import { Octokit } from '@octokit/rest';
-import * as yaml from 'yaml';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as yaml from 'js-yaml';
+import { AgentConfig, AgentResult } from '../types';
 import {
-  GitHubIssue,
-  AgentConfig,
-  AgentResult,
-  SSOTData,
-  Exception,
+  ExceptionProposal,
+  ExceptionRecord,
+  ExceptionRegistry,
+  ExceptionType,
   ExceptionStatus,
-} from '../types';
+  ExceptionStats,
+} from '../types/exception';
 
-interface ExceptionRegistryResult {
-  issueNumber: number;
-  createdExceptions: Exception[];
-  expiredExceptions: Exception[];
-  extendedExceptions: Exception[];
-  comments: string[];
-  labels: string[];
+export interface ProposeExceptionInput {
+  type: ExceptionType;
+  rationale: string;
+  requested_by: string;
+  linked_decision_id?: string;
+  requested_expiry_condition: string;
+  proposed_mitigation_plan: string;
+  monitoring_signal?: string;
 }
 
 export class ExceptionRegistryAgent {
   private octokit: Octokit;
   private config: AgentConfig;
+  private registryPath: string;
 
   constructor(config: AgentConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.registryPath = path.join(process.cwd(), 'exceptions.yaml');
   }
 
   private log(message: string): void {
     if (this.config.verbose) {
-      const timestamp = new Date().toISOString();
-      console.log(`[${timestamp}] [ExceptionRegistryAgent] ${message}`);
+      console.log(`[${new Date().toISOString()}] [ExceptionRegistryAgent] ${message}`);
     }
   }
 
-  /**
-   * メイン実行
-   */
-  async execute(issueNumber: number): Promise<AgentResult<ExceptionRegistryResult>> {
-    this.log(`✅ Exception Registry starting for issue #${issueNumber}`);
-
-    const [owner, repo] = this.config.repository.split('/');
-
-    // 1. Issue取得
-    const { data: issue } = await this.octokit.issues.get({
-      owner,
-      repo,
-      issue_number: issueNumber,
-    });
-
-    const githubIssue: GitHubIssue = {
-      number: issue.number,
-      title: issue.title,
-      body: issue.body || '',
-      labels: issue.labels.map((l) =>
-        typeof l === 'string' ? { name: l, color: '' } : { name: l.name!, color: l.color! }
-      ),
-      state: issue.state as 'open' | 'closed',
-      created_at: issue.created_at,
-      updated_at: issue.updated_at,
-    };
-
-    // 2. SSOT Data抽出
-    const ssotData = this.parseSSOTData(githubIssue.body);
-
-    const result: ExceptionRegistryResult = {
-      issueNumber,
-      createdExceptions: [],
-      expiredExceptions: [],
-      extendedExceptions: [],
-      comments: [],
-      labels: [],
-    };
-
-    // 3. Exception申請検出
-    const requestCommands = this.extractRequestCommands(githubIssue.body);
-    if (requestCommands.length > 0) {
-      for (const cmd of requestCommands) {
-        const exception = this.createException(
-          cmd.kernelId,
-          cmd.reason,
-          cmd.duration,
-          cmd.convergencePlan,
-          cmd.requestedBy,
-          cmd.relatedIssues
-        );
-
-        result.createdExceptions.push(exception);
-        result.comments.push(this.buildRequestComment(exception));
-        result.labels.push('Exception:Active');
-
-        this.log(`Exception created: ${exception.id}`);
-      }
-    }
-
-    // 4. 延長コマンド検出（期限切れ検出の前に処理）
-    const extendCommands = this.extractExtendCommands(githubIssue.body);
-    const extendedExceptionIds = new Set<string>();
-    if (extendCommands.length > 0 && ssotData?.exceptions) {
-      for (const cmd of extendCommands) {
-        const exception = ssotData.exceptions.find((e) => e.id === cmd.exceptionId);
-        if (exception && exception.status === 'active') {
-          const extended = this.extendException(
-            exception,
-            cmd.newExpiryDate,
-            cmd.reason,
-            cmd.approver
-          );
-
-          // 元のexceptionオブジェクトも更新して、後の期限切れ検出でスキップされるようにする
-          exception.expiresAt = cmd.newExpiryDate;
-          exception.extendedAt = extended.extendedAt;
-          exception.extendedReason = extended.extendedReason;
-
-          result.extendedExceptions.push(extended);
-          result.comments.push(this.buildExtensionComment(extended));
-          extendedExceptionIds.add(exception.id);
-
-          this.log(`Exception extended: ${extended.id}`);
-        }
-      }
-    }
-
-    // 5. 期限切れ検出（延長されたexceptionは除外）
-    if (ssotData?.exceptions) {
-      const expiredExceptions = this.detectExpiredExceptions(ssotData.exceptions).filter(
-        (e) => !extendedExceptionIds.has(e.id)
-      );
-      if (expiredExceptions.length > 0) {
-        result.expiredExceptions = expiredExceptions;
-
-        for (const expired of expiredExceptions) {
-          result.comments.push(this.buildExpirationComment(expired, ssotData));
-          result.labels.push('Exception:Expired');
-
-          this.log(`Exception expired: ${expired.id}`);
-        }
-      }
-    }
-
-    // 6. SSOT Data更新
-    if (
-      result.createdExceptions.length > 0 ||
-      result.expiredExceptions.length > 0 ||
-      result.extendedExceptions.length > 0
-    ) {
-      const updatedSSOTData = this.updateSSOTData(ssotData, result);
-      const updatedBody = this.embedSSOTData(githubIssue.body, updatedSSOTData);
-
-      if (!this.config.dryRun) {
-        await this.octokit.issues.update({
-          owner,
-          repo,
-          issue_number: issueNumber,
-          body: updatedBody,
-        });
-        this.log('Issue body updated with Exception data');
-      }
-    }
-
-    // 7. コメント投稿
-    for (const comment of result.comments) {
-      if (!this.config.dryRun) {
-        await this.octokit.issues.createComment({
-          owner,
-          repo,
-          issue_number: issueNumber,
-          body: comment,
-        });
-      }
-      this.log(`Comment posted: ${comment.substring(0, 50)}...`);
-    }
-
-    // 8. Label適用
-    if (result.labels.length > 0 && !this.config.dryRun) {
-      await this.octokit.issues.addLabels({
-        owner,
-        repo,
-        issue_number: issueNumber,
-        labels: result.labels,
-      });
-      this.log(`Labels applied: ${result.labels.join(', ')}`);
-    }
-
-    return {
-      status: 'success',
-      data: result,
-      message: `Exception Registry processed: ${result.createdExceptions.length} created, ${result.expiredExceptions.length} expired, ${result.extendedExceptions.length} extended`,
-    };
-  }
-
-  // ========================================================================
-  // SSOT Data パース・更新
-  // ========================================================================
-
-  /**
-   * YAML frontmatterからSSOT Dataを抽出
-   */
-  private parseSSOTData(issueBody: string): SSOTData | null {
-    const yamlMatch = issueBody.match(/^---\n([\s\S]*?)\n---/);
-    if (!yamlMatch) {
-      return null;
-    }
-
+  async proposeException(input: ProposeExceptionInput): Promise<AgentResult<ExceptionProposal>> {
+    const startTime = Date.now();
+    this.log(`Proposing exception: ${input.type}`);
     try {
-      const data = yaml.parse(yamlMatch[1]);
-      return data.ssot_layer || null;
+      const registry = await this.loadRegistry();
+      const proposalId = `PROP-${String(registry.proposals.length + 1).padStart(3, '0')}`;
+      const proposal: ExceptionProposal = {
+        proposal_id: proposalId,
+        type: input.type,
+        rationale: input.rationale,
+        requested_by: input.requested_by,
+        requested_at: new Date().toISOString(),
+        linked_decision_id: input.linked_decision_id,
+        requested_expiry_condition: input.requested_expiry_condition,
+        proposed_mitigation_plan: input.proposed_mitigation_plan,
+        monitoring_signal: input.monitoring_signal,
+      };
+      registry.proposals.push(proposal);
+      registry.lastUpdated = new Date().toISOString();
+      if (!this.config.dryRun) await this.saveRegistry(registry);
+      this.log(`Proposal ${proposalId} created`);
+      return { status: 'success', data: proposal, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
     } catch (error) {
-      this.log(`YAML parse error: ${error}`);
-      return null;
+      return { status: 'error', error: (error as Error).message, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
     }
   }
 
-  /**
-   * SSOT DataをYAML frontmatterとしてIssue bodyに埋め込み
-   */
-  private embedSSOTData(issueBody: string, ssotData: SSOTData): string {
-    const bodyWithoutFrontmatter = issueBody.replace(/^---\n[\s\S]*?\n---\n/, '');
-
-    const yamlData = {
-      ssot_layer: ssotData,
-    };
-    const yamlString = yaml.stringify(yamlData);
-
-    return `---\n${yamlString}---\n${bodyWithoutFrontmatter}`;
+  async approveException(proposalId: string, approver: string, linkedCrId?: string): Promise<AgentResult<ExceptionRecord>> {
+    const startTime = Date.now();
+    try {
+      const registry = await this.loadRegistry();
+      const proposal = registry.proposals.find(p => p.proposal_id === proposalId);
+      if (!proposal) throw new Error('Proposal not found');
+      const exceptionId = `EXC-${this.getTypeAbbrev(proposal.type)}-${Date.now()}`;
+      const exception: ExceptionRecord = {
+        exception_id: exceptionId,
+        type: proposal.type,
+        approved_by: approver,
+        approved_at: new Date().toISOString(),
+        expiry_condition: proposal.requested_expiry_condition,
+        monitoring_signal: proposal.monitoring_signal,
+        mitigation_plan: proposal.proposed_mitigation_plan,
+        status: 'open',
+        linked_decision_id: proposal.linked_decision_id,
+        linked_cr_id: linkedCrId,
+        statusHistory: [{
+          status: 'open',
+          changedAt: new Date().toISOString(),
+          changedBy: approver,
+          reason: 'Approved from proposal',
+        }],
+      };
+      registry.exceptions.push(exception);
+      registry.proposals = registry.proposals.filter(p => p.proposal_id !== proposalId);
+      registry.lastUpdated = new Date().toISOString();
+      if (!this.config.dryRun) await this.saveRegistry(registry);
+      this.log(`Exception ${exceptionId} approved`);
+      return { status: 'success', data: exception, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    } catch (error) {
+      return { status: 'error', error: (error as Error).message, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    }
   }
 
-  /**
-   * SSOT Data更新
-   */
-  private updateSSOTData(
-    ssotData: SSOTData | null,
-    result: ExceptionRegistryResult
-  ): SSOTData {
-    const updated: SSOTData = ssotData || {
-      lastUpdatedAt: new Date().toISOString(),
-      lastUpdatedBy: 'ExceptionRegistryAgent',
-    };
-
-    // Exceptions追加
-    if (result.createdExceptions.length > 0) {
-      updated.exceptions = [...(updated.exceptions || []), ...result.createdExceptions];
+  async updateExceptionStatus(exceptionId: string, newStatus: ExceptionStatus, changedBy: string, reason: string): Promise<AgentResult<ExceptionRecord>> {
+    const startTime = Date.now();
+    try {
+      const registry = await this.loadRegistry();
+      const exception = registry.exceptions.find(e => e.exception_id === exceptionId);
+      if (!exception) throw new Error('Exception not found');
+      exception.status = newStatus;
+      exception.statusHistory.push({
+        status: newStatus,
+        changedAt: new Date().toISOString(),
+        changedBy,
+        reason,
+      });
+      registry.lastUpdated = new Date().toISOString();
+      if (!this.config.dryRun) await this.saveRegistry(registry);
+      return { status: 'success', data: exception, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    } catch (error) {
+      return { status: 'error', error: (error as Error).message, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
     }
+  }
 
-    // Exceptions更新（期限切れ）
-    if (result.expiredExceptions.length > 0) {
-      for (const expired of result.expiredExceptions) {
-        const index = updated.exceptions?.findIndex((e) => e.id === expired.id);
-        if (index !== undefined && index !== -1 && updated.exceptions) {
-          updated.exceptions[index] = expired;
+  async detectExpiredExceptions(): Promise<AgentResult<ExceptionRecord[]>> {
+    const startTime = Date.now();
+    try {
+      const registry = await this.loadRegistry();
+      const expired: ExceptionRecord[] = [];
+      const now = new Date();
+      for (const exception of registry.exceptions) {
+        if (exception.status !== 'open') continue;
+        if (this.isExpired(exception.expiry_condition, now)) {
+          expired.push(exception);
         }
       }
+      this.log(`Found ${expired.length} expired exceptions`);
+      return { status: 'success', data: expired, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    } catch (error) {
+      return { status: 'error', error: (error as Error).message, data: [], metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
     }
+  }
 
-    // Exceptions更新（延長）
-    if (result.extendedExceptions.length > 0) {
-      for (const extended of result.extendedExceptions) {
-        const index = updated.exceptions?.findIndex((e) => e.id === extended.id);
-        if (index !== undefined && index !== -1 && updated.exceptions) {
-          updated.exceptions[index] = extended;
+  async evaluateExceptionsBySignal(): Promise<AgentResult<Array<{ exception: ExceptionRecord; shouldReview: boolean }>>> {
+    const startTime = Date.now();
+    try {
+      const registry = await this.loadRegistry();
+      const results: Array<{ exception: ExceptionRecord; shouldReview: boolean }> = [];
+      for (const exception of registry.exceptions) {
+        if (exception.status !== 'open' || !exception.monitoring_signal) continue;
+        const shouldReview = await this.evaluateSignal(exception.monitoring_signal);
+        results.push({ exception, shouldReview });
+      }
+      return { status: 'success', data: results, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    } catch (error) {
+      return { status: 'error', error: (error as Error).message, data: [], metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    }
+  }
+
+  async getExceptionStats(): Promise<AgentResult<ExceptionStats>> {
+    const startTime = Date.now();
+    try {
+      const registry = await this.loadRegistry();
+      const stats: ExceptionStats = {
+        totalExceptions: registry.exceptions.length,
+        byStatus: { open: 0, mitigated: 0, closed: 0, expired: 0 },
+        byType: {
+          E_quality_over_speed: 0,
+          E_differentiation_over_cost: 0,
+          E_new_value_axis: 0,
+          E_boundary_exception: 0,
+          E_regulation_override: 0,
+          E_technical_debt: 0,
+        },
+        expiredCount: 0,
+        expiredExceptionIds: [],
+      };
+      for (const exception of registry.exceptions) {
+        stats.byStatus[exception.status]++;
+        stats.byType[exception.type]++;
+        if (exception.status === 'expired') {
+          stats.expiredCount++;
+          stats.expiredExceptionIds.push(exception.exception_id);
         }
       }
+      return { status: 'success', data: stats, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    } catch (error) {
+      return { status: 'error', error: (error as Error).message, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
     }
-
-    updated.lastUpdatedAt = new Date().toISOString();
-    updated.lastUpdatedBy = 'ExceptionRegistryAgent';
-
-    return updated;
   }
 
-  // ========================================================================
-  // Exception作成・管理
-  // ========================================================================
-
-  /**
-   * Exception申請コマンドを抽出
-   */
-  private extractRequestCommands(
-    body: string
-  ): Array<{
-    kernelId: string;
-    reason: string;
-    duration: number;
-    convergencePlan: string;
-    requestedBy: string;
-    relatedIssues: string[];
-  }> {
-    const commands: Array<{
-      kernelId: string;
-      reason: string;
-      duration: number;
-      convergencePlan: string;
-      requestedBy: string;
-      relatedIssues: string[];
-    }> = [];
-
-    // Pattern: /request-exception KRN-NNN
-    const pattern = /\/request-exception\s+(KRN-\d{3})\s+Reason:\s*(.+?)\s+Duration:\s*(\d+)\s*days?\s+Convergence Plan:\s*(.+?)(?:\s+Related Issues:\s*(.+?))?$/gim;
-    const matches = body.matchAll(pattern);
-
-    for (const match of matches) {
-      const relatedIssues = match[5]
-        ? match[5]
-            .split(',')
-            .map((s) => s.trim())
-            .filter((s) => s.startsWith('#'))
-        : [];
-
-      commands.push({
-        kernelId: match[1],
-        reason: match[2].trim(),
-        duration: parseInt(match[3], 10),
-        convergencePlan: match[4].trim(),
-        requestedBy: 'TechLead', // Default (should extract from Issue author)
-        relatedIssues,
-      });
-    }
-
-    return commands;
-  }
-
-  /**
-   * Exception作成
-   */
-  private createException(
-    kernelId: string,
-    reason: string,
-    duration: number,
-    convergencePlan: string,
-    requestedBy: string,
-    relatedIssues: string[]
-  ): Exception {
-    const now = new Date();
-    const expiresAt = new Date(now.getTime() + duration * 24 * 60 * 60 * 1000);
-
-    const exception: Exception = {
-      id: this.generateExceptionId(),
-      kernelId,
-      reason,
-      requestedBy,
-      approvedBy: '', // Pending approval
-      status: 'active',
-      approvedAt: now.toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      convergencePlan,
-      relatedIssues,
+  private getTypeAbbrev(type: ExceptionType): string {
+    const abbrevs: Record<ExceptionType, string> = {
+      E_quality_over_speed: 'QUA',
+      E_differentiation_over_cost: 'DIF',
+      E_new_value_axis: 'VAL',
+      E_boundary_exception: 'BND',
+      E_regulation_override: 'REG',
+      E_technical_debt: 'TEC',
     };
-
-    return exception;
+    return abbrevs[type];
   }
 
-  /**
-   * Exception ID生成
-   */
-  private generateExceptionId(): string {
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, '0');
-    return `EXC-${random}`;
-  }
-
-  /**
-   * 期限切れException検出
-   */
-  private detectExpiredExceptions(exceptions: Exception[]): Exception[] {
-    const expiredExceptions = exceptions.filter(
-      (e) => e.status === 'active' && this.isExpired(e)
-    );
-
-    for (const exception of expiredExceptions) {
-      exception.status = 'expired';
-      exception.expiredAt = new Date().toISOString();
+  private isExpired(expiryCondition: string, now: Date): boolean {
+    const patterns = [
+      { regex: /(\d{4})-Q([1-4])/, getValue: (m: RegExpMatchArray) => {
+        const year = parseInt(m[1]);
+        const quarter = parseInt(m[2]);
+        const month = quarter * 3;
+        return new Date(year, month, 0);
+      }},
+      { regex: /(\d{4})-(\d{2})-(\d{2})/, getValue: (m: RegExpMatchArray) => {
+        return new Date(parseInt(m[1]), parseInt(m[2]) - 1, parseInt(m[3]));
+      }},
+    ];
+    for (const pattern of patterns) {
+      const match = expiryCondition.match(pattern.regex);
+      if (match) {
+        const expiryDate = pattern.getValue(match);
+        return now > expiryDate;
+      }
     }
-
-    return expiredExceptions;
+    return false;
   }
 
-  /**
-   * Exception期限チェック
-   */
-  private isExpired(exception: Exception): boolean {
-    const now = new Date();
-    const expiresAt = new Date(exception.expiresAt);
-    return now > expiresAt;
+  private async evaluateSignal(signal: string): Promise<boolean> {
+    // Placeholder: 実際にはメトリクスを評価
+    return Math.random() > 0.5;
   }
 
-  /**
-   * Timeout計算
-   */
-  private calculateTimeout(reason: string): string {
-    const now = new Date();
-    let days = 7; // Default
-
-    if (reason.match(/hotfix|incident|emergency/i)) {
-      days = 3;
-    } else if (reason.match(/migration|phased/i)) {
-      days = 14;
-    } else if (reason.match(/poc|experiment|spike/i)) {
-      days = 7;
-    }
-
-    const expiresAt = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
-    return expiresAt.toISOString();
-  }
-
-  // ========================================================================
-  // Exception延長
-  // ========================================================================
-
-  /**
-   * 延長コマンドを抽出
-   */
-  private extractExtendCommands(
-    body: string
-  ): Array<{
-    exceptionId: string;
-    newExpiryDate: string;
-    reason: string;
-    approver: string;
-  }> {
-    const commands: Array<{
-      exceptionId: string;
-      newExpiryDate: string;
-      reason: string;
-      approver: string;
-    }> = [];
-
-    // Pattern: /extend-exception EXC-NNN (supports multiline, flexible whitespace)
-    const pattern =
-      /\/extend-exception\s+(EXC-\d{3})\s+Reason:\s*(.+?)\s+New Expiry:\s*(.+)/gims;
-    const matches = body.matchAll(pattern);
-
-    for (const match of matches) {
-      commands.push({
-        exceptionId: match[1],
-        reason: match[2].trim(),
-        newExpiryDate: match[3].trim(),
-        approver: 'Guardian', // Default
-      });
-    }
-
-    return commands;
-  }
-
-  /**
-   * Exception延長
-   */
-  private extendException(
-    exception: Exception,
-    newExpiryDate: string,
-    reason: string,
-    approver: string
-  ): Exception {
-    return {
-      ...exception,
-      expiresAt: newExpiryDate,
-      extendedAt: new Date().toISOString(),
-      extendedReason: reason,
-    };
-  }
-
-  // ========================================================================
-  // 収束進捗チェック
-  // ========================================================================
-
-  /**
-   * 収束進捗チェック
-   */
-  private checkConvergenceProgress(
-    exception: Exception,
-    ssotData: SSOTData
-  ): 'on_track' | 'delayed' | 'blocked' {
-    const relatedIssues = exception.relatedIssues;
-
-    // Simplification: Assume all related issues are open (needs GitHub API call)
-    const closedCount = 0; // TODO: Check actual Issue status
-    const progressRate = closedCount / (relatedIssues.length || 1);
-
-    const daysRemaining = this.getDaysRemaining(exception.expiresAt);
-
-    if (progressRate >= 0.8) {
-      return 'on_track';
-    } else if (daysRemaining < 1 && progressRate < 0.5) {
-      return 'blocked';
-    } else {
-      return 'delayed';
+  private async loadRegistry(): Promise<ExceptionRegistry> {
+    try {
+      const content = await fs.readFile(this.registryPath, 'utf-8');
+      return yaml.load(content) as ExceptionRegistry;
+    } catch {
+      return { proposals: [], exceptions: [], version: '1.0.0', lastUpdated: new Date().toISOString() };
     }
   }
 
-  /**
-   * 残り日数計算
-   */
-  private getDaysRemaining(expiresAt: string): number {
-    const now = new Date();
-    const expires = new Date(expiresAt);
-    const diff = expires.getTime() - now.getTime();
-    return Math.ceil(diff / (24 * 60 * 60 * 1000));
-  }
-
-  // ========================================================================
-  // コメント生成
-  // ========================================================================
-
-  /**
-   * Exception申請コメント
-   */
-  private buildRequestComment(exception: Exception): string {
-    return `📝 **Exception Request: ${exception.id}**
-
-**Kernel**: ${exception.kernelId}
-**Reason**: ${exception.reason}
-
-**Requested By**: @${exception.requestedBy}
-**Duration**: ${this.getDaysRemaining(exception.expiresAt)} days
-**Expires At**: ${new Date(exception.expiresAt).toISOString().split('T')[0]} ${new Date(exception.expiresAt).toISOString().split('T')[1].substring(0, 8)}
-
-**Convergence Plan**:
-${exception.convergencePlan}
-
-**Related Issues**: ${exception.relatedIssues.join(', ') || 'None'}
-
-**Approval Required**: @Guardian
-
-Use \`/approve-exception ${exception.id}\` to approve.
-
----
-*Automated by ExceptionRegistryAgent*`;
-  }
-
-  /**
-   * 期限切れアラートコメント
-   */
-  private buildExpirationComment(exception: Exception, ssotData: SSOTData): string {
-    const convergenceStatus = this.checkConvergenceProgress(exception, ssotData);
-
-    const statusEmoji = {
-      on_track: '✅',
-      delayed: '⚠️',
-      blocked: '🔴',
-    };
-
-    const relatedIssuesStatus = exception.relatedIssues
-      .map((issueRef) => `- ${issueRef}: 🔴 Still Open`) // Simplification
-      .join('\n');
-
-    return `🚨 **Exception Expired: ${exception.id}**
-
-**Kernel**: ${exception.kernelId}
-**Exception**: ${exception.reason}
-**Expired At**: ${new Date(exception.expiresAt).toISOString().split('T')[0]} ${new Date(exception.expiresAt).toISOString().split('T')[1].substring(0, 8)}
-
-**Convergence Status**: ${statusEmoji[convergenceStatus]} ${convergenceStatus.toUpperCase().replace('_', ' ')}
-
-**Related Issues**:
-${relatedIssuesStatus || '- None'}
-
-**Required Actions**:
-1. 🚨 **Immediate**: Converge to Kernel ${exception.kernelId}
-2. Complete convergence plan
-3. Close related issues
-
-**Escalation**: @Guardian @ProductOwner
-
-**Label Applied**: \`Exception:Expired\`
-
-⛔ **Blocking**: Cannot proceed until convergence is complete.
-
----
-*Automated by ExceptionRegistryAgent*`;
-  }
-
-  /**
-   * 延長完了コメント
-   */
-  private buildExtensionComment(exception: Exception): string {
-    return `⏰ **Exception Extended: ${exception.id}**
-
-**Kernel**: ${exception.kernelId}
-**Exception**: ${exception.reason}
-
-**Original Expiry**: ${exception.approvedAt}
-**New Expiry**: ${new Date(exception.expiresAt).toISOString().split('T')[0]} ${new Date(exception.expiresAt).toISOString().split('T')[1].substring(0, 8)}
-
-**Extension Reason**: ${exception.extendedReason || 'N/A'}
-**Extended At**: ${exception.extendedAt}
-
-**Approved By**: @${exception.approvedBy || 'Guardian'}
-
-**Reminder**: This is a time-limited extension. Please ensure convergence by the new deadline.
-
----
-*Automated by ExceptionRegistryAgent*`;
+  private async saveRegistry(registry: ExceptionRegistry): Promise<void> {
+    await fs.writeFile(this.registryPath, yaml.dump(registry, { indent: 2, lineWidth: -1, noRefs: true }), 'utf-8');
   }
 }

@@ -1,718 +1,149 @@
 /**
- * ChangeControlAgent - Formal Change Management for Frozen/Agreed Kernels
+ * ChangeControlAgent - Change Request Flow Management
  */
 
 import { Octokit } from '@octokit/rest';
-import * as yaml from 'yaml';
-import {
-  GitHubIssue,
-  AgentConfig,
-  AgentResult,
-  SSOTData,
-  ChangeRequest,
-  ChangeApproval,
-  Kernel,
-} from '../types';
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import * as yaml from 'js-yaml';
+import { AgentConfig, AgentResult } from '../types';
+import { ChangeRequest, ChangeRequestRegistry, TriggerType, DisturbanceToCRRule } from '../types/change-control';
 
-interface ChangeControlResult {
-  issueNumber: number;
-  detectedChangeRequests: ChangeRequest[];
-  approvals: ChangeApproval[];
-  approvedChanges: ChangeApproval[]; // Alias for backward compatibility
-  rejections: ChangeApproval[];
-  rejectedChanges: ChangeApproval[]; // Alias for backward compatibility
-  executedChanges: Kernel[];
-  comments: string[];
-  labels: string[];
+export interface CreateChangeRequestInput {
+  raised_by: string;
+  trigger_type: TriggerType;
+  affected_scope: string[];
+  notes?: string;
 }
 
 export class ChangeControlAgent {
   private octokit: Octokit;
   private config: AgentConfig;
+  private registryPath: string;
 
   constructor(config: AgentConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.registryPath = path.join(process.cwd(), 'change-requests.yaml');
   }
 
   private log(message: string): void {
     if (this.config.verbose) {
-      const timestamp = new Date().toISOString();
-      console.log(`[${timestamp}] [ChangeControlAgent] ${message}`);
+      console.log(`[${new Date().toISOString()}] [ChangeControlAgent] ${message}`);
     }
   }
 
-  /**
-   * メイン実行
-   */
-  async execute(issueNumber: number): Promise<AgentResult<ChangeControlResult>> {
-    this.log(`✅ Change Control starting for issue #${issueNumber}`);
-
-    const [owner, repo] = this.config.repository.split('/');
-
-    // 1. Issue取得
-    const { data: issue } = await this.octokit.issues.get({
-      owner,
-      repo,
-      issue_number: issueNumber,
-    });
-
-    const githubIssue: GitHubIssue = {
-      number: issue.number,
-      title: issue.title,
-      body: issue.body || '',
-      labels: issue.labels.map((l) =>
-        typeof l === 'string' ? { name: l, color: '' } : { name: l.name!, color: l.color! }
-      ),
-      state: issue.state as 'open' | 'closed',
-      created_at: issue.created_at,
-      updated_at: issue.updated_at,
-    };
-
-    // 2. SSOT Data抽出
-    const ssotData = this.parseSSOTData(githubIssue.body);
-
-    const result: ChangeControlResult = {
-      issueNumber,
-      detectedChangeRequests: [],
-      approvals: [],
-      approvedChanges: [],
-      rejections: [],
-      rejectedChanges: [],
-      executedChanges: [],
-      comments: [],
-      labels: [],
-    };
-
-    // 3. Change Request検出
-    if (ssotData?.kernels) {
-      const frozenOrAgreedKernels = ssotData.kernels.filter(
-        (k) => k.maturity === 'frozen' || k.maturity === 'agreed'
-      );
-
-      for (const kernel of frozenOrAgreedKernels) {
-        const changeRequest = await this.detectChangeRequest(githubIssue, kernel);
-        if (changeRequest) {
-          result.detectedChangeRequests.push(changeRequest);
-          result.comments.push(this.buildChangeRequestComment(changeRequest, kernel));
-          this.addLabel(result.labels, 'Change:Pending');
-          this.log(`Change request detected: ${changeRequest.id}`);
-        }
-      }
-    }
-
-    // 4. 承認コマンド検出
-    const approvalCommands = this.extractApprovalCommands(githubIssue.body);
-    if (approvalCommands.length > 0 && ssotData?.changeRequests) {
-      for (const cmd of approvalCommands) {
-        const changeRequest = ssotData.changeRequests.find((c) => c.id === cmd.changeRequestId);
-        if (changeRequest) {
-          const approval = this.createApproval(
-            changeRequest,
-            cmd.approver,
-            cmd.decision,
-            cmd.comments,
-            cmd.conditions
-          );
-
-          if (cmd.decision === 'approved') {
-            result.approvedChanges.push(approval);
-            result.approvals.push(approval);
-            this.addLabel(result.labels, 'Change:Approved');
-
-            // 変更実行
-            const kernel = ssotData.kernels?.find((k) => k.id === changeRequest.kernelId);
-            if (kernel) {
-              const updatedKernel = await this.executeChange(changeRequest, kernel);
-              result.executedChanges.push(updatedKernel);
-            }
-            result.comments.push(this.buildApprovalComment(approval, changeRequest));
-          } else if (cmd.decision === 'conditional') {
-            result.approvals.push(approval);
-            this.addLabel(result.labels, 'Change:Approved');
-            result.comments.push(this.buildConditionalApprovalComment(approval, changeRequest));
-          } else {
-            result.rejectedChanges.push(approval);
-            result.rejections.push(approval);
-            result.comments.push(this.buildRejectionComment(approval, changeRequest));
-          }
-
-          this.log(`Change request ${cmd.decision}: ${changeRequest.id}`);
-        }
-      }
-    }
-
-    // 5. SSOT Data更新
-    if (
-      result.detectedChangeRequests.length > 0 ||
-      result.approvedChanges.length > 0 ||
-      result.executedChanges.length > 0
-    ) {
-      const updatedSSOTData = this.updateSSOTData(ssotData, result);
-      const updatedBody = this.embedSSOTData(githubIssue.body, updatedSSOTData);
-
-      if (!this.config.dryRun) {
-        await this.octokit.issues.update({
-          owner,
-          repo,
-          issue_number: issueNumber,
-          body: updatedBody,
-        });
-        this.log('Issue body updated with Change Control data');
-      }
-    }
-
-    // 6. コメント投稿
-    for (const comment of result.comments) {
-      if (!this.config.dryRun) {
-        await this.octokit.issues.createComment({
-          owner,
-          repo,
-          issue_number: issueNumber,
-          body: comment,
-        });
-      }
-      this.log(`Comment posted: ${comment.substring(0, 50)}...`);
-    }
-
-    // 7. Label適用
-    if (result.labels.length > 0 && !this.config.dryRun) {
-      await this.octokit.issues.addLabels({
-        owner,
-        repo,
-        issue_number: issueNumber,
-        labels: result.labels,
-      });
-      this.log(`Labels applied: ${result.labels.join(', ')}`);
-    }
-
-    return {
-      status: 'success',
-      data: result,
-      message: `Change Control processed: ${result.detectedChangeRequests.length} requests, ${result.approvedChanges.length} approved`,
-    };
-  }
-
-  // ========================================================================
-  // SSOT Data パース・更新
-  // ========================================================================
-
-  /**
-   * YAML frontmatterからSSOT Dataを抽出
-   */
-  private parseSSOTData(issueBody: string): SSOTData | null {
-    const yamlMatch = issueBody.match(/^---\n([\s\S]*?)\n---/);
-    if (!yamlMatch) {
-      return null;
-    }
-
+  async createChangeRequest(input: CreateChangeRequestInput): Promise<AgentResult<ChangeRequest>> {
+    const startTime = Date.now();
     try {
-      const data = yaml.parse(yamlMatch[1]);
-      return data.ssot_layer || null;
+      const registry = await this.loadRegistry();
+      const crId = `CR-${new Date().getFullYear()}-${String(registry.changeRequests.length + 1).padStart(3, '0')}`;
+      const rule = this.getRule(input.trigger_type);
+      const cr: ChangeRequest = {
+        cr_id: crId,
+        raised_by: input.raised_by,
+        raised_at: new Date().toISOString(),
+        trigger_type: input.trigger_type,
+        affected_scope: input.affected_scope,
+        proposed_operations: rule.default_proposed_operations,
+        required_reviews: rule.required_reviews,
+        gate_outcome: 'pending',
+        decision_update_rule: rule.decision_update_rule,
+        evidence_pack_refs: [],
+        notes: input.notes,
+        executed: false,
+      };
+      registry.changeRequests.push(cr);
+      registry.lastUpdated = new Date().toISOString();
+      if (!this.config.dryRun) await this.saveRegistry(registry);
+      return { status: 'success', data: cr, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
     } catch (error) {
-      this.log(`YAML parse error: ${error}`);
-      return null;
+      return { status: 'error', error: (error as Error).message, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
     }
   }
 
-  /**
-   * SSOT DataをYAML frontmatterとしてIssue bodyに埋め込み
-   */
-  private embedSSOTData(issueBody: string, ssotData: SSOTData): string {
-    const bodyWithoutFrontmatter = issueBody.replace(/^---\n[\s\S]*?\n---\n/, '');
+  async approveChangeRequest(crId: string, approver: string): Promise<AgentResult<ChangeRequest>> {
+    const startTime = Date.now();
+    try {
+      const registry = await this.loadRegistry();
+      const cr = registry.changeRequests.find(c => c.cr_id === crId);
+      if (!cr) throw new Error('CR not found');
+      cr.gate_outcome = 'approved';
+      registry.lastUpdated = new Date().toISOString();
+      if (!this.config.dryRun) await this.saveRegistry(registry);
+      return { status: 'success', data: cr, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    } catch (error) {
+      return { status: 'error', error: (error as Error).message, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    }
+  }
 
-    const yamlData = {
-      ssot_layer: ssotData,
+  async executeChangeRequest(crId: string): Promise<AgentResult<ChangeRequest>> {
+    const startTime = Date.now();
+    try {
+      const registry = await this.loadRegistry();
+      const cr = registry.changeRequests.find(c => c.cr_id === crId);
+      if (!cr || cr.gate_outcome !== 'approved' || cr.executed) throw new Error('Cannot execute');
+      cr.executed = true;
+      cr.executed_at = new Date().toISOString();
+      registry.lastUpdated = new Date().toISOString();
+      if (!this.config.dryRun) await this.saveRegistry(registry);
+      return { status: 'success', data: cr, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    } catch (error) {
+      return { status: 'error', error: (error as Error).message, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    }
+  }
+
+  async listChangeRequests(): Promise<AgentResult<ChangeRequest[]>> {
+    const startTime = Date.now();
+    try {
+      const registry = await this.loadRegistry();
+      return { status: 'success', data: registry.changeRequests, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    } catch (error) {
+      return { status: 'error', error: (error as Error).message, data: [], metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    }
+  }
+
+  async rollbackChangeRequest(crId: string): Promise<AgentResult<ChangeRequest>> {
+    const startTime = Date.now();
+    try {
+      const registry = await this.loadRegistry();
+      const cr = registry.changeRequests.find(c => c.cr_id === crId);
+      if (!cr || !cr.executed) throw new Error('Cannot rollback');
+      cr.executed = false;
+      cr.executed_at = undefined;
+      cr.gate_outcome = 'pending';
+      registry.lastUpdated = new Date().toISOString();
+      if (!this.config.dryRun) await this.saveRegistry(registry);
+      return { status: 'success', data: cr, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    } catch (error) {
+      return { status: 'error', error: (error as Error).message, metrics: { durationMs: Date.now() - startTime, timestamp: new Date().toISOString() } };
+    }
+  }
+
+  private getRule(t: TriggerType): DisturbanceToCRRule {
+    const rules: Record<TriggerType, DisturbanceToCRRule> = {
+      regulation_change: { trigger_type: 'regulation_change', default_proposed_operations: ['u.retype', 'u.record_decision'], required_reviews: ['gate.compliance_check', 'gate.po_approval'], decision_update_rule: 'must_update_decision' },
+      safety_or_quality_incident: { trigger_type: 'safety_or_quality_incident', default_proposed_operations: ['u.quarantine_evidence', 'u.raise_exception'], required_reviews: ['gate.review', 'gate.security_review', 'gate.po_approval'], decision_update_rule: 'must_update_decision' },
+      market_or_customer_shift: { trigger_type: 'market_or_customer_shift', default_proposed_operations: ['u.retype', 'u.record_decision'], required_reviews: ['gate.po_approval'], decision_update_rule: 'may_update_decision' },
+      key_assumption_invalidated: { trigger_type: 'key_assumption_invalidated', default_proposed_operations: ['u.record_decision', 'u.raise_exception'], required_reviews: ['gate.review', 'gate.po_approval'], decision_update_rule: 'must_update_decision' },
+      cost_or_schedule_disruption: { trigger_type: 'cost_or_schedule_disruption', default_proposed_operations: ['u.rewire', 'u.raise_exception'], required_reviews: ['gate.po_approval'], decision_update_rule: 'may_update_decision' },
+      supplier_or_boundary_change: { trigger_type: 'supplier_or_boundary_change', default_proposed_operations: ['u.rewire', 'u.record_decision'], required_reviews: ['gate.review', 'gate.po_approval'], decision_update_rule: 'must_update_decision' },
+      ai_generated_contamination: { trigger_type: 'ai_generated_contamination', default_proposed_operations: ['u.quarantine_evidence', 'u.link_evidence'], required_reviews: ['gate.evidence_verification', 'gate.review', 'gate.po_approval'], decision_update_rule: 'must_update_decision' },
+      manual: { trigger_type: 'manual', default_proposed_operations: [], required_reviews: ['gate.review'], decision_update_rule: 'no_decision_update' },
     };
-    const yamlString = yaml.stringify(yamlData);
-
-    return `---\n${yamlString}---\n${bodyWithoutFrontmatter}`;
+    return rules[t];
   }
 
-  /**
-   * SSOT Data更新
-   */
-  private updateSSOTData(ssotData: SSOTData | null, result: ChangeControlResult): SSOTData {
-    const updated: SSOTData = ssotData || {
-      lastUpdatedAt: new Date().toISOString(),
-      lastUpdatedBy: 'ChangeControlAgent',
-    };
-
-    // Change Requests追加
-    if (result.detectedChangeRequests.length > 0) {
-      updated.changeRequests = [
-        ...(updated.changeRequests || []),
-        ...result.detectedChangeRequests,
-      ];
-    }
-
-    // Change Approvals追加
-    if (result.approvedChanges.length > 0 || result.rejectedChanges.length > 0) {
-      updated.changeApprovals = [
-        ...(updated.changeApprovals || []),
-        ...result.approvedChanges,
-        ...result.rejectedChanges,
-      ];
-    }
-
-    // Kernels更新（変更実行）
-    if (result.executedChanges.length > 0) {
-      for (const executedKernel of result.executedChanges) {
-        const index = updated.kernels?.findIndex((k) => k.id === executedKernel.id);
-        if (index !== undefined && index !== -1 && updated.kernels) {
-          updated.kernels[index] = executedKernel;
-        }
-      }
-    }
-
-    updated.lastUpdatedAt = new Date().toISOString();
-    updated.lastUpdatedBy = 'ChangeControlAgent';
-
-    return updated;
-  }
-
-  // ========================================================================
-  // Change Request検出
-  // ========================================================================
-
-  /**
-   * Change Requestを検出
-   */
-  private async detectChangeRequest(
-    issue: GitHubIssue,
-    kernel: Kernel
-  ): Promise<ChangeRequest | null> {
-    // Frozen Kernelへの変更意図を検出
-    if (kernel.maturity === 'frozen' || kernel.maturity === 'agreed') {
-      const changeIntent = this.detectChangeIntent(issue.body, kernel, issue.title);
-
-      if (changeIntent) {
-        const impact = this.analyzeImpact(changeIntent, kernel);
-
-        return {
-          id: this.generateChangeRequestId(),
-          kernelId: kernel.id,
-          changeType: changeIntent.type,
-          proposedChange: changeIntent.description,
-          rationale: changeIntent.reason,
-          requestedBy: 'TechLead', // Default
-          requestedAt: new Date().toISOString(),
-          impact,
-          affectedComponents: changeIntent.affectedComponents,
-        };
-      }
-    }
-
-    return null;
-  }
-
-  /**
-   * 変更意図を検出
-   */
-  private detectChangeIntent(
-    body: string,
-    kernel: Kernel,
-    title?: string
-  ): {
-    type: 'update' | 'deprecate' | 'freeze' | 'unfreeze';
-    description: string;
-    reason: string;
-    affectedComponents: string[];
-  } | null {
-    const fullText = `${title || ''} ${body}`;
-
-    // キーワードとkernel statementの関連性を抽出
-    const statementKeywords = this.extractKeywords(kernel.statement);
-    const hasRelevantKeywords = statementKeywords.some(kw =>
-      fullText.toLowerCase().includes(kw.toLowerCase())
-    );
-
-    // Deprecate検出（deprecate/retireキーワードと関連性）
-    const deprecatePattern = /\b(deprecate|retire)\b/i;
-    if (deprecatePattern.test(fullText) && hasRelevantKeywords) {
-      return {
-        type: 'deprecate',
-        description: 'Kernel deprecation proposed',
-        reason: this.extractReason(body),
-        affectedComponents: this.extractAffectedComponents(body),
-      };
-    }
-
-    // Update検出（change/update/modifyキーワードと関連性）
-    const updatePattern = /\b(update|modify|change)\b/i;
-    if (updatePattern.test(fullText) && hasRelevantKeywords) {
-      return {
-        type: 'update',
-        description: 'Kernel update proposed',
-        reason: this.extractReason(body),
-        affectedComponents: this.extractAffectedComponents(body),
-      };
-    }
-
-    // Freeze検出
-    if (/\/freeze-kernel/i.test(body)) {
-      return {
-        type: 'freeze',
-        description: 'Kernel freeze proposed',
-        reason: this.extractReason(body),
-        affectedComponents: [],
-      };
-    }
-
-    // Unfreeze検出
-    if (/\/unfreeze-kernel/i.test(body)) {
-      return {
-        type: 'unfreeze',
-        description: 'Kernel unfreeze proposed',
-        reason: this.extractReason(body),
-        affectedComponents: [],
-      };
-    }
-
-    return null;
-  }
-
-  /**
-   * 理由を抽出
-   */
-  private extractReason(body: string): string {
-    const reasonPattern = /Reason:\s*(.+?)(?:\n|$)/i;
-    const match = body.match(reasonPattern);
-    return match ? match[1].trim() : 'No reason provided';
-  }
-
-  /**
-   * 影響を受けるコンポーネントを抽出
-   */
-  private extractAffectedComponents(body: string): string[] {
-    const components: string[] = [];
-    const pattern = /Affected:\s*(.+?)(?:\n|$)/i;
-    const match = body.match(pattern);
-
-    if (match) {
-      const componentStr = match[1];
-      components.push(...componentStr.split(',').map((c) => c.trim()));
-    }
-
-    return components;
-  }
-
-  /**
-   * Statementから重要なキーワードを抽出
-   */
-  private extractKeywords(statement: string): string[] {
-    // 一般的なストップワードを除外
-    const stopWords = new Set(['the', 'is', 'are', 'a', 'an', 'to', 'for', 'of', 'in', 'on', 'at', 'by', 'with']);
-
-    // 単語に分割し、ストップワードと短い単語を除外
-    const words = statement
-      .toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
-      .split(/\s+/)
-      .filter(word => word.length >= 3 && !stopWords.has(word));
-
-    return words;
-  }
-
-  /**
-   * Impact分析
-   */
-  private analyzeImpact(
-    changeIntent: { type: string; affectedComponents: string[] },
-    kernel: Kernel
-  ): 'breaking' | 'major' | 'minor' | 'patch' {
-    // Deprecateは常にBreaking
-    if (changeIntent.type === 'deprecate') {
-      return 'breaking';
-    }
-
-    // Freeze/Unfreezeは Major
-    if (changeIntent.type === 'freeze' || changeIntent.type === 'unfreeze') {
-      return 'major';
-    }
-
-    // Kernel Categoryで判定（影響が小さくても重要度を優先）
-    if (kernel.category === 'interface' || kernel.category === 'architecture') {
-      return 'major';
-    }
-
-    // Affected Components数でImpact判定
-    if (changeIntent.affectedComponents.length > 10) {
-      return 'breaking';
-    } else if (changeIntent.affectedComponents.length > 5) {
-      return 'major';
-    } else if (changeIntent.affectedComponents.length > 2) {
-      return 'minor';
-    }
-
-    return 'patch';
-  }
-
-  /**
-   * Change Request ID生成
-   */
-  private generateChangeRequestId(): string {
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, '0');
-    return `CHG-${random}`;
-  }
-
-  // ========================================================================
-  // 承認処理
-  // ========================================================================
-
-  /**
-   * 承認コマンドを抽出
-   */
-  private extractApprovalCommands(
-    body: string
-  ): Array<{
-    changeRequestId: string;
-    approver: string;
-    decision: 'approved' | 'rejected' | 'conditional';
-    comments: string;
-    conditions?: string[];
-  }> {
-    const commands: Array<{
-      changeRequestId: string;
-      approver: string;
-      decision: 'approved' | 'rejected' | 'conditional';
-      comments: string;
-      conditions?: string[];
-    }> = [];
-
-    const lines = body.split(/\r?\n/);
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const approveMatch = line.match(/\/approve\s+(CHG-\d{3})(?:\s+--conditional)?/i);
-      if (approveMatch) {
-        const isConditional = /--conditional/i.test(line);
-        const conditions: string[] = [];
-        let comments = isConditional ? 'Conditionally approved' : 'Approved';
-
-        if (isConditional) {
-          for (let j = i + 1; j < lines.length; j++) {
-            const nextLine = lines[j].trim();
-            if (nextLine.length === 0) {
-              break;
-            }
-            if (/^conditions:/i.test(nextLine)) {
-              continue;
-            }
-            if (nextLine.startsWith('- ')) {
-              conditions.push(nextLine.slice(2).trim());
-              continue;
-            }
-            if (nextLine.startsWith('/')) {
-              break;
-            }
-          }
-          if (conditions.length > 0) {
-            comments = `Conditional approval: ${conditions.join('; ')}`;
-          }
-        }
-
-        commands.push({
-          changeRequestId: approveMatch[1],
-          approver: 'Guardian',
-          decision: isConditional ? 'conditional' : 'approved',
-          comments,
-          conditions: isConditional ? conditions : undefined,
-        });
-        continue;
-      }
-
-      const rejectMatch = line.match(/\/reject\s+(CHG-\d{3})/i);
-      if (rejectMatch) {
-        commands.push({
-          changeRequestId: rejectMatch[1],
-          approver: 'Guardian',
-          decision: 'rejected',
-          comments: 'Rejected',
-        });
-      }
-    }
-
-    return commands;
-  }
-
-  /**
-   * Approvalを作成
-   */
-  private createApproval(
-    changeRequest: ChangeRequest,
-    approver: string,
-    decision: 'approved' | 'rejected' | 'conditional',
-    comments: string,
-    conditions?: string[]
-  ): ChangeApproval {
-    return {
-      id: this.generateApprovalId(),
-      changeRequestId: changeRequest.id,
-      approver,
-      decision,
-      conditions,
-      comments,
-      approvedAt: new Date().toISOString(),
-    };
-  }
-
-  /**
-   * Approval ID生成
-   */
-  private generateApprovalId(): string {
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, '0');
-    return `APR-${random}`;
-  }
-
-  /**
-   * 変更実行
-   */
-  private async executeChange(changeRequest: ChangeRequest, kernel: Kernel): Promise<Kernel> {
-    const updatedKernel = { ...kernel };
-
-    switch (changeRequest.changeType) {
-      case 'update':
-        updatedKernel.statement = changeRequest.proposedChange;
-        updatedKernel.lastUpdatedAt = new Date().toISOString();
-        break;
-
-      case 'deprecate':
-        updatedKernel.maturity = 'deprecated';
-        updatedKernel.deprecatedReason = changeRequest.rationale;
-        break;
-
-      case 'freeze':
-        updatedKernel.maturity = 'frozen';
-        updatedKernel.frozenAt = new Date().toISOString();
-        break;
-
-      case 'unfreeze':
-        updatedKernel.maturity = 'agreed';
-        break;
-    }
-
-    return updatedKernel;
-  }
-
-  // ========================================================================
-  // コメント生成
-  // ========================================================================
-
-  /**
-   * Change Request作成コメント
-   */
-  private buildChangeRequestComment(changeRequest: ChangeRequest, kernel: Kernel): string {
-    return `📋 **Change Request: ${changeRequest.id}**
-
-**Kernel**: ${kernel.id} - "${kernel.statement}"
-**Change Type**: ${this.capitalizeFirst(changeRequest.changeType)}
-**Proposed Change**: ${changeRequest.proposedChange}
-
-**Rationale**:
-${changeRequest.rationale}
-
-**Impact Analysis**:
-- **Impact Level**: ${this.capitalizeFirst(changeRequest.impact)}
-- **Affected Components**: ${changeRequest.affectedComponents.join(', ') || 'None'}
-
-**Approval Required**: @${this.getRequiredApprover(changeRequest.impact)}
-
-Use \`/approve ${changeRequest.id}\` or \`/reject ${changeRequest.id}\` to respond.
-
----
-*Automated by ChangeControlAgent*`;
-  }
-
-  /**
-   * 承認コメント
-   */
-  private buildApprovalComment(approval: ChangeApproval, changeRequest: ChangeRequest): string {
-    return `✅ **Change Approved: ${changeRequest.id}**
-
-**Approver**: @${approval.approver}
-**Decision**: ${this.capitalizeFirst(approval.decision)}
-**Approved At**: ${approval.approvedAt}
-
-**Comments**: ${approval.comments}
-
-**Change Executed**: Kernel updated with new change.
-
----
-*Automated by ChangeControlAgent*`;
-  }
-
-  /**
-   * 条件付き承認コメント
-   */
-  private buildConditionalApprovalComment(
-    approval: ChangeApproval,
-    changeRequest: ChangeRequest
-  ): string {
-    const conditions =
-      approval.conditions && approval.conditions.length > 0
-        ? approval.conditions.join('\n- ')
-        : 'None specified';
-
-    return `🟡 **Conditional Approval: ${changeRequest.id}**
-
-**Approver**: @${approval.approver}
-**Decision**: Conditional
-**Approved At**: ${approval.approvedAt}
-
-**Conditions**:
-- ${conditions}
-
-**Comments**: ${approval.comments}
-
----
-*Automated by ChangeControlAgent*`;
-  }
-
-  /**
-   * 却下コメント
-   */
-  private buildRejectionComment(approval: ChangeApproval, changeRequest: ChangeRequest): string {
-    return `❌ **Change Rejected: ${changeRequest.id}**
-
-**Approver**: @${approval.approver}
-**Decision**: Rejected
-**Rejected At**: ${approval.approvedAt}
-
-**Reason**: ${approval.comments}
-
----
-*Automated by ChangeControlAgent*`;
-  }
-
-  /**
-   * 必要な承認者を取得
-   */
-  private getRequiredApprover(impact: string): string {
-    switch (impact) {
-      case 'breaking':
-        return 'Guardian';
-      case 'major':
-        return 'TechLead';
-      default:
-        return 'KernelOwner';
+  private async loadRegistry(): Promise<ChangeRequestRegistry> {
+    try {
+      const content = await fs.readFile(this.registryPath, 'utf-8');
+      return yaml.load(content) as ChangeRequestRegistry;
+    } catch {
+      return { changeRequests: [], version: '1.0.0', lastUpdated: new Date().toISOString() };
     }
   }
 
-  /**
-   * 文字列の最初を大文字に
-   */
-  private capitalizeFirst(str: string): string {
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  }
-
-  private addLabel(labels: string[], label: string): void {
-    if (!labels.includes(label)) {
-      labels.push(label);
-    }
+  private async saveRegistry(registry: ChangeRequestRegistry): Promise<void> {
+    await fs.writeFile(this.registryPath, yaml.dump(registry, { indent: 2, lineWidth: -1, noRefs: true }), 'utf-8');
   }
 }

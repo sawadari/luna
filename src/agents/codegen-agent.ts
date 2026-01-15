@@ -1,5 +1,5 @@
 /**
- * CodeGenAgent - AI-Driven Code Generation
+ * CodeGenAgent - AI-Driven Code Generation with Kernel Integration
  */
 
 import { Octokit } from '@octokit/rest';
@@ -12,15 +12,19 @@ import {
   GeneratedCode,
   CodeQualityMetrics,
 } from '../types';
+import { KernelWithNRVV } from '../types/nrvv';
+import { KernelRegistryService } from '../ssot/kernel-registry';
 
 export class CodeGenAgent {
   private octokit: Octokit;
   private config: AgentConfig;
   private anthropic?: Anthropic;
+  private kernelRegistry: KernelRegistryService;
 
-  constructor(config: AgentConfig) {
+  constructor(config: AgentConfig, kernelRegistryPath?: string) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.kernelRegistry = new KernelRegistryService(kernelRegistryPath);
 
     if (config.anthropicApiKey) {
       this.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
@@ -65,19 +69,31 @@ export class CodeGenAgent {
 
       this.log(`📋 Retrieved issue: ${issue.title}`);
 
-      // 2. Issue分析
-      const analysis = this.analyzeIssue(issue);
+      // 2. Load Kernel Registry
+      await this.kernelRegistry.load();
+      this.log('📚 Kernel Registry loaded');
+
+      // 3. Find related Kernels
+      const relatedKernels = await this.findRelatedKernels(issue);
+      this.log(`🔍 Found ${relatedKernels.length} related Kernels`);
+
+      // 4. Issue分析 (with Kernel context)
+      const analysis = await this.analyzeIssueWithKernels(issue, relatedKernels);
       this.log(`📊 Issue analysis complete: ${analysis.type}`);
 
-      // 3. コード生成
-      const generatedCode = await this.generateCode(issue, analysis);
+      // 5. コード生成 (with Kernel Requirements)
+      const generatedCode = await this.generateCodeWithKernels(issue, analysis, relatedKernels);
       this.log(`✅ Generated ${generatedCode.length} code files`);
 
-      // 4. 品質メトリクス計算
+      // 6. 品質メトリクス計算
       const metrics = this.calculateMetrics(generatedCode);
       this.log(`📈 Quality metrics: ${metrics.overallScore}/100`);
 
-      // 5. 結果作成
+      // 7. Kernel更新 (Generated code artifacts)
+      await this.updateKernelsWithGeneratedCode(relatedKernels, generatedCode, issue);
+      this.log(`💾 Updated ${relatedKernels.length} Kernels with generated code artifacts`);
+
+      // 8. 結果作成
       const context: CodeGenContext = {
         issue,
         analysis,
@@ -493,5 +509,291 @@ describe('${className}', () => {
     return generatedCode.length > 0
       ? Math.round(totalComplexity / generatedCode.length)
       : 0;
+  }
+
+  // ========================================================================
+  // Kernel Integration Methods
+  // ========================================================================
+
+  /**
+   * Find related Kernels from Issue
+   */
+  private async findRelatedKernels(issue: GitHubIssue): Promise<KernelWithNRVV[]> {
+    // 1. Extract Kernel references from Issue body (e.g., KRN-001)
+    const kernelRefs = this.extractKernelReferences(issue.body || '');
+    const kernels: KernelWithNRVV[] = [];
+
+    for (const kernelId of kernelRefs) {
+      const kernel = await this.kernelRegistry.getKernel(kernelId);
+      if (kernel) {
+        kernels.push(kernel);
+      }
+    }
+
+    // 2. Search by tags (e.g., security, authentication)
+    const tags = this.extractTagsFromIssue(issue);
+    if (tags.length > 0 && kernels.length === 0) {
+      const taggedKernels = await this.kernelRegistry.searchKernels({ tag: tags });
+      kernels.push(...taggedKernels.slice(0, 3)); // Limit to top 3
+    }
+
+    // 3. Search by category (e.g., architecture, security)
+    if (kernels.length === 0) {
+      const category = this.inferCategoryFromIssue(issue);
+      if (category) {
+        const categoryKernels = await this.kernelRegistry.searchKernels({ category });
+        kernels.push(...categoryKernels.slice(0, 2)); // Limit to top 2
+      }
+    }
+
+    return kernels;
+  }
+
+  /**
+   * Extract Kernel references (e.g., KRN-001) from text
+   */
+  private extractKernelReferences(text: string): string[] {
+    const pattern = /KRN-\d+/g;
+    const matches = text.match(pattern);
+    return matches ? Array.from(new Set(matches)) : [];
+  }
+
+  /**
+   * Extract tags from Issue (labels + keywords)
+   */
+  private extractTagsFromIssue(issue: GitHubIssue): string[] {
+    const tags = new Set<string>();
+
+    // From labels
+    for (const label of issue.labels) {
+      const labelName = typeof label === 'string' ? label : label.name;
+      tags.add(labelName.toLowerCase());
+    }
+
+    // From keywords in title/body
+    const text = `${issue.title} ${issue.body || ''}`.toLowerCase();
+    const keywords = ['security', 'authentication', 'https', 'jwt', 'validation', 'test'];
+    for (const keyword of keywords) {
+      if (text.includes(keyword)) {
+        tags.add(keyword);
+      }
+    }
+
+    return Array.from(tags);
+  }
+
+  /**
+   * Infer Kernel category from Issue
+   */
+  private inferCategoryFromIssue(issue: GitHubIssue): 'architecture' | 'requirement' | 'constraint' | 'interface' | 'quality' | 'security' | undefined {
+    const text = `${issue.title} ${issue.body || ''}`.toLowerCase();
+
+    if (text.includes('architecture') || text.includes('design')) return 'architecture';
+    if (text.includes('security') || text.includes('authentication')) return 'security';
+    if (text.includes('requirement') || text.includes('feature')) return 'requirement';
+    if (text.includes('quality') || text.includes('test')) return 'quality';
+    if (text.includes('interface') || text.includes('api')) return 'interface';
+
+    return undefined;
+  }
+
+  /**
+   * Analyze Issue with Kernel context
+   */
+  private async analyzeIssueWithKernels(
+    issue: GitHubIssue,
+    kernels: KernelWithNRVV[]
+  ): Promise<any> {
+    // Base analysis
+    const baseAnalysis = this.analyzeIssue(issue);
+
+    // Extract Requirements from Kernels
+    const requirements: string[] = [];
+    const constraints: string[] = [];
+
+    for (const kernel of kernels) {
+      for (const req of kernel.requirements || []) {
+        requirements.push(req.statement);
+
+        // Extract constraints from Requirements
+        if (req.constraints && Array.isArray(req.constraints)) {
+          constraints.push(...req.constraints);
+        }
+      }
+    }
+
+    return {
+      ...baseAnalysis,
+      relatedKernels: kernels.map((k) => k.id),
+      requirements: requirements.length > 0 ? requirements : undefined,
+      constraints: constraints.length > 0 ? constraints : undefined,
+    };
+  }
+
+  /**
+   * Generate code with Kernel context
+   */
+  private async generateCodeWithKernels(
+    issue: GitHubIssue,
+    analysis: any,
+    kernels: KernelWithNRVV[]
+  ): Promise<GeneratedCode[]> {
+    // If no Kernels, use standard generation
+    if (kernels.length === 0) {
+      return this.generateCode(issue, analysis);
+    }
+
+    // Build enhanced prompt with Kernel Requirements
+    if (!this.anthropic) {
+      this.log('⚠️  No Anthropic API key, using template-based generation');
+      return this.generateCodeTemplate(issue, analysis);
+    }
+
+    this.log('🤖 Generating code with Kernel Requirements...');
+
+    const kernelContext = this.buildKernelContext(kernels);
+    const prompt = this.buildPromptWithKernels(issue, analysis, kernelContext);
+
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [{ role: 'user', content: prompt }],
+      });
+
+      const content = response.content[0];
+      if (content.type === 'text') {
+        return this.parseGeneratedCode(content.text);
+      }
+
+      return this.generateCodeTemplate(issue, analysis);
+    } catch (error) {
+      this.log(`⚠️  Claude API error: ${(error as Error).message}`);
+      return this.generateCodeTemplate(issue, analysis);
+    }
+  }
+
+  /**
+   * Build Kernel context for prompt
+   */
+  private buildKernelContext(kernels: KernelWithNRVV[]): string {
+    let context = '## Related Kernel Requirements\n\n';
+
+    for (const kernel of kernels) {
+      context += `### ${kernel.id}: ${kernel.statement}\n\n`;
+
+      if (kernel.requirements && kernel.requirements.length > 0) {
+        context += '**Requirements:**\n';
+        for (const req of kernel.requirements) {
+          context += `- ${req.statement}\n`;
+          if (req.rationale) {
+            context += `  (Rationale: ${req.rationale})\n`;
+          }
+        }
+        context += '\n';
+      }
+
+      if (kernel.requirements && kernel.requirements.some((r) => r.constraints)) {
+        context += '**Constraints:**\n';
+        for (const req of kernel.requirements) {
+          if (req.constraints && Array.isArray(req.constraints)) {
+            for (const constraint of req.constraints) {
+              context += `- ${constraint}\n`;
+            }
+          }
+        }
+        context += '\n';
+      }
+    }
+
+    return context;
+  }
+
+  /**
+   * Build prompt with Kernel context
+   */
+  private buildPromptWithKernels(
+    issue: GitHubIssue,
+    analysis: any,
+    kernelContext: string
+  ): string {
+    return `# Code Generation Request (Kernel-Driven)
+
+## Issue
+**Title**: ${issue.title}
+**Type**: ${analysis.type}
+**Complexity**: ${analysis.complexity}
+**Language**: ${analysis.language}
+${analysis.framework ? `**Framework**: ${analysis.framework}` : ''}
+
+## Description
+${issue.body || 'No description provided'}
+
+${kernelContext}
+
+## Code Generation Requirements
+- Generate high-quality ${analysis.language} code
+- **MUST satisfy all Requirements listed above**
+- **MUST comply with all Constraints listed above**
+- Follow TypeScript strict mode if applicable
+- Include proper error handling
+- Add JSDoc comments
+${analysis.requiresTests ? '- Include unit tests' : ''}
+
+## Output Format
+Please provide the generated code in the following format:
+\`\`\`
+FILE: <filename>
+<code>
+\`\`\`
+
+Generate all necessary files to implement this feature while satisfying the Kernel Requirements.`;
+  }
+
+  /**
+   * Update Kernels with generated code artifacts
+   */
+  private async updateKernelsWithGeneratedCode(
+    kernels: KernelWithNRVV[],
+    generatedCode: GeneratedCode[],
+    issue: GitHubIssue
+  ): Promise<void> {
+    if (kernels.length === 0 || this.config.dryRun) {
+      return;
+    }
+
+    for (const kernel of kernels) {
+      // Add generated code as related artifacts
+      if (!kernel.relatedArtifacts) {
+        kernel.relatedArtifacts = [];
+      }
+
+      for (const file of generatedCode) {
+        kernel.relatedArtifacts.push({
+          type: 'code',
+          path: file.filename,
+          description: `Generated code for Issue #${issue.number}: ${issue.title}`,
+        });
+      }
+
+      // Add history entry
+      if (!kernel.history) {
+        kernel.history = [];
+      }
+
+      kernel.history.push({
+        timestamp: new Date().toISOString(),
+        action: 'code_generated',
+        by: 'CodeGenAgent',
+        maturity: kernel.maturity,
+        notes: `Generated ${generatedCode.length} files for Issue #${issue.number}`,
+      });
+
+      // Update lastUpdatedAt
+      kernel.lastUpdatedAt = new Date().toISOString();
+
+      // Save Kernel
+      await this.kernelRegistry.saveKernel(kernel);
+    }
   }
 }

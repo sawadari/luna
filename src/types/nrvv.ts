@@ -222,6 +222,10 @@ export interface KernelWithNRVV {
   sourceDecisionRecord?: string;
   sourcePR?: string;
 
+  // ✨ NEW: DEST Judgment Integration (Phase 0)
+  linked_dest_judgment?: string; // DEST Judgment ID
+  assurance_level?: string; // AL0/AL1/AL2
+
   // NRVV Traceability
   needs: Need[];
   requirements: Requirement[];

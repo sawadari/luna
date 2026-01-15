@@ -36,8 +36,15 @@ export class PlanningAgent {
   /**
    * メイン実行
    */
-  async execute(issueNumber: number): Promise<AgentResult<PlanningContext>> {
+  async execute(
+    issueNumber: number,
+    destJudgment?: import('../types').DESTJudgmentResult
+  ): Promise<AgentResult<PlanningContext>> {
     this.log(`📋 Planning Layer execution starting for issue #${issueNumber}`);
+
+    if (destJudgment) {
+      this.log(`  DEST Judgment: AL=${destJudgment.al}, outcomeOk=${destJudgment.outcomeOk}, safetyOk=${destJudgment.safetyOk}`);
+    }
 
     const [owner, repo] = this.config.repository.split('/');
 
@@ -111,7 +118,8 @@ export class PlanningAgent {
         const decisionRecord = this.createDecisionRecord(
           context.planningData.opportunity!,
           selectedOption,
-          context.planningData.options
+          context.planningData.options,
+          destJudgment
         );
 
         context.planningData!.decisionRecord = decisionRecord;
@@ -370,7 +378,8 @@ export class PlanningAgent {
   private createDecisionRecord(
     opportunity: Opportunity,
     chosenOption: Option,
-    allOptions: Option[]
+    allOptions: Option[],
+    destJudgment?: import('../types').DESTJudgmentResult
   ): DecisionRecord {
     const id = this.generateDecisionId();
 
@@ -388,6 +397,11 @@ export class PlanningAgent {
       falsificationConditions: this.generateFalsificationConditions(chosenOption),
       linkedEvaluationIds: [], // Phase 2 で実装予定
       remainingRisks: chosenOption.risks || [],
+      // ✨ NEW: DEST Judgment Integration (Phase 0)
+      linked_dest_judgment: destJudgment?.judgmentId,
+      outcome_ok: destJudgment?.outcomeOk,
+      safety_ok: destJudgment?.safetyOk,
+      assurance_level: destJudgment?.al,
       dissentingViews: [], // オプション（Phase 2 で実装予定）
       impactScope: this.extractImpactScope(chosenOption),
       linkedEvidence: [], // Phase 2 で実装予定

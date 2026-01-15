@@ -159,7 +159,10 @@ export class CoordinatorAgent {
       // Phase 1: Planning Layer (if enabled)
       if (process.env.ENABLE_PLANNING_LAYER === 'true') {
         this.log('Phase 1: Planning Layer');
-        const planningResult = await this.planningAgent.execute(githubIssue.number);
+        const planningResult = await this.planningAgent.execute(
+          githubIssue.number,
+          executionContext.destJudgment // Pass DEST judgment result
+        );
 
         if (planningResult.status === 'success' && planningResult.data) {
           executionContext.planningData = planningResult.data.planningData;
@@ -711,10 +714,13 @@ export class CoordinatorAgent {
     try {
       switch (task.agent) {
         case 'ssot': {
-          // Pass PlanningData to SSOT if available
+          // Pass DEST Judgment and PlanningData to SSOT
           const result = await this.ssotAgent.execute(
             issue.number,
-            (executionContext as any).planningData
+            {
+              destJudgment: (executionContext as any).destJudgment,
+              planningData: (executionContext as any).planningData,
+            }
           );
           if (result.status === 'success' && result.data) {
             executionContext.ssotResult = result.data;

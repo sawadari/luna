@@ -374,6 +374,12 @@ export interface DecisionRecord {
   dissentingViews?: string[]; // 反対意見（オプション）
   impactScope: string[]; // 影響範囲
   linkedEvidence: string[]; // 証跡へのリンク（Phase 2 で実装予定）
+
+  // ✨ NEW: DEST Judgment Integration (Phase 0)
+  linked_dest_judgment?: string; // DEST Judgment ID
+  outcome_ok?: boolean; // Outcome Assessment result
+  safety_ok?: boolean; // Safety Assessment result
+  assurance_level?: string; // AL0/AL1/AL2
 }
 
 // Assumption

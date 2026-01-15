@@ -60,11 +60,23 @@ export class SSOTAgentV2 {
   /**
    * メイン実行
    */
-  async execute(issueNumber: number, planningData?: any): Promise<AgentResult<SSOTResult>> {
-    this.log(`✅ SSOT Agent V2 starting for issue #${issueNumber}`);
-    if (planningData) {
-      this.log(`  Planning Data available: ${planningData.opportunity ? 'with opportunity' : 'no opportunity'}`);
+  async execute(
+    issueNumber: number,
+    context?: {
+      destJudgment?: import('../types').DESTJudgmentResult;
+      planningData?: any;
     }
+  ): Promise<AgentResult<SSOTResult>> {
+    this.log(`✅ SSOT Agent V2 starting for issue #${issueNumber}`);
+    if (context?.destJudgment) {
+      this.log(`  DEST Judgment: AL=${context.destJudgment.al}`);
+    }
+    if (context?.planningData) {
+      this.log(`  Planning Data available: ${context.planningData.opportunity ? 'with opportunity' : 'no opportunity'}`);
+    }
+
+    // For backward compatibility
+    const planningData = context?.planningData;
 
     const [owner, repo] = this.config.repository.split('/');
 
@@ -134,7 +146,8 @@ export class SSOTAgentV2 {
           const kernelFromDecision = await this.convertDecisionToKernel(
             planningDataToUse.decisionRecord,
             planningDataToUse.opportunity,
-            githubIssue
+            githubIssue,
+            context?.destJudgment
           );
           result.suggestedKernels.push(kernelFromDecision.id);
         }
@@ -705,7 +718,8 @@ ${violationList}
   private async convertDecisionToKernel(
     decision: any,
     opportunity: any,
-    issue: GitHubIssue
+    issue: GitHubIssue,
+    destJudgment?: import('../types').DESTJudgmentResult
   ): Promise<KernelWithNRVV> {
     const kernelId = this.generateKernelId();
 
@@ -723,6 +737,9 @@ ${violationList}
       lastUpdatedAt: new Date().toISOString(),
       sourceIssue: `#${issue.number}`,
       sourceDecisionRecord: decision.id,
+      // ✨ NEW: DEST Judgment Integration (Phase 0)
+      linked_dest_judgment: destJudgment?.judgmentId,
+      assurance_level: destJudgment?.al,
       needs: opportunity
         ? [
             {

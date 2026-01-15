@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 📚 Documentation
+    url: https://github.com/sawadari/luna/blob/main/README.md
+    about: Read the documentation
+  - name: 💬 Discussions
+    url: https://github.com/sawadari/luna/discussions
+    about: Ask questions and discuss ideas

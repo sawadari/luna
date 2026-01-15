@@ -1,0 +1,105 @@
+name: Feature Request
+description: Propose a new feature or enhancement
+title: "[Feature] "
+labels: ["✨ type:feature", "📥 state:pending"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature Request
+        Thank you for proposing a new feature! Please fill out the sections below.
+
+        **DEST Judgment fields are required for Luna's Self-Improvement Loop.**
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Brief description of the proposed feature
+      placeholder: "Add user authentication with JWT"
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is this feature needed? What problem does it solve?
+      placeholder: "Currently, the app has no authentication, which is a security risk."
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 🎯 DEST Judgment (Required)
+
+        Luna uses DEST judgment to evaluate whether this change will improve the system.
+        Please fill out the **Outcome Assessment** and **Safety Assessment** sections.
+
+  - type: textarea
+    id: outcome_assessment
+    attributes:
+      label: Outcome Assessment
+      description: Will this change make progress toward the desired outcome?
+      value: |
+        **Current State**: (Describe the current situation)
+        **Target State**: (Describe the desired outcome)
+        **Progress**: better/same/worse (Choose one)
+      placeholder: |
+        Example:
+        **Current State**: No user authentication
+        **Target State**: Secure user authentication with JWT
+        **Progress**: better
+    validations:
+      required: true
+
+  - type: textarea
+    id: safety_assessment
+    attributes:
+      label: Safety Assessment
+      description: Are there any safety concerns or side effects?
+      value: |
+        **Feedback Loops**: present/absent/harmful (Choose one)
+        **Safety Constraints**: (List any safety requirements)
+        **Violations**: (List any potential violations or risks)
+      placeholder: |
+        Example:
+        **Feedback Loops**: present (users can see login status immediately)
+        **Safety Constraints**:
+        - Must use secure password hashing
+        - Must implement rate limiting
+        - Must validate JWT tokens properly
+        **Violations**: None
+    validations:
+      required: true
+
+  - type: textarea
+    id: implementation
+    attributes:
+      label: Implementation Plan (Optional)
+      description: If you have ideas on how to implement this, please share
+      placeholder: |
+        - Add authentication middleware
+        - Create login/logout endpoints
+        - Add JWT token generation and validation
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives Considered (Optional)
+      description: Have you considered other approaches?
+      placeholder: "Session-based authentication, OAuth 2.0"
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have filled out the Outcome Assessment
+          required: true
+        - label: I have filled out the Safety Assessment
+          required: true
+        - label: I have searched for similar feature requests
+          required: false

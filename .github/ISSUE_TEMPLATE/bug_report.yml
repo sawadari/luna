@@ -1,0 +1,125 @@
+name: Bug Report
+description: Report a bug or issue
+title: "[Bug] "
+labels: ["🐛 type:bug", "📥 state:pending"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug Report
+        Thank you for reporting a bug! Please fill out the sections below.
+
+        **DEST Judgment fields are required for Luna's Self-Improvement Loop.**
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is
+      placeholder: "The app crashes when clicking the submit button"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this bug?
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen?
+      placeholder: "The form should submit successfully"
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happens?
+      placeholder: "The app crashes with error: ..."
+    validations:
+      required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        ## 🎯 DEST Judgment (Required)
+
+        Luna uses DEST judgment to evaluate the impact and priority of this bug fix.
+        Please fill out the **Outcome Assessment** and **Safety Assessment** sections.
+
+  - type: textarea
+    id: outcome_assessment
+    attributes:
+      label: Outcome Assessment
+      description: Will fixing this bug improve the system?
+      value: |
+        **Current State**: (Describe the current buggy behavior)
+        **Target State**: (Describe the desired behavior after fix)
+        **Progress**: better/same/worse (Choose one - usually "better" for bug fixes)
+      placeholder: |
+        Example:
+        **Current State**: App crashes when submitting form
+        **Target State**: Form submits successfully without crashes
+        **Progress**: better
+    validations:
+      required: true
+
+  - type: textarea
+    id: safety_assessment
+    attributes:
+      label: Safety Assessment
+      description: Are there any safety concerns with this bug or its fix?
+      value: |
+        **Feedback Loops**: present/absent/harmful (Choose one)
+        **Safety Constraints**: (List any safety requirements for the fix)
+        **Violations**: (List any current violations or risks)
+      placeholder: |
+        Example:
+        **Feedback Loops**: absent (crash prevents user feedback)
+        **Safety Constraints**:
+        - Must not lose user data during fix
+        - Must maintain backward compatibility
+        **Violations**: Data loss risk (current state)
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: What environment are you using?
+      placeholder: |
+        - OS: Windows 11
+        - Browser: Chrome 120
+        - Node version: 20.10.0
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information about the problem
+      placeholder: "Screenshots, logs, etc."
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I have filled out the Outcome Assessment
+          required: true
+        - label: I have filled out the Safety Assessment
+          required: true
+        - label: I have searched for similar bug reports
+          required: false

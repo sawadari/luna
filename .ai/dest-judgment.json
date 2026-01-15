@@ -1,0 +1,19 @@
+{
+  "judgmentId": "J-20260115-794",
+  "issueNumber": 36,
+  "judgedAt": "2026-01-15T16:05:13.926Z",
+  "judgedBy": "DESTAgent",
+  "al": "AL0",
+  "outcomeOk": false,
+  "safetyOk": false,
+  "al0Reasons": [],
+  "protocol": null,
+  "safetyChecks": [],
+  "leveragePoints": [],
+  "rationale": "Safety criteria not met.",
+  "nextActions": [],
+  "escalation": "This issue is blocked from implementation until AL0 is resolved.",
+  "labels": [
+    "AL:AL0-NotAssured"
+  ]
+}

@@ -1,0 +1,34 @@
+userRoles:
+  - userId: alice
+    roles:
+      - product_owner
+    assignedAt: '2026-01-15T13:13:45.494Z'
+    assignedBy: admin
+    notes: Product Owner
+  - userId: bob
+    roles:
+      - engineering_lead
+    assignedAt: '2026-01-15T13:13:45.532Z'
+    assignedBy: admin
+    notes: Engineering Lead
+  - userId: carol
+    roles:
+      - ssot_reviewer
+    assignedAt: '2026-01-15T13:13:45.542Z'
+    assignedBy: admin
+    notes: SSOT Reviewer
+  - userId: dave
+    roles:
+      - author
+    assignedAt: '2026-01-15T13:13:45.554Z'
+    assignedBy: admin
+    notes: Content Author
+  - userId: eve
+    roles:
+      - product_owner
+      - ssot_reviewer
+    assignedAt: '2026-01-15T13:13:45.569Z'
+    assignedBy: admin
+    notes: Product Owner & SSOT Reviewer
+version: 1.0.0
+lastUpdated: '2026-01-15T13:13:45.570Z'

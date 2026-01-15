@@ -1,0 +1,211 @@
+{
+  "projectName": "Luna - Miyabi Framework",
+  "projectDescription": "Luna is an autonomous development system built with the Miyabi Framework, featuring self-improvement capabilities through Gate Control, DecisionRecord, Exception Registry, and State Transition Authority.",
+  "version": "1.0.0",
+  "author": "sawadari",
+  "repository": "sawadari/luna",
+
+  "lunaCommands": {
+    "enabled": true,
+    "commands": [
+      {
+        "name": "luna-gate",
+        "description": "Luna Gate Control - CrePS Box間遷移の品質ゲートチェック",
+        "path": ".claude/commands/luna-gate.md"
+      },
+      {
+        "name": "luna-decision",
+        "description": "Luna Decision Record - 設計判断の記録と反証可能性の追跡",
+        "path": ".claude/commands/luna-decision.md"
+      },
+      {
+        "name": "luna-exception",
+        "description": "Luna Exception Registry - Boundary Exception の提案・承認・追跡",
+        "path": ".claude/commands/luna-exception.md"
+      },
+      {
+        "name": "luna-transition",
+        "description": "Luna State Transition - Kernel Maturity State のロールベース遷移制御",
+        "path": ".claude/commands/luna-transition.md"
+      },
+      {
+        "name": "luna-change-request",
+        "description": "Luna ChangeRequest - Kernel変更の提案・承認・追跡",
+        "path": ".claude/commands/luna-change-request.md"
+      },
+      {
+        "name": "luna-status",
+        "description": "Luna Status - Luna全体のステータス・統計・健全性チェック",
+        "path": ".claude/commands/luna-status.md"
+      }
+    ]
+  },
+
+  "selfImprovement": {
+    "enabled": true,
+    "description": "Luna uses its own features to improve itself",
+    "workflow": {
+      "1": "Issue作成 - GitHub Issueで新機能・改善を提案",
+      "2": "Gate Check - /luna-gate でG2-G6をチェック",
+      "3": "Decision - /luna-decision で設計判断を記録",
+      "4": "Implementation - 実装・テスト",
+      "5": "Transition - /luna-transition でKernel状態を遷移",
+      "6": "Status - /luna-status で全体の健全性を確認"
+    }
+  },
+
+  "miyabiFramework": {
+    "enabled": true,
+    "agents": [
+      "CoordinatorAgent",
+      "SSOTAgentV2",
+      "KernelRegistryService",
+      "CodeGenAgent",
+      "ReviewAgent",
+      "TestAgent",
+      "DeploymentAgent",
+      "MonitoringAgent",
+      "GateKeeperAgent",
+      "PlanningAgent",
+      "ExceptionRegistryAgent",
+      "ChangeRequestAgent",
+      "AuthorityService",
+      "ReevaluationService"
+    ]
+  },
+
+  "gitHubIntegration": {
+    "enabled": true,
+    "repository": "sawadari/luna",
+    "issueTracking": true,
+    "prAutomation": true,
+    "labelSystem": {
+      "type": ["bug", "feature", "refactor", "docs", "test", "chore", "security"],
+      "priority": ["P0-Critical", "P1-High", "P2-Medium", "P3-Low"],
+      "state": ["pending", "analyzing", "implementing", "reviewing", "testing", "deploying", "done"],
+      "agent": ["codegen", "review", "deployment", "test", "coordinator", "issue", "pr"]
+    }
+  },
+
+  "shikigakuTheory": {
+    "enabled": true,
+    "principles": [
+      "責任の明確化 - 各AgentがIssueに対する責任を負う",
+      "権限の委譲 - Agentは自律的に判断・実行可能",
+      "階層の設計 - CoordinatorAgent → 各専門Agent",
+      "結果の評価 - 品質スコア、カバレッジ、実行時間で評価",
+      "曖昧性の排除 - DAGによる依存関係明示、状態ラベルで進捗可視化"
+    ],
+    "roles": {
+      "product_owner": "価値裁定、Decision承認、例外承認、Baseline化",
+      "engineering_lead": "技術評価、実装判断、アーキテクチャ決定",
+      "ssot_reviewer": "整合性検証、状態遷移承認、トレーサビリティ確認",
+      "compliance_owner": "法規評価、安全性評価、監査対応",
+      "security_owner": "セキュリティ評価、脆弱性対応",
+      "author": "コンテンツ作成、Draft作成、レビュー要求"
+    }
+  },
+
+  "qualityGates": {
+    "enabled": true,
+    "gates": [
+      {
+        "id": "G2",
+        "name": "Problem Definition Gate",
+        "transition": "B1→B2",
+        "description": "問題定義が明確か"
+      },
+      {
+        "id": "G3",
+        "name": "Understanding & Hypotheses Gate",
+        "transition": "B2→B3",
+        "description": "システム理解と仮説が十分か"
+      },
+      {
+        "id": "G4",
+        "name": "Idea Traceability Gate",
+        "transition": "B3→B4",
+        "description": "アイデアのトレーサビリティとLP分析"
+      },
+      {
+        "id": "G5",
+        "name": "Concept Feasibility Gate",
+        "transition": "B4→B5",
+        "description": "コンセプトの実現可能性"
+      },
+      {
+        "id": "G6",
+        "name": "Field Validity Gate",
+        "transition": "B5→B6",
+        "description": "実装が現場で有効か"
+      }
+    ]
+  },
+
+  "persistenceFiles": {
+    "gates": "gates.yaml",
+    "decisions": "decisions.yaml",
+    "exceptions": "exceptions.yaml",
+    "changeRequests": "change-requests.yaml",
+    "roleAssignments": "role-assignments.yaml",
+    "kernels": "kernels.yaml",
+    "reevaluations": "reevaluations.yaml"
+  },
+
+  "testingStrategy": {
+    "coverage": {
+      "target": 80,
+      "unit": true,
+      "integration": true,
+      "e2e": true
+    },
+    "qualityThreshold": {
+      "reviewScore": 80,
+      "securityScan": true,
+      "staticAnalysis": true
+    }
+  },
+
+  "documentation": {
+    "mainReadme": "README.md",
+    "claudeContext": "CLAUDE.md",
+    "setupGuide": "SETUP_GUIDE.md",
+    "gettingStarted": "GETTING_STARTED.md",
+    "mvpVerification": "MVP_VERIFICATION.md",
+    "selfImprovementGuide": "SELF_IMPROVEMENT_GUIDE.md"
+  },
+
+  "environmentVariables": {
+    "required": [
+      "GITHUB_TOKEN",
+      "ANTHROPIC_API_KEY"
+    ],
+    "optional": [
+      "GITHUB_REPOSITORY",
+      "NODE_ENV"
+    ]
+  },
+
+  "developmentWorkflow": {
+    "1": "Issue作成（GitHub Issue）",
+    "2": "Gate Check（G2: Problem Definition）",
+    "3": "Decision作成（設計判断を記録）",
+    "4": "実装（CoordinatorAgent + 各Agent）",
+    "5": "Gate Check（G3-G6: 各フェーズ）",
+    "6": "State Transition（draft → under_review → agreed → frozen）",
+    "7": "Status確認（luna-status）"
+  },
+
+  "codeStyle": {
+    "typescript": {
+      "strict": true,
+      "module": "ESNext",
+      "target": "ES2022"
+    },
+    "formatting": {
+      "indent": 2,
+      "quotes": "single",
+      "semi": true
+    }
+  }
+}

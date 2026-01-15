@@ -1,0 +1,60 @@
+decisions:
+  - id: DEC-2026-001
+    opportunityId: OPP-2026-001
+    decisionType: adopt
+    chosenOptionId: OPT-001
+    decidedBy: ProductOwner
+    decidedAt: '2026-01-15T13:02:54.133Z'
+    rationale: 'Option OPT-001 selected based on hypothesis: Improve user experience with new UI'
+    tradeoffs:
+      - Speed vs. Quality
+      - 'Risk: Technical complexity'
+    alternatives:
+      - OPT-002
+      - OPT-003
+    falsificationConditions:
+      - id: fc-001
+        condition: ユーザー満足度が70%を下回る
+        signalRef: sig.user_satisfaction
+        threshold: 0.7
+        thresholdComparison: lt
+      - id: fc-002
+        condition: コストが予算の120%を超える
+        signalRef: sig.cost_ratio
+        threshold: 1.2
+        thresholdComparison: gt
+      - id: fc-003
+        condition: レスポンスタイムが500ms を超える
+        signalRef: sig.response_time_ms
+        threshold: 500
+        thresholdComparison: gt
+    linkedEvaluationIds: []
+    remainingRisks:
+      - 技術スタックの成熟度
+      - サードパーティAPIの可用性
+    dissentingViews: []
+    impactScope:
+      - ユーザー体験
+      - UI/UX
+      - パフォーマンス
+    linkedEvidence: []
+reevaluationRecords:
+  - id: REV-2026-080
+    decisionId: DEC-2026-001
+    trigger:
+      id: TRG-271
+      type: signal_threshold
+      decisionId: DEC-2026-001
+      source: sig.user_satisfaction
+      detectedAt: '2026-01-15T13:02:54.185Z'
+      message: 'Falsification condition met: ユーザー満足度が70%を下回る'
+      falsificationConditionId: fc-001
+      actualValue: 0.65
+      threshold: 0.7
+    status: completed
+    startedAt: '2026-01-15T13:02:54.186Z'
+    startedBy: SystemMonitor
+    completedAt: '2026-01-15T13:02:54.193Z'
+    conclusion: Decision remains valid after review
+version: 1.0.0
+lastUpdated: '2026-01-15T13:02:54.193Z'

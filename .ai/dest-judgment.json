@@ -1,19 +1,19 @@
 {
-  "judgmentId": "J-20260115-794",
+  "judgmentId": "J-20260115-293",
   "issueNumber": 36,
-  "judgedAt": "2026-01-15T16:05:13.926Z",
+  "judgedAt": "2026-01-15T23:29:32.910Z",
   "judgedBy": "DESTAgent",
-  "al": "AL0",
-  "outcomeOk": false,
-  "safetyOk": false,
+  "al": "AL2",
+  "outcomeOk": true,
+  "safetyOk": true,
   "al0Reasons": [],
   "protocol": null,
   "safetyChecks": [],
   "leveragePoints": [],
-  "rationale": "Safety criteria not met.",
+  "rationale": "System is progressing toward target state with stable safety. Both outcome and safety criteria are met.",
   "nextActions": [],
-  "escalation": "This issue is blocked from implementation until AL0 is resolved.",
+  "escalation": null,
   "labels": [
-    "AL:AL0-NotAssured"
+    "AL:AL2-Assured"
   ]
 }

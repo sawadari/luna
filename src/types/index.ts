@@ -345,6 +345,15 @@ export interface Option {
   assumptions: string[]; // References to Assumption IDs
 }
 
+// Falsification Condition (再評価トリガー条件)
+export interface FalsificationCondition {
+  id: string; // fc-001, fc-002, ...
+  condition: string; // 条件の説明（例: "ユーザー満足度が70%を下回る"）
+  signalRef?: string; // 監視シグナルへの参照（例: "sig.user_satisfaction"）
+  threshold?: number; // 閾値（例: 0.7）
+  thresholdComparison?: 'gt' | 'lt' | 'gte' | 'lte' | 'eq' | 'neq'; // 比較演算子
+}
+
 // Decision Record
 export interface DecisionRecord {
   id: string; // DEC-YYYY-NNN
@@ -357,6 +366,14 @@ export interface DecisionRecord {
   tradeoffs: string[];
   alternatives: string[]; // Option IDs that were rejected
   reviewDate?: string; // For "defer" decisions
+
+  // ✨ NEW: Reevaluation & Traceability (Phase 1)
+  falsificationConditions: FalsificationCondition[]; // 再評価トリガー条件
+  linkedEvaluationIds: string[]; // 評価記録へのリンク（Phase 2 で実装予定）
+  remainingRisks: string[]; // 残存リスク
+  dissentingViews?: string[]; // 反対意見（オプション）
+  impactScope: string[]; // 影響範囲
+  linkedEvidence: string[]; // 証跡へのリンク（Phase 2 で実装予定）
 }
 
 // Assumption

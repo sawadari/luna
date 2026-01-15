@@ -384,6 +384,13 @@ export class PlanningAgent {
       rationale: `Option ${chosenOption.id} selected based on hypothesis: ${chosenOption.hypothesis}`,
       tradeoffs: this.extractTradeoffs(chosenOption),
       alternatives: allOptions.filter((o) => o.id !== chosenOption.id).map((o) => o.id),
+      // ✨ NEW: Reevaluation & Traceability (Phase 1)
+      falsificationConditions: this.generateFalsificationConditions(chosenOption),
+      linkedEvaluationIds: [], // Phase 2 で実装予定
+      remainingRisks: chosenOption.risks || [],
+      dissentingViews: [], // オプション（Phase 2 で実装予定）
+      impactScope: this.extractImpactScope(chosenOption),
+      linkedEvidence: [], // Phase 2 で実装予定
     };
   }
 
@@ -413,6 +420,77 @@ export class PlanningAgent {
     }
 
     return tradeoffs;
+  }
+
+  /**
+   * Falsification Conditions 生成（Phase 1: 簡易実装）
+   *
+   * Option の risks と cons から再評価条件を自動生成
+   * Phase 2: ユーザー入力による条件追加
+   */
+  private generateFalsificationConditions(option: Option): any[] {
+    const conditions: any[] = [];
+
+    // Risk から条件生成
+    if (option.risks.length > 0) {
+      conditions.push({
+        id: `fc-${Date.now()}-1`,
+        condition: `Risk materialized: ${option.risks[0]}`,
+        signalRef: undefined, // Phase 2 で Signal 統合
+        threshold: undefined,
+        thresholdComparison: undefined,
+      });
+    }
+
+    // Cons から条件生成
+    if (option.cons.length > 0) {
+      conditions.push({
+        id: `fc-${Date.now()}-2`,
+        condition: `Negative impact observed: ${option.cons[0]}`,
+        signalRef: undefined, // Phase 2 で Signal 統合
+        threshold: undefined,
+        thresholdComparison: undefined,
+      });
+    }
+
+    // デフォルト条件（常に追加）
+    conditions.push({
+      id: `fc-${Date.now()}-3`,
+      condition: 'Customer satisfaction drops below 70%',
+      signalRef: 'sig.customer_satisfaction',
+      threshold: 0.7,
+      thresholdComparison: 'lt',
+    });
+
+    return conditions;
+  }
+
+  /**
+   * Impact Scope 抽出（Phase 1: 簡易実装）
+   *
+   * Option の hypothesis と title から影響範囲を抽出
+   * Phase 2: より精緻な抽出ロジック
+   */
+  private extractImpactScope(option: Option): string[] {
+    const scope: string[] = [];
+    const text = `${option.title} ${option.hypothesis}`.toLowerCase();
+
+    // キーワードベースで影響範囲を抽出
+    if (text.match(/user|customer|client/)) scope.push('ユーザー体験');
+    if (text.match(/auth|login|security/)) scope.push('認証・セキュリティ');
+    if (text.match(/performance|speed|latency/)) scope.push('パフォーマンス');
+    if (text.match(/ui|interface|design/)) scope.push('UI/UX');
+    if (text.match(/api|integration|service/)) scope.push('API/統合');
+    if (text.match(/database|data|storage/)) scope.push('データストレージ');
+    if (text.match(/deploy|infrastructure|server/)) scope.push('インフラ・デプロイ');
+    if (text.match(/test|quality|coverage/)) scope.push('テスト・品質');
+
+    // デフォルト
+    if (scope.length === 0) {
+      scope.push('システム全体');
+    }
+
+    return scope;
   }
 
   // ========================================================================

@@ -3,6 +3,7 @@
  */
 
 import { Octokit } from '@octokit/rest';
+import Anthropic from '@anthropic-ai/sdk';
 import * as yaml from 'yaml';
 import {
   GitHubIssue,
@@ -43,11 +44,18 @@ export class SSOTAgentV2 {
   private octokit: Octokit;
   private config: AgentConfig;
   private kernelRegistry: KernelRegistryService;
+  private anthropic?: Anthropic;
 
   constructor(config: AgentConfig, registryPath?: string) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService(registryPath);
+
+    // ✨ Phase 2: Optional Anthropic initialization (Issue #32)
+    if (config.anthropicApiKey) {
+      this.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
+      this.log('Anthropic API initialized for NRVV extraction');
+    }
   }
 
   private log(message: string): void {
@@ -154,14 +162,16 @@ export class SSOTAgentV2 {
       }
 
       // ✨ NEW (Issue #32): Planning Dataがない場合のフォールバック
+      // Phase 2: AI-powered extraction with template fallback
       if (!planningDataToUse || result.suggestedKernels.length === 0) {
         this.log('  No Planning Data found - extracting NRVV from Issue directly');
 
-        const kernelFromIssue = this.extractNRVVFromIssueTemplate(githubIssue);
+        const kernelFromIssue = await this.extractNRVVFromIssueAI(githubIssue);
         await this.kernelRegistry.saveKernel(kernelFromIssue);
         result.suggestedKernels.push(kernelFromIssue.id);
 
-        this.log(`  Kernel ${kernelFromIssue.id} created from Issue (template-based)`);
+        const method = this.anthropic ? 'AI-extracted' : 'template-based';
+        this.log(`  Kernel ${kernelFromIssue.id} created from Issue (${method})`);
       }
 
       if (result.suggestedKernels.length > 0) {
@@ -908,5 +918,276 @@ ${violationList}
     if (labels.includes('architecture')) return 'TechLead';
 
     return 'ProductOwner'; // default
+  }
+
+  // ========================================================================
+  // Phase 2: AI-powered NRVV Extraction (Issue #32)
+  // ========================================================================
+
+  /**
+   * Extract NRVV from Issue using AI (Anthropic Claude)
+   * @param issue GitHub Issue
+   * @returns Kernel with AI-extracted NRVV
+   */
+  private async extractNRVVFromIssueAI(issue: GitHubIssue): Promise<KernelWithNRVV> {
+    if (!this.anthropic) {
+      this.log('⚠️  No Anthropic API key, falling back to template-based extraction');
+      return this.extractNRVVFromIssueTemplate(issue);
+    }
+
+    this.log('🤖 Extracting NRVV using Claude Sonnet 4.5...');
+
+    const prompt = this.buildNRVVExtractionPrompt(issue);
+
+    try {
+      const response = await this.anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        messages: [
+          {
+            role: 'user',
+            content: prompt,
+          },
+        ],
+      });
+
+      const content = response.content[0];
+      if (content.type === 'text') {
+        const extractedNRVV = this.parseNRVVResponse(content.text, issue);
+        if (extractedNRVV) {
+          this.log(
+            `✅ NRVV extracted: ${extractedNRVV.needs.length} needs, ${extractedNRVV.requirements.length} requirements`
+          );
+          return extractedNRVV;
+        }
+      }
+
+      // Fallback if parsing fails
+      this.log('⚠️  Failed to parse AI response, falling back to template');
+      return this.extractNRVVFromIssueTemplate(issue);
+    } catch (error) {
+      this.log(`⚠️  Claude API error: ${(error as Error).message}`);
+      return this.extractNRVVFromIssueTemplate(issue);
+    }
+  }
+
+  /**
+   * Build prompt for NRVV extraction
+   */
+  private buildNRVVExtractionPrompt(issue: GitHubIssue): string {
+    return `# NRVV Extraction from GitHub Issue
+
+## Your Task
+Extract structured NRVV (Needs-Requirements-Verification-Validation) traceability from the following Issue.
+
+## Issue Information
+**Title**: ${issue.title}
+**Number**: #${issue.number}
+**Labels**: ${issue.labels.map((l) => l.name).join(', ')}
+
+**Body**:
+${issue.body || 'No description provided'}
+
+## NRVV Framework
+
+### Needs (N)
+- Stakeholder-level requirements
+- Business value and rationale
+- Format: NEED-XXXX
+
+### Requirements (R)
+- Functional and non-functional requirements
+- Acceptance criteria
+- Format: REQ-XXXX
+
+### Verification (V)
+- How to test/validate requirements
+- Test strategies and criteria
+
+### Validation (V)
+- End-user validation
+- Business value confirmation
+
+## Output Format (JSON)
+
+Please respond ONLY with a valid JSON object in this exact format:
+
+\`\`\`json
+{
+  "kernel": {
+    "statement": "Brief statement of the Kernel",
+    "category": "requirement|security|architecture|quality|interface|constraint",
+    "owner": "ProductOwner|TechLead|CISO"
+  },
+  "needs": [
+    {
+      "statement": "User need description",
+      "stakeholder": "ProductOwner|TechLead|CISO|Customer|EndUser",
+      "sourceType": "stakeholder_requirement|business_requirement|regulatory_requirement",
+      "priority": "critical|high|medium|low",
+      "rationale": "Why this need exists"
+    }
+  ],
+  "requirements": [
+    {
+      "statement": "Specific requirement",
+      "type": "functional|non-functional|security|performance",
+      "priority": "must|should|could|wont",
+      "rationale": "Why this requirement is needed",
+      "acceptanceCriteria": ["Criterion 1", "Criterion 2"]
+    }
+  ],
+  "verification": [
+    {
+      "statement": "How to verify this requirement",
+      "method": "test|analysis|inspection|demonstration",
+      "testCase": "Description of test approach",
+      "criteria": ["Pass criterion 1", "Pass criterion 2"]
+    }
+  ],
+  "validation": [
+    {
+      "statement": "How to validate with end users",
+      "method": "acceptance_test|user_trial|field_test|audit",
+      "criteria": ["Success indicator 1", "Success indicator 2"]
+    }
+  ]
+}
+\`\`\`
+
+**Important**:
+- Extract 1-3 Needs (high-level stakeholder requirements)
+- Extract 2-5 Requirements (specific technical/functional requirements)
+- Verification and Validation can be empty initially (will be filled during implementation)
+- Ensure traceability: Needs → Requirements → Verification/Validation
+- Use clear, actionable language
+
+Generate the JSON now:`;
+  }
+
+  /**
+   * Parse NRVV from AI response
+   */
+  private parseNRVVResponse(response: string, issue: GitHubIssue): KernelWithNRVV | null {
+    try {
+      // Extract JSON from markdown code blocks
+      const jsonMatch =
+        response.match(/```json\n([\s\S]*?)\n```/) ||
+        response.match(/```\n([\s\S]*?)\n```/) ||
+        [null, response];
+
+      const jsonText = jsonMatch[1] || response;
+      const parsed = JSON.parse(jsonText);
+
+      // Validate structure
+      if (!parsed.kernel || !parsed.needs || !parsed.requirements) {
+        throw new Error('Invalid NRVV structure');
+      }
+
+      const kernelId = this.generateKernelId();
+
+      // Generate IDs and build traceability
+      const needIds: string[] = [];
+      const reqIds: string[] = [];
+
+      const needs = parsed.needs.map((n: any, idx: number) => {
+        const needId = `NEED-${kernelId}-${idx + 1}`;
+        needIds.push(needId);
+
+        return {
+          id: needId,
+          statement: n.statement,
+          stakeholder: n.stakeholder || 'ProductOwner',
+          sourceType: n.sourceType || 'stakeholder_requirement',
+          priority: n.priority || 'high',
+          rationale: n.rationale,
+          traceability: {
+            upstream: [],
+            downstream: [], // Will be filled below
+          },
+        };
+      });
+
+      const requirements = parsed.requirements.map((r: any, idx: number) => {
+        const reqId = `REQ-${kernelId}-${idx + 1}`;
+        reqIds.push(reqId);
+
+        return {
+          id: reqId,
+          statement: r.statement,
+          type: r.type || 'functional',
+          priority: r.priority || 'must',
+          rationale: r.rationale || `Derived from Issue #${issue.number}`,
+          acceptanceCriteria: r.acceptanceCriteria || [],
+          traceability: {
+            upstream: needIds, // Link to all needs
+            downstream: [],
+          },
+        };
+      });
+
+      // Update Need downstream links
+      needs.forEach((need: any) => {
+        need.traceability.downstream = reqIds;
+      });
+
+      const verification = (parsed.verification || []).map((v: any, idx: number) => ({
+        id: `VER-${kernelId}-${idx + 1}`,
+        statement: v.statement,
+        method: v.method || 'test',
+        testCase: v.testCase,
+        criteria: v.criteria || [],
+        status: 'not_started' as const,
+        traceability: {
+          upstream: reqIds,
+          downstream: [],
+        },
+      }));
+
+      const validation = (parsed.validation || []).map((v: any, idx: number) => ({
+        id: `VAL-${kernelId}-${idx + 1}`,
+        statement: v.statement,
+        method: v.method || 'acceptance_test',
+        criteria: v.criteria || [],
+        status: 'not_started' as const,
+        traceability: {
+          upstream: reqIds,
+          downstream: [],
+        },
+      }));
+
+      const kernel: KernelWithNRVV = {
+        id: kernelId,
+        statement: parsed.kernel.statement,
+        category: parsed.kernel.category || 'requirement',
+        owner: parsed.kernel.owner || 'ProductOwner',
+        maturity: 'draft',
+        createdAt: new Date().toISOString(),
+        lastUpdatedAt: new Date().toISOString(),
+        sourceIssue: `#${issue.number}`,
+
+        needs,
+        requirements,
+        verification,
+        validation,
+
+        history: [
+          {
+            timestamp: new Date().toISOString(),
+            action: 'created',
+            by: 'SSOTAgentV2',
+            maturity: 'draft',
+            notes: 'AI-extracted NRVV from Issue',
+          },
+        ],
+
+        tags: ['auto-generated', 'ai-extracted'],
+      };
+
+      return kernel;
+    } catch (error) {
+      this.log(`❌ Failed to parse NRVV response: ${(error as Error).message}`);
+      return null;
+    }
   }
 }

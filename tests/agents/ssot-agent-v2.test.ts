@@ -252,4 +252,210 @@ describe('SSOTAgentV2 - NRVV Extraction', () => {
       expect(req.rationale).toContain('Issue #100');
     });
   });
+
+  // =============================================================================
+  // Phase 2: AI-powered extraction
+  // =============================================================================
+
+  describe('AI-powered extraction', () => {
+    it('should fallback to template if no API key', async () => {
+      const configNoKey = { ...mockConfig, anthropicApiKey: undefined };
+      const agentNoKey = new SSOTAgentV2(configNoKey);
+
+      const issue: GitHubIssue = {
+        number: 100,
+        title: 'Test',
+        body: '',
+        labels: [],
+        state: 'open',
+        created_at: '2025-01-16T00:00:00Z',
+        updated_at: '2025-01-16T00:00:00Z',
+      };
+
+      const kernel = await (agentNoKey as any).extractNRVVFromIssueAI(issue);
+
+      expect(kernel.tags).toContain('template-based');
+      expect(kernel.needs).toHaveLength(1);
+    });
+
+    it('should parse AI response correctly', () => {
+      const mockResponse = `\`\`\`json
+{
+  "kernel": {
+    "statement": "Implement JWT authentication",
+    "category": "security",
+    "owner": "CISO"
+  },
+  "needs": [
+    {
+      "statement": "User needs secure authentication",
+      "stakeholder": "EndUser",
+      "sourceType": "user_feedback",
+      "priority": "high",
+      "rationale": "Security requirement"
+    }
+  ],
+  "requirements": [
+    {
+      "statement": "Implement JWT token-based auth",
+      "type": "security",
+      "priority": "must",
+      "rationale": "Security requirement",
+      "acceptanceCriteria": ["Tokens expire after 1 hour", "HTTPS only"]
+    },
+    {
+      "statement": "Add refresh token support",
+      "type": "functional",
+      "priority": "should",
+      "rationale": "Better UX"
+    }
+  ],
+  "verification": [
+    {
+      "statement": "Test JWT validation",
+      "method": "test",
+      "testCase": "jwt_validation_test.ts",
+      "criteria": ["Valid tokens accepted", "Invalid tokens rejected"]
+    }
+  ],
+  "validation": []
+}
+\`\`\``;
+
+      const issue: GitHubIssue = {
+        number: 100,
+        title: 'Test',
+        body: '',
+        labels: [],
+        state: 'open',
+        created_at: '2025-01-16T00:00:00Z',
+        updated_at: '2025-01-16T00:00:00Z',
+      };
+
+      const kernel = (agent as any).parseNRVVResponse(mockResponse, issue);
+
+      expect(kernel).not.toBeNull();
+      expect(kernel.statement).toBe('Implement JWT authentication');
+      expect(kernel.category).toBe('security');
+      expect(kernel.owner).toBe('CISO');
+      expect(kernel.needs).toHaveLength(1);
+      expect(kernel.requirements).toHaveLength(2);
+      expect(kernel.verification).toHaveLength(1);
+      expect(kernel.validation).toHaveLength(0);
+      expect(kernel.tags).toContain('ai-extracted');
+    });
+
+    it('should establish correct traceability in AI response', () => {
+      const mockResponse = `\`\`\`json
+{
+  "kernel": { "statement": "Test", "category": "requirement", "owner": "ProductOwner" },
+  "needs": [
+    { "statement": "Need 1", "stakeholder": "ProductOwner", "sourceType": "stakeholder_requirement", "priority": "high" }
+  ],
+  "requirements": [
+    { "statement": "Req 1", "type": "functional", "priority": "must", "rationale": "Test" }
+  ],
+  "verification": [],
+  "validation": []
+}
+\`\`\``;
+
+      const issue: GitHubIssue = {
+        number: 100,
+        title: 'Test',
+        body: '',
+        labels: [],
+        state: 'open',
+        created_at: '2025-01-16T00:00:00Z',
+        updated_at: '2025-01-16T00:00:00Z',
+      };
+
+      const kernel = (agent as any).parseNRVVResponse(mockResponse, issue);
+
+      const needId = kernel.needs[0].id;
+      const reqId = kernel.requirements[0].id;
+
+      expect(kernel.needs[0].traceability.downstream).toContain(reqId);
+      expect(kernel.requirements[0].traceability.upstream).toContain(needId);
+    });
+
+    it('should return null on invalid JSON', () => {
+      const badResponse = 'This is not valid JSON';
+      const issue: GitHubIssue = {
+        number: 100,
+        title: 'Test',
+        body: '',
+        labels: [],
+        state: 'open',
+        created_at: '2025-01-16T00:00:00Z',
+        updated_at: '2025-01-16T00:00:00Z',
+      };
+
+      const kernel = (agent as any).parseNRVVResponse(badResponse, issue);
+
+      expect(kernel).toBeNull();
+    });
+
+    it('should return null on incomplete JSON structure', () => {
+      const incompleteResponse = `\`\`\`json
+{
+  "kernel": { "statement": "Test" }
+}
+\`\`\``;
+
+      const issue: GitHubIssue = {
+        number: 100,
+        title: 'Test',
+        body: '',
+        labels: [],
+        state: 'open',
+        created_at: '2025-01-16T00:00:00Z',
+        updated_at: '2025-01-16T00:00:00Z',
+      };
+
+      const kernel = (agent as any).parseNRVVResponse(incompleteResponse, issue);
+
+      expect(kernel).toBeNull();
+    });
+
+    it('should build correct prompt', () => {
+      const issue: GitHubIssue = {
+        number: 100,
+        title: 'Implement JWT Authentication',
+        body: 'We need secure JWT auth for the API',
+        labels: [
+          { name: 'security', color: 'red' },
+          { name: 'feature', color: 'blue' },
+        ],
+        state: 'open',
+        created_at: '2025-01-16T00:00:00Z',
+        updated_at: '2025-01-16T00:00:00Z',
+      };
+
+      const prompt = (agent as any).buildNRVVExtractionPrompt(issue);
+
+      expect(prompt).toContain('Implement JWT Authentication');
+      expect(prompt).toContain('#100');
+      expect(prompt).toContain('security, feature');
+      expect(prompt).toContain('We need secure JWT auth for the API');
+      expect(prompt).toContain('NRVV Framework');
+      expect(prompt).toContain('Output Format (JSON)');
+    });
+
+    it('should handle Issue with no body', () => {
+      const issue: GitHubIssue = {
+        number: 100,
+        title: 'Test',
+        body: null,
+        labels: [],
+        state: 'open',
+        created_at: '2025-01-16T00:00:00Z',
+        updated_at: '2025-01-16T00:00:00Z',
+      };
+
+      const prompt = (agent as any).buildNRVVExtractionPrompt(issue);
+
+      expect(prompt).toContain('No description provided');
+    });
+  });
 });

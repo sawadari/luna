@@ -165,6 +165,12 @@ export interface AgentConfig {
   repository: string; // "owner/repo"
   dryRun?: boolean;
   verbose?: boolean;
+
+  // Phase gates (default: enabled for safety)
+  enableDestJudgment?: boolean;
+  enablePlanningLayer?: boolean;
+  enableSsotLayer?: boolean;
+  enableCrepsGates?: boolean;
 }
 
 export interface AgentResult<T = any> {

@@ -136,8 +136,8 @@ export class CoordinatorAgent {
       // ExecutionContext to pass data between agents
       const executionContext: any = {};
 
-      // Phase 0: DEST Judgment (if enabled)
-      if (process.env.ENABLE_DEST_JUDGMENT === 'true') {
+      // Phase 0: DEST Judgment (default: enabled, opt-out with config.enableDestJudgment = false)
+      if (this.config.enableDestJudgment !== false) {
         this.log('Phase 0: DEST Judgment');
         const destResult = await this.destAgent.execute(githubIssue.number);
 
@@ -160,8 +160,8 @@ export class CoordinatorAgent {
         }
       }
 
-      // Phase 1: Planning Layer (if enabled)
-      if (process.env.ENABLE_PLANNING_LAYER === 'true') {
+      // Phase 1: Planning Layer (default: enabled, opt-out with config.enablePlanningLayer = false)
+      if (this.config.enablePlanningLayer !== false) {
         this.log('Phase 1: Planning Layer');
         const planningResult = await this.planningAgent.execute(
           githubIssue.number,

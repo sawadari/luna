@@ -46,11 +46,11 @@ export const env = {
   // Anthropic API Configuration
   anthropicApiKey: getEnv('ANTHROPIC_API_KEY'),
 
-  // DEST Configuration
-  enableDestJudgment: getEnv('ENABLE_DEST_JUDGMENT') === 'true',
-  enableCrepsGates: getEnv('ENABLE_CREPS_GATES') === 'true',
-  enablePlanningLayer: getEnv('ENABLE_PLANNING_LAYER') === 'true',
-  enableSsotLayer: getEnv('ENABLE_SSOT_LAYER') === 'true',
+  // DEST Configuration (default: enabled for safety, opt-out with =false)
+  enableDestJudgment: getEnv('ENABLE_DEST_JUDGMENT') !== 'false', // Default: true
+  enableCrepsGates: getEnv('ENABLE_CREPS_GATES') !== 'false', // Default: true
+  enablePlanningLayer: getEnv('ENABLE_PLANNING_LAYER') !== 'false', // Default: true
+  enableSsotLayer: getEnv('ENABLE_SSOT_LAYER') !== 'false', // Default: true
 
   // Agent Configuration
   dryRun: getEnv('DRY_RUN') === 'true',

@@ -13,13 +13,20 @@ import {
   NRVVValidationResult,
   TraceabilityMatrix,
 } from '../types/nrvv';
+import { KernelEnhancementService } from '../services/kernel-enhancement-service';
 
 export class KernelRegistryService {
   private registryPath: string;
   private registry: KernelRegistry | null = null;
+  private enhancementService?: KernelEnhancementService;
 
-  constructor(registryPath?: string) {
+  constructor(registryPath?: string, anthropicApiKey?: string) {
     this.registryPath = registryPath || path.join(process.cwd(), 'kernels.yaml');
+
+    // Initialize enhancement service if API key provided
+    if (anthropicApiKey) {
+      this.enhancementService = new KernelEnhancementService(anthropicApiKey);
+    }
   }
 
   /**
@@ -575,5 +582,94 @@ export class KernelRegistryService {
       convergence_rate: 0, // Will be computed asynchronously
       last_computed: new Date().toISOString(),
     };
+  }
+
+  // ========================================================================
+  // NRVV Enhancement (Issue #35)
+  // ========================================================================
+
+  /**
+   * Suggest Verification and Validation for incomplete Kernels
+   */
+  async suggestVerificationValidation(
+    kernelId: string
+  ): Promise<{
+    verification: any[];
+    validation: any[];
+  }> {
+    if (!this.enhancementService) {
+      throw new Error('Enhancement service not initialized (Anthropic API key not provided)');
+    }
+
+    const kernel = await this.getKernel(kernelId);
+    if (!kernel) {
+      throw new Error(`Kernel ${kernelId} not found`);
+    }
+
+    // Get suggestions from AI
+    const suggestions = await this.enhancementService.suggestVerificationValidation(kernel);
+
+    return suggestions;
+  }
+
+  /**
+   * Auto-complete NRVV for incomplete Kernel
+   */
+  async autoCompleteNRVV(kernelId: string): Promise<void> {
+    if (!this.enhancementService) {
+      throw new Error('Enhancement service not initialized (Anthropic API key not provided)');
+    }
+
+    const kernel = await this.getKernel(kernelId);
+    if (!kernel) {
+      throw new Error(`Kernel ${kernelId} not found`);
+    }
+
+    // Check if incomplete
+    if (!this.enhancementService.isKernelIncomplete(kernel)) {
+      return; // Already complete
+    }
+
+    // Get suggestions
+    const suggestions = await this.enhancementService.suggestVerificationValidation(kernel);
+
+    // Add verification
+    if (suggestions.verification.length > 0) {
+      for (const ver of suggestions.verification) {
+        await this.addVerificationToKernel(kernelId, ver);
+      }
+    }
+
+    // Add validation
+    if (suggestions.validation.length > 0) {
+      for (const val of suggestions.validation) {
+        await this.addValidationToKernel(kernelId, val);
+      }
+    }
+
+    // Add history entry
+    kernel.history.push({
+      timestamp: new Date().toISOString(),
+      action: 'updated',
+      by: 'KernelEnhancementService',
+      maturity: kernel.maturity,
+      notes: `Auto-completed NRVV: ${suggestions.verification.length} verification, ${suggestions.validation.length} validation`,
+    });
+
+    await this.saveKernel(kernel);
+  }
+
+  /**
+   * Get incomplete Kernels (missing V or V)
+   */
+  async getIncompleteKernels(): Promise<KernelWithNRVV[]> {
+    if (!this.enhancementService) {
+      return [];
+    }
+
+    const allKernels = await this.getAllKernels();
+    return allKernels.filter((k) =>
+      this.enhancementService!.isKernelIncomplete(k)
+    );
   }
 }

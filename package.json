@@ -37,6 +37,7 @@
     "run-coordinator": "tsx scripts/run-coordinator.ts",
     "check-env": "tsx scripts/check-env.ts",
     "check-convergence": "tsx scripts/check-kernel-convergence.ts",
+    "auto-complete-nrvv": "tsx scripts/auto-complete-nrvv.ts",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""
   },

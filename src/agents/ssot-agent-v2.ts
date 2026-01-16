@@ -153,6 +153,17 @@ export class SSOTAgentV2 {
         }
       }
 
+      // ✨ NEW (Issue #32): Planning Dataがない場合のフォールバック
+      if (!planningDataToUse || result.suggestedKernels.length === 0) {
+        this.log('  No Planning Data found - extracting NRVV from Issue directly');
+
+        const kernelFromIssue = this.extractNRVVFromIssueTemplate(githubIssue);
+        await this.kernelRegistry.saveKernel(kernelFromIssue);
+        result.suggestedKernels.push(kernelFromIssue.id);
+
+        this.log(`  Kernel ${kernelFromIssue.id} created from Issue (template-based)`);
+      }
+
       if (result.suggestedKernels.length > 0) {
         result.comments.push(
           this.buildKernelSuggestionComment(result.suggestedKernels)
@@ -790,5 +801,112 @@ ${violationList}
 
   private capitalizeFirst(str: string): string {
     return str.charAt(0).toUpperCase() + str.slice(1);
+  }
+
+  // ========================================================================
+  // Phase 1: Template-based NRVV Extraction (Issue #32)
+  // ========================================================================
+
+  /**
+   * Extract NRVV from Issue body (Template-based fallback)
+   * @param issue GitHub Issue
+   * @returns Basic Kernel with minimal NRVV
+   */
+  private extractNRVVFromIssueTemplate(issue: GitHubIssue): KernelWithNRVV {
+    const kernelId = this.generateKernelId();
+
+    // Extract basic info from Issue
+    const statement = issue.title;
+    const category = this.inferCategoryFromIssue(issue);
+    const owner = this.inferOwnerFromIssue(issue);
+
+    // Create minimal NRVV structure
+    const needId = `NEED-${kernelId}-1`;
+    const reqId = `REQ-${kernelId}-1`;
+
+    const kernel: KernelWithNRVV = {
+      id: kernelId,
+      statement,
+      category,
+      owner,
+      maturity: 'draft',
+      createdAt: new Date().toISOString(),
+      lastUpdatedAt: new Date().toISOString(),
+      sourceIssue: `#${issue.number}`,
+
+      // Template-based NRVV
+      needs: [
+        {
+          id: needId,
+          statement: `User need derived from: ${issue.title}`,
+          stakeholder: 'ProductOwner',
+          sourceType: 'stakeholder_requirement',
+          priority: 'high',
+          traceability: {
+            upstream: [],
+            downstream: [reqId],
+          },
+        },
+      ],
+
+      requirements: [
+        {
+          id: reqId,
+          statement: issue.title,
+          type: 'functional',
+          priority: 'must',
+          rationale: `Derived from Issue #${issue.number}`,
+          traceability: {
+            upstream: [needId],
+            downstream: [],
+          },
+        },
+      ],
+
+      verification: [],
+      validation: [],
+
+      history: [
+        {
+          timestamp: new Date().toISOString(),
+          action: 'created',
+          by: 'SSOTAgentV2',
+          maturity: 'draft',
+        },
+      ],
+
+      tags: ['auto-generated', 'template-based'],
+    };
+
+    return kernel;
+  }
+
+  /**
+   * Infer category from Issue labels and content
+   */
+  private inferCategoryFromIssue(issue: GitHubIssue): import('../types/nrvv').KernelCategory {
+    const text = `${issue.title} ${issue.body || ''}`.toLowerCase();
+    const labels = issue.labels.map((l) => l.name.toLowerCase());
+
+    if (labels.includes('security') || text.includes('security')) return 'security';
+    if (labels.includes('architecture') || text.includes('architecture'))
+      return 'architecture';
+    if (labels.includes('quality') || text.includes('quality')) return 'quality';
+    if (labels.includes('interface') || text.includes('api')) return 'interface';
+    if (labels.includes('constraint')) return 'constraint';
+
+    return 'requirement'; // default
+  }
+
+  /**
+   * Infer owner from Issue assignee or labels
+   */
+  private inferOwnerFromIssue(issue: GitHubIssue): string {
+    const labels = issue.labels.map((l) => l.name.toLowerCase());
+
+    if (labels.includes('security')) return 'CISO';
+    if (labels.includes('architecture')) return 'TechLead';
+
+    return 'ProductOwner'; // default
   }
 }

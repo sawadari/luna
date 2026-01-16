@@ -405,6 +405,231 @@ describe('DeploymentAgent', () => {
   });
 
   // =============================================================================
+  // Validation Recording Tests
+  // =============================================================================
+
+  describe('Validation Recording', () => {
+    it('should call recordValidation on successful deployment', async () => {
+      // Mock KernelRegistry
+      const mockKernelRegistry = {
+        searchKernels: vi.fn().mockResolvedValue([
+          {
+            id: 'TEST-KERNEL-001',
+            needs: [{ id: 'NEED-001' }],
+            requirements: [{ id: 'REQ-001' }],
+            verification: [],
+            validation: [],
+          },
+        ]),
+        addValidationToKernel: vi.fn().mockResolvedValue(undefined),
+      };
+
+      (agent as any).kernelRegistry = mockKernelRegistry;
+      (agent as any).config.dryRun = false; // Enable actual recording
+
+      // Mock deployment to succeed
+      (agent as any).deploy = vi.fn().mockResolvedValue([
+        {
+          environment: 'staging',
+          status: 'deployed',
+          version: 'v2024.01.01-120000',
+          deployedAt: '2024-01-01T12:00:00Z',
+          duration: 5000,
+        },
+      ]);
+
+      // Use mock context with generated code
+      const codeGenContextWithCode = createMockCodeGenContext(true);
+
+      const result = await agent.execute(
+        1,
+        codeGenContextWithCode,
+        mockReviewContext,
+        mockTestContext
+      );
+
+      expect(result.status).toBe('success');
+      expect(mockKernelRegistry.searchKernels).toHaveBeenCalledWith({
+        tag: 'issue-1',
+      });
+      expect(mockKernelRegistry.addValidationToKernel).toHaveBeenCalledWith(
+        'TEST-KERNEL-001',
+        expect.objectContaining({
+          id: expect.stringMatching(/^VAL-TEST-KERNEL-001-/),
+          statement: expect.any(String),
+          method: 'field_test',
+          status: 'passed',
+          validatedBy: 'DeploymentAgent',
+        })
+      );
+    });
+
+    it('should skip recordValidation in dry-run mode', async () => {
+      const mockKernelRegistry = {
+        searchKernels: vi.fn(),
+        addValidationToKernel: vi.fn(),
+      };
+
+      (agent as any).kernelRegistry = mockKernelRegistry;
+      (agent as any).config.dryRun = true; // Dry-run mode
+
+      // Mock deployment to succeed
+      (agent as any).deploy = vi.fn().mockResolvedValue([
+        {
+          environment: 'staging',
+          status: 'deployed',
+          version: 'v2024.01.01-120000',
+          deployedAt: '2024-01-01T12:00:00Z',
+          duration: 5000,
+        },
+      ]);
+
+      await agent.execute(
+        1,
+        mockCodeGenContext,
+        mockReviewContext,
+        mockTestContext
+      );
+
+      // Validation recording should be skipped
+      expect(mockKernelRegistry.searchKernels).not.toHaveBeenCalled();
+      expect(mockKernelRegistry.addValidationToKernel).not.toHaveBeenCalled();
+    });
+
+    it('should skip recordValidation on failed deployment', async () => {
+      const mockKernelRegistry = {
+        searchKernels: vi.fn(),
+        addValidationToKernel: vi.fn(),
+      };
+
+      (agent as any).kernelRegistry = mockKernelRegistry;
+      (agent as any).config.dryRun = false;
+
+      // Mock deployment to fail
+      (agent as any).deploy = vi.fn().mockResolvedValue([
+        {
+          environment: 'staging',
+          status: 'failed',
+          version: 'v2024.01.01-120000',
+          deployedAt: '2024-01-01T12:00:00Z',
+          duration: 3000,
+          error: 'Deployment failed',
+        },
+      ]);
+
+      await agent.execute(
+        1,
+        mockCodeGenContext,
+        mockReviewContext,
+        mockTestContext
+      );
+
+      // Validation recording should be skipped for failed deployments
+      expect(mockKernelRegistry.searchKernels).not.toHaveBeenCalled();
+      expect(mockKernelRegistry.addValidationToKernel).not.toHaveBeenCalled();
+    });
+
+    it('should handle missing kernel gracefully', async () => {
+      const mockKernelRegistry = {
+        searchKernels: vi.fn().mockResolvedValue([]), // No kernel found
+        addValidationToKernel: vi.fn(),
+      };
+
+      (agent as any).kernelRegistry = mockKernelRegistry;
+      (agent as any).config.dryRun = false;
+
+      // Mock deployment to succeed
+      (agent as any).deploy = vi.fn().mockResolvedValue([
+        {
+          environment: 'staging',
+          status: 'deployed',
+          version: 'v2024.01.01-120000',
+          deployedAt: '2024-01-01T12:00:00Z',
+          duration: 5000,
+        },
+      ]);
+
+      // Use mock context with generated code
+      const codeGenContextWithCode = createMockCodeGenContext(true);
+
+      const result = await agent.execute(
+        1,
+        codeGenContextWithCode,
+        mockReviewContext,
+        mockTestContext
+      );
+
+      // Should succeed even if kernel not found
+      expect(result.status).toBe('success');
+      expect(mockKernelRegistry.searchKernels).toHaveBeenCalled();
+      expect(mockKernelRegistry.addValidationToKernel).not.toHaveBeenCalled();
+    });
+
+    it('should generate correct validation ID format', () => {
+      const validationId = (agent as any).generateValidationId('TEST-KERNEL-001');
+
+      expect(validationId).toMatch(/^VAL-TEST-KERNEL-001-\d+-\d{3}$/);
+    });
+
+    it('should include deployment evidence in validation', async () => {
+      const mockKernelRegistry = {
+        searchKernels: vi.fn().mockResolvedValue([
+          {
+            id: 'TEST-KERNEL-001',
+            needs: [{ id: 'NEED-001' }],
+            requirements: [{ id: 'REQ-001' }],
+            verification: [],
+            validation: [],
+          },
+        ]),
+        addValidationToKernel: vi.fn().mockResolvedValue(undefined),
+      };
+
+      (agent as any).kernelRegistry = mockKernelRegistry;
+      (agent as any).config.dryRun = false;
+
+      // Mock deployment to succeed
+      (agent as any).deploy = vi.fn().mockResolvedValue([
+        {
+          environment: 'production',
+          status: 'deployed',
+          version: 'v2024.01.01-120000',
+          deployedAt: '2024-01-01T12:00:00Z',
+          duration: 5000,
+        },
+      ]);
+
+      // Use mock context with generated code
+      const codeGenContextWithCode = createMockCodeGenContext(true);
+
+      await agent.execute(
+        1,
+        codeGenContextWithCode,
+        mockReviewContext,
+        mockTestContext
+      );
+
+      // Check that validation includes correct criteria
+      expect(mockKernelRegistry.addValidationToKernel).toHaveBeenCalledWith(
+        'TEST-KERNEL-001',
+        expect.objectContaining({
+          criteria: expect.arrayContaining([
+            'デプロイ成功',
+            'ヘルスチェック通過',
+            '環境: production',
+          ]),
+          evidence: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'field_data',
+              path: 'deployment-log.json',
+            }),
+          ]),
+        })
+      );
+    });
+  });
+
+  // =============================================================================
   // Integration Tests
   // =============================================================================
 
@@ -450,7 +675,7 @@ function createMockIssue(overrides?: Partial<GitHubIssue>): GitHubIssue {
   } as GitHubIssue;
 }
 
-function createMockCodeGenContext(): CodeGenContext {
+function createMockCodeGenContext(withCode: boolean = false): CodeGenContext {
   return {
     issue: createMockIssue(),
     analysis: {
@@ -459,7 +684,15 @@ function createMockCodeGenContext(): CodeGenContext {
       language: 'typescript',
       requiresTests: true,
     },
-    generatedCode: [],
+    generatedCode: withCode
+      ? [
+          {
+            filePath: 'src/example.ts',
+            content: 'export function example() { return true; }',
+            language: 'typescript',
+          },
+        ]
+      : [],
     metrics: {
       overallScore: 80,
       linesOfCode: 100,

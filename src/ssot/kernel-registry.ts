@@ -14,6 +14,7 @@ import {
   TraceabilityMatrix,
 } from '../types/nrvv';
 import { KernelEnhancementService } from '../services/kernel-enhancement-service';
+import { env } from '../config/env';
 
 export class KernelRegistryService {
   private registryPath: string;
@@ -21,7 +22,8 @@ export class KernelRegistryService {
   private enhancementService?: KernelEnhancementService;
 
   constructor(registryPath?: string, anthropicApiKey?: string) {
-    this.registryPath = registryPath || path.join(process.cwd(), 'kernels.yaml');
+    // Priority: explicit parameter > env variable > default (kernels-luna-base.yaml for Luna development)
+    this.registryPath = registryPath || path.join(process.cwd(), env.kernelRegistryPath);
 
     // Initialize enhancement service if API key provided
     if (anthropicApiKey) {

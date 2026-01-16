@@ -46,6 +46,9 @@ export const env = {
   // Anthropic API Configuration
   anthropicApiKey: getEnv('ANTHROPIC_API_KEY'),
 
+  // Kernel Registry Configuration
+  kernelRegistryPath: getEnv('KERNEL_REGISTRY_PATH') || 'kernels-luna-base.yaml', // Default: Luna's own Kernels
+
   // DEST Configuration (default: enabled for safety, opt-out with =false)
   enableDestJudgment: getEnv('ENABLE_DEST_JUDGMENT') !== 'false', // Default: true
   enableCrepsGates: getEnv('ENABLE_CREPS_GATES') !== 'false', // Default: true

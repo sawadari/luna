@@ -167,7 +167,7 @@ npm run test:e2e
 実際のGitHubリポジトリと連携する場合:
 
 ```bash
-# 1. 環境変数設定（詳細は SETUP_GUIDE.md を参照）
+# 1. 環境変数設定（詳細は docs/guides/SETUP_GUIDE.md を参照）
 export GITHUB_TOKEN="ghp_your_token_here"
 export GITHUB_REPOSITORY="your-username/test-repo"
 
@@ -264,14 +264,14 @@ ANTHROPIC_API_KEY=sk-ant-xxxxx
 |------------|------|
 | [`README.md`](./README.md) | プロジェクト概要 |
 | [`CLAUDE.md`](./CLAUDE.md) | Claude Code コンテキスト（このファイル） |
-| [`SETUP_GUIDE.md`](./SETUP_GUIDE.md) | 詳細なセットアップ手順 |
-| [`GETTING_STARTED.md`](./GETTING_STARTED.md) | クイックスタートガイド |
-| [`MVP_VERIFICATION.md`](./MVP_VERIFICATION.md) | MVP検証ドキュメント |
+| [`docs/guides/SETUP_GUIDE.md`](./docs/guides/SETUP_GUIDE.md) | 詳細なセットアップ手順 |
+| [`docs/guides/GETTING_STARTED.md`](./docs/guides/GETTING_STARTED.md) | クイックスタートガイド |
+| [`docs/guides/MVP_VERIFICATION.md`](./docs/guides/MVP_VERIFICATION.md) | MVP検証ドキュメント |
 
 ## トラブルシューティング
 
 ### 環境変数が設定できない
-OSごとに設定方法が異なります。詳細は [`SETUP_GUIDE.md`](./SETUP_GUIDE.md) を参照。
+OSごとに設定方法が異なります。詳細は [`docs/guides/SETUP_GUIDE.md`](./docs/guides/SETUP_GUIDE.md) を参照。
 
 ### GitHub API Rate Limitエラー
 Personal Access Tokenを使用すると、制限が5000req/hに増えます:
@@ -291,7 +291,7 @@ npm run build
 ## サポート
 
 - **Framework**: [Miyabi](https://github.com/ShunsukeHayashi/Autonomous-Operations)
-- **Documentation**: [`README.md`](./README.md), [`SETUP_GUIDE.md`](./SETUP_GUIDE.md), [`GETTING_STARTED.md`](./GETTING_STARTED.md)
+- **Documentation**: [`README.md`](./README.md), [`docs/guides/SETUP_GUIDE.md`](./docs/guides/SETUP_GUIDE.md), [`docs/guides/GETTING_STARTED.md`](./docs/guides/GETTING_STARTED.md)
 - **Issues**: GitHub Issues で管理
 
 ---

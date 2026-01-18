@@ -523,11 +523,38 @@ npm run test:coverage
 
 ## 📖 ドキュメント
 
-- **CLAUDE.md**: Claude Code統合とmiyabiフレームワーク概要
-- **RULES_CONFIGURATION.md**: ルール設定ガイド（人間-AI責任分界の一元管理）
-- **dest.yaml**: DEST理論仕様（オリジナル設計文書）
-- **unified_planning_and_ssot_framework.yaml**: Planning + SSOT Layer仕様
-- **.claude/agents/**: 個別エージェント仕様書
+### エントリーポイント
+- **[README.md](./README.md)**: プロジェクト概要（このファイル）
+- **[CLAUDE.md](./CLAUDE.md)**: Claude Code統合とmiyabiフレームワーク概要
+
+### ガイド（完成成果物）
+📁 `docs/guides/`
+- **[GETTING_STARTED.md](./docs/guides/GETTING_STARTED.md)**: クイックスタートガイド
+- **[SETUP_GUIDE.md](./docs/guides/SETUP_GUIDE.md)**: 詳細なセットアップ手順
+- **[RULES_CONFIGURATION.md](./docs/guides/RULES_CONFIGURATION.md)**: ルール設定ガイド（人間-AI責任分界）
+- **[DEVELOPMENT.md](./docs/guides/DEVELOPMENT.md)**: 開発ガイド
+- **[PRODUCTION_READINESS.md](./docs/guides/PRODUCTION_READINESS.md)**: 本番準備ガイド
+- **[MVP_VERIFICATION.md](./docs/guides/MVP_VERIFICATION.md)**: MVP検証ガイド
+- **[SELF_IMPROVEMENT_GUIDE.md](./docs/guides/SELF_IMPROVEMENT_GUIDE.md)**: Self-Improvement Loop ガイド
+
+### 理論的基盤（インプット）
+📁 `docs/input/`
+- **[dest.yaml](./docs/input/dest.yaml)**: DEST理論仕様（Problem Space）
+- **[unified_planning_and_ssot_framework.yaml](./docs/input/unified_planning_and_ssot_framework.yaml)**: Planning + SSOT Layer仕様（Solution Space）
+- **[LUNA_VISION_AND_ARCHITECTURE.md](./docs/input/LUNA_VISION_AND_ARCHITECTURE.md)**: Lunaビジョンとアーキテクチャ
+- **[AI_HUMAN_ROLE_CONTRACT.md](./docs/input/AI_HUMAN_ROLE_CONTRACT.md)**: 人間-AI責任分界の契約
+- **[MBSE_SIMULATION_FRAMEWORK.md](./docs/input/MBSE_SIMULATION_FRAMEWORK.md)**: MBSEシミュレーション基盤
+- **[CORE_ARCHITECTURE_PROPOSAL.md](./docs/input/CORE_ARCHITECTURE_PROPOSAL.md)**: コアアーキテクチャ提案
+
+### 実装レポート（中間生成物）
+📁 `docs/reports/`
+- **[issues/](./docs/reports/issues/)**: Issue完了報告（#21-#25等）
+- **[analysis/](./docs/reports/analysis/)**: ギャップ分析レポート
+- **[progress/](./docs/reports/progress/)**: 進捗状況レポート
+
+### エージェント仕様
+📁 `.claude/agents/`
+- 個別エージェント仕様書（DESTAgent、CoordinatorAgent等）
 
 ---
 

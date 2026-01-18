@@ -1,0 +1,209 @@
+# Luna Human-AI Responsibility Boundary Rules
+# ルール設定ファイル - 人間-AI責任分界の一元管理
+
+meta:
+  version: "1.0"
+  last_updated: "2026-01-16T15:30:00Z"
+  last_updated_by: "System"
+  description: "Luna Human-AI Responsibility Boundary Rules Configuration"
+
+# 人間-AI責任分界の定義
+human_ai_boundary:
+
+  # Phase 0: DEST Judgment (問題空間分析)
+  dest_judgment:
+    enabled: true
+    rationale: "Issue実装前の価値判断は人間の責任範囲。無駄な実装を防ぎリソースを最適化する。"
+
+    # AL (Appropriateness Level) 閾値設定
+    al_threshold:
+      block_below: "AL0"        # AL0: 実装ブロック
+      require_approval: "AL1"   # AL1: 人間承認必要
+      auto_proceed: "AL2"       # AL2以上: 自動進行可能
+
+    # DEST 4次元分析
+    dest_analysis:
+      destination: true   # 目的地の明確性分析
+      effectiveness: true # 実装効果の分析
+      safety: true        # リスク・安全性分析
+      traceability: true  # 要件追跡性分析
+
+  # Phase 1: Planning Layer (解決策探索)
+  planning_layer:
+    enabled: true
+    rationale: "解決策探索は人間の意思決定支援が必要。複数案を比較し最適解を選択する。"
+
+    # CREPS Gates (品質ゲート)
+    creps_gates:
+      enabled: true
+      threshold: 70  # 70点以下は人間レビュー必要
+      completeness: true    # 網羅性チェック
+      relevance: true       # 関連性チェック
+      evidence: true        # 根拠チェック
+      prioritization: true  # 優先度チェック
+      synergy: true         # 相乗効果チェック
+
+    # DecisionRecord生成
+    decision_record:
+      auto_generate: true
+      require_human_approval: false  # 自動生成後、人間承認は不要（後で確認可能）
+
+  # Phase 2: Kernel Generation (SSOT - Single Source of Truth)
+  kernel_generation:
+    enabled: true
+    rationale: "知識をKernelとして蓄積。NRVVはAIが提案、人間が承認する形式。"
+
+    # AI-powered NRVV抽出
+    ai_extraction:
+      enabled: true
+      fallback_to_template: true
+      rationale: "IssueからNRVVを自動抽出。失敗時はテンプレートベースにフォールバック。"
+
+    # NRVV自動補完
+    auto_completion:
+      enabled: true
+      rationale: "不完全Kernel（V or V欠損）をAIで自動補完。"
+
+    # Convergence Rate監視
+    convergence_monitoring:
+      enabled: true
+      threshold: 70  # 70%以下でアラート・Issue自動作成
+      weekly_check: true
+      rationale: "Kernel完全性を継続的に監視し品質を保証。"
+
+    # Maturity管理
+    maturity_transition:
+      auto_promote: false  # 自動昇格は無効（人間が明示的に承認）
+      require_approval:
+        - "under_review -> agreed"
+        - "agreed -> frozen"
+      rationale: "重要な意思決定の成熟度遷移は人間が承認。"
+
+  # Phase 3: Task Decomposition (タスク分解)
+  task_decomposition:
+    enabled: true
+    rationale: "DAGベースのタスク分解は自動化。並列実行最適化でリソース効率化。"
+
+    # Critical Path分析
+    critical_path_analysis:
+      enabled: true
+      algorithm: "PERT/CPM"
+
+    # 並列実行
+    parallel_execution:
+      enabled: true
+      max_parallel_tasks: 10
+
+  # Phase 4-5: Implementation (コード生成・レビュー)
+  code_generation:
+    enabled: true
+    rationale: "定型的な実装はAIが担当。生成コードは必ず人間がレビュー。"
+
+    # AI駆動コード生成
+    ai_model: "claude-sonnet-4-20250514"
+    quality_threshold: 80  # 80点以上で合格
+
+    # 自動テスト生成
+    generate_tests: true
+    test_coverage_target: 80  # 80%以上を目標
+
+  # コードレビュー必須
+  review_required:
+    enabled: true
+    rationale: "生成コードは必ず人間がレビュー。品質保証の最終責任は人間。"
+
+    # 静的解析
+    static_analysis: true
+    security_scan: true
+
+    # 品質スコアリング
+    min_quality_score: 80
+
+  # Phase 6-7: Verification & Validation (検証・妥当性確認)
+  auto_verification:
+    enabled: true
+    rationale: "テスト実行は自動化。結果判断は人間が最終確認。"
+
+    # テスト自動実行
+    auto_run_tests: true
+
+    # Kernelへの自動追加（Phase 6: 未実装）
+    # テスト結果を自動的にKernelのVerificationとして記録（今後実装予定）
+    auto_add_to_kernel: false
+
+  # Phase 8: Monitoring (システム監視)
+  continuous_monitoring:
+    enabled: true
+    rationale: "システム監視は自動化。異常検知時は人間にエスカレーション。"
+
+    # メトリクス収集
+    collect_metrics: true
+
+    # ヘルスチェック
+    health_check_interval: 300  # 5分ごと
+
+    # アラート
+    alert_to_human:
+      enabled: true
+      severity_threshold: "warning"  # warning以上で人間に通知
+
+  # Phase 9: Continuous Improvement (継続的改善)
+  self_improvement:
+    enabled: true
+    rationale: "Self-Improvement Loop全体を自動化。ただし、重要な意思決定は人間が承認。"
+
+    # Kernel更新
+    auto_update_kernel: false
+    require_human_approval: true
+
+    # 知識蓄積
+    accumulate_knowledge: true
+
+# 組織固有のルール
+organization_rules:
+
+  # Issue複雑度の上限
+  max_issue_complexity: "large"  # small/medium/large/xlarge
+
+  # 承認が必要な変更タイプ
+  require_approval_for:
+    - "breaking changes"
+    - "security-related"
+    - "architecture changes"
+    - "kernel maturity promotion"
+
+  # 自動実行の制限
+  auto_execution_limits:
+    max_files_generated: 50
+    max_lines_per_file: 1000
+    max_deployment_environments: 3
+
+  # セキュリティポリシー
+  security_policy:
+    scan_dependencies: true
+    check_vulnerabilities: true
+    require_security_review: true
+
+# 個人固有のルール（オプション）
+individual_preferences:
+
+  # ログレベル
+  verbose_logging: true
+
+  # デフォルトモード
+  dry_run_default: false
+
+  # 通知レベル
+  notification_level: "all"  # all/important/critical
+
+  # 言語設定
+  language: "ja"  # ja/en
+
+# ルール変更履歴
+change_history:
+  - timestamp: "2026-01-16T15:30:00Z"
+    changed_by: "System"
+    rule: "initial_setup"
+    old_value: null
+    new_value: "Default configuration"
+    rationale: "Initial setup of rules-config.yaml for Human-AI Responsibility Boundary management"

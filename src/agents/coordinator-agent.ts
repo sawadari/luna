@@ -39,6 +39,7 @@ import { DeploymentAgent } from './deployment-agent';
 import { MonitoringAgent } from './monitoring-agent';
 import { KernelRegistryService } from '../ssot/kernel-registry';
 import type { KernelWithNRVV } from '../types/nrvv';
+import { getRulesConfig, RulesConfigService } from '../services/rules-config-service';
 
 export class CoordinatorAgent {
   private octokit: Octokit;
@@ -52,6 +53,7 @@ export class CoordinatorAgent {
   private deploymentAgent: DeploymentAgent;
   private monitoringAgent: MonitoringAgent;
   private kernelRegistry: KernelRegistryService;
+  private rulesConfig: RulesConfigService;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -65,6 +67,7 @@ export class CoordinatorAgent {
     this.deploymentAgent = new DeploymentAgent(config);
     this.monitoringAgent = new MonitoringAgent(config);
     this.kernelRegistry = new KernelRegistryService();
+    this.rulesConfig = getRulesConfig();
   }
 
   private log(message: string): void {
@@ -133,11 +136,21 @@ export class CoordinatorAgent {
     try {
       const [owner, repo] = this.config.repository.split('/');
 
+      // Load rules configuration
+      if (!this.rulesConfig.isLoaded()) {
+        await this.rulesConfig.load();
+      }
+
       // ExecutionContext to pass data between agents
       const executionContext: any = {};
 
-      // Phase 0: DEST Judgment (default: enabled, opt-out with config.enableDestJudgment = false)
-      if (this.config.enableDestJudgment !== false) {
+      // Phase 0: DEST Judgment (from rules-config.yaml with fallback to config)
+      const destEnabled = this.rulesConfig.get<boolean>(
+        'human_ai_boundary.dest_judgment.enabled',
+        { fallbackToEnv: true }
+      ) ?? this.config.enableDestJudgment !== false;
+
+      if (destEnabled) {
         this.log('Phase 0: DEST Judgment');
         const destResult = await this.destAgent.execute(githubIssue.number);
 
@@ -160,8 +173,13 @@ export class CoordinatorAgent {
         }
       }
 
-      // Phase 1: Planning Layer (default: enabled, opt-out with config.enablePlanningLayer = false)
-      if (this.config.enablePlanningLayer !== false) {
+      // Phase 1: Planning Layer (from rules-config.yaml with fallback to config)
+      const planningEnabled = this.rulesConfig.get<boolean>(
+        'human_ai_boundary.planning_layer.enabled',
+        { fallbackToEnv: true }
+      ) ?? this.config.enablePlanningLayer !== false;
+
+      if (planningEnabled) {
         this.log('Phase 1: Planning Layer');
         const planningResult = await this.planningAgent.execute(
           githubIssue.number,

@@ -53,6 +53,10 @@ cp .env.example .env
 # .envを編集して以下を追加:
 # GITHUB_TOKEN=ghp_xxxxx
 # ANTHROPIC_API_KEY=sk-ant-xxxxx (AI分析に必要、オプション)
+
+# ルール設定（オプション）
+# rules-config.yaml で人間-AI責任分界を一元管理できます
+# 詳細は RULES_CONFIGURATION.md を参照
 ```
 
 ### テスト実行
@@ -303,6 +307,77 @@ graph TD
 
 ---
 
+## ⚙️ ルール設定
+
+### rules-config.yaml - 人間-AI責任分界の一元管理
+
+Lunaでは、**人間-AI責任分界**（どの判断を人間が行い、どの判断をAIが行うか）を`rules-config.yaml`ファイルで一元管理できます。
+
+**主な機能**:
+- ✅ **一元管理**: 全てのルールが1ファイルで管理される
+- ✅ **理由の明記**: 各ルールに`rationale`（理由）が記録される
+- ✅ **変更履歴**: ルール変更が自動的に記録される
+- ✅ **後方互換性**: 環境変数へのフォールバック対応
+- ✅ **バリデーション**: 設定ミスを自動検出
+
+### 設定例
+
+```yaml
+# rules-config.yaml
+human_ai_boundary:
+  # Phase 0: DEST Judgment
+  dest_judgment:
+    enabled: true
+    rationale: "Issue実装前の価値判断は人間の責任範囲"
+    al_threshold:
+      block_below: "AL0"        # AL0: 実装ブロック
+      require_approval: "AL1"   # AL1: 人間承認必要
+      auto_proceed: "AL2"       # AL2以上: 自動進行可能
+
+  # Phase 1: Planning Layer
+  planning_layer:
+    enabled: true
+    rationale: "解決策探索は人間の意思決定支援が必要"
+    creps_gates:
+      enabled: true
+      threshold: 70  # 70点以下は人間レビュー必要
+
+  # Phase 4-5: Code Generation & Review
+  code_generation:
+    enabled: true
+    quality_threshold: 80  # 80点以上で合格
+    generate_tests: true
+    test_coverage_target: 80
+
+  review_required:
+    enabled: true
+    rationale: "生成コードは必ず人間がレビュー"
+    min_quality_score: 80
+```
+
+### カスタマイズ
+
+**より厳格な品質基準**:
+```yaml
+code_generation:
+  quality_threshold: 90  # 90点以上を要求
+  test_coverage_target: 90
+
+review_required:
+  min_quality_score: 90
+```
+
+**DESTを無効化（テスト環境）**:
+```yaml
+dest_judgment:
+  enabled: false
+  rationale: "テスト環境のためDEST無効化"
+```
+
+詳細は [RULES_CONFIGURATION.md](./RULES_CONFIGURATION.md) を参照してください。
+
+---
+
 ## 🧪 テスト
 
 ### テストカバレッジ
@@ -449,6 +524,7 @@ npm run test:coverage
 ## 📖 ドキュメント
 
 - **CLAUDE.md**: Claude Code統合とmiyabiフレームワーク概要
+- **RULES_CONFIGURATION.md**: ルール設定ガイド（人間-AI責任分界の一元管理）
 - **dest.yaml**: DEST理論仕様（オリジナル設計文書）
 - **unified_planning_and_ssot_framework.yaml**: Planning + SSOT Layer仕様
 - **.claude/agents/**: 個別エージェント仕様書

@@ -1,77 +1,60 @@
 # Luna - Getting Started Guide
 
-> **⚠️ LEGACY DOCUMENT WARNING (2026-02-08)**
->
-> このドキュメントは Phase 1 MVP（Miyabiフレームワーク）に基づいており、**Phase A-C実装（2026-02-08完了）後は一部情報が古くなっています**。
->
-> 最新の Core Architecture (Phase A-C) については以下を参照してください：
-> - [`README.md`](../../README.md) - 最新のアーキテクチャ概要
-> - [`docs/input/CORE_ARCHITECTURE_PROPOSAL.md`](../input/CORE_ARCHITECTURE_PROPOSAL.md) - Phase A-C実装詳細
->
-> このガイドは参考資料として残されていますが、新しいプロジェクトでは Phase A-C アーキテクチャの使用を推奨します。
-
-## 🌸 Welcome to Luna
-
-Luna は Miyabi フレームワークで構築された**自律型開発プラットフォーム**です。
-
-このガイドでは、Lunaを初めて使用する方向けに、セットアップから本番検証までの手順を説明します。
+世界最高の知識創造プラットフォームへようこそ 🌸
 
 ---
 
 ## 📚 目次
 
-1. [概要](#概要)
+1. [Lunaとは](#lunaとは)
 2. [クイックスタート](#クイックスタート)
-3. [セットアップ](#セットアップ)
-4. [使い方](#使い方)
+3. [Phase A-C: Core Architectureを体験](#phase-a-c-core-architectureを体験)
+4. [Rules Configuration: ルール設定](#rules-configuration-ルール設定)
 5. [次のステップ](#次のステップ)
 
 ---
 
-## 概要
+## Lunaとは
 
-### Luna Phase 1 MVP の機能
+**Luna**は以下を統合した世界最高の知識創造プラットフォームです：
 
-Luna Phase 1 MVPは、以下の自律型エージェントを実装しています:
+### 🏗️ Core Architecture (Phase A-C)
 
-#### 🎯 CoordinatorAgent
-- タスクを自動的にDAG（有向非巡回グラフ）に分解
-- Critical Path分析で最適な実行計画を生成
-- 並列実行可能なタスクを特定し、効率的に実行
+- **Phase A1: Kernel Runtime** - すべてのKernel操作の単一エントリーポイント
+- **Phase A2: Kernel Ledger** - Event Sourcing型の追記専用ログ（完全な監査証跡）
+- **Phase A3: CR-Runtime接続** - ChangeRequestからKernel操作の自動実行
+- **Phase B1: Kernel Graph Schema** - 型付き知識グラフ（10種ノード、8種エッジ）
+- **Phase C1: Issue一本道** - すべての変更はIssue経由、Bootstrap Kernel保護
 
-#### 📝 SSOTAgentV2 (Single Source of Truth)
-- Kernel（システムの真実）を中央管理
-- NRVV（Needs-Requirements-Verification-Validation）トレーサビリティ
-- Maturity管理（draft → under_review → agreed → frozen）
+### 📝 Rules Configuration (Issue #40)
 
-#### 🤖 CodeGenAgent
-- AI（Claude Sonnet 4.5）駆動のコード生成
-- Issue分析とコード品質メトリクス
+人間-AI責任分界ルールを`rules-config.yaml`で一元管理：
 
-#### 🔍 ReviewAgent
-- 自動コードレビュー
-- セキュリティスキャン
-- 品質スコアリング（80点以上で合格）
+- **DEST Judgment**: Issue実装前の価値判断（AL0/AL1/AL2判定）
+- **Planning Layer**: 解決策探索とCrePS Gatesによる品質保証
+- **Kernel Generation**: NRVV自動抽出と収束監視
+- **Code Generation & Review**: AI生成コードの品質保証（80点以上）
+- **Auto Deployment**: 環境別デプロイ制御（dev/staging/production）
 
-#### 🧪 TestAgent
-- 自動テスト実行
-- カバレッジレポート生成（80%+目標）
+### ✨ 主な特徴
 
-#### 🚀 DeploymentAgent
-- 環境別自動デプロイ（dev/staging/prod）
-- ヘルスチェック
-- 自動Rollback
-
-#### 📊 MonitoringAgent
-- システム監視
-- メトリクス収集
-- アラート生成
+- **📚 使えば使うほど賢くなる**: すべての変更がKernelに蓄積され、知識が収束
+- **🔍 完全な監査証跡**: Event Sourcing型Ledgerですべての変更を記録
+- **🔄 Replay機能**: 任意の時点にKernel状態を復元可能
+- **🛡️ Bootstrap Kernel保護**: システムの根本ルールは不変
+- **⚖️ 人間-AI責任分界**: 価値判断は人間、技術評価はAI
 
 ---
 
 ## クイックスタート
 
-### 最速でLunaを試す
+### 前提条件
+
+- **Node.js** v20.0.0以上
+- **npm** v10.0.0以上
+- **Git**
+
+### インストール
 
 ```bash
 # 1. リポジトリのクローン
@@ -83,202 +66,308 @@ npm install
 
 # 3. ビルド
 npm run build
-
-# 4. デモの実行（環境変数不要）
-npm run demo:kernel-registry
-npm run test:e2e
 ```
 
-これだけで、Lunaの基本機能を体験できます！
+**✅ これだけで完了です！**
 
 ---
 
-## セットアップ
+## Phase A-C: Core Architectureを体験
 
-### 1. 前提条件
+Phase A-Cは、Lunaの核となるアーキテクチャです。Event Sourcing、Kernel Runtime、型付き知識グラフなど、最先端の技術が統合されています。
 
-- **Node.js** v20.0.0以上
-- **npm** v10.0.0以上
-- **Git**
+### Phase A1: Kernel Runtime
 
-### 2. インストール
+すべてのKernel操作の単一エントリーポイントをテストします。
 
 ```bash
-cd luna
-npm install
-```
-
-### 3. ビルド確認
-
-```bash
-npm run build
-```
-
-エラーがなければ成功です！
-
-### 4. 基本テストの実行
-
-```bash
-# Kernel Registry デモ
-npm run demo:kernel-registry
-
-# SSOT Agent テスト
-npm run test:ssot-v2
-
-# Coordinator Agent テスト
-npm run test:coordinator
-
-# E2E 統合テスト
-npm run test:e2e
-```
-
-すべてのテストが成功すれば、Lunaは正しくセットアップされています！
-
----
-
-## 使い方
-
-### レベル1: デモモード（環境変数不要）
-
-Luna の機能をシミュレーションで体験:
-
-```bash
-# Kernel Registry の動作確認
-npm run demo:kernel-registry
-
-# End-to-End パイプラインのシミュレーション
-npm run test:e2e
-```
-
-**結果:**
-- Kernel Registry の CRUD 操作
-- NRVV トレーサビリティ検証
-- タスク分解とDAG生成
-- エージェント実行（シミュレーション）
-
-### レベル2: 環境設定（実際のGitHub連携）
-
-実際のGitHubリポジトリと連携する場合:
-
-#### ステップ1: 環境変数の設定
-
-```bash
-# GitHub Personal Access Token
-export GITHUB_TOKEN="ghp_your_token_here"
-
-# リポジトリ（owner/repo形式）
-export GITHUB_REPOSITORY="your-username/test-repo"
-```
-
-詳細は [`SETUP_GUIDE.md`](./SETUP_GUIDE.md) を参照してください。
-
-#### ステップ2: 環境確認
-
-```bash
-npm run check-env
+npx tsx scripts/test-kernel-runtime-a1.ts
 ```
 
 **期待される出力:**
 ```
-✅ GITHUB_TOKEN: Set
-✅ GITHUB_REPOSITORY: Set
-⚠️ ANTHROPIC_API_KEY: Not set (optional)
-```
+🧪 Phase A1: Kernel Runtime テスト
 
-#### ステップ3: テストIssueの作成
+✅ Rules configuration loaded
 
-```bash
-npm run create-test-issue
-```
+1. KernelRuntime初期化（Solo Mode）...
+   ✅ KernelRuntime初期化完了
 
-**出力例:**
-```
-✅ Test issue created successfully!
-📋 Issue #100: [TEST] Implement user profile feature
-🔗 URL: https://github.com/your-username/test-repo/issues/100
-```
+2. u.record_decision テスト...
+   ✅ u.record_decision 成功
 
-#### ステップ4: CoordinatorAgentの実行（Dry-Run）
+3. u.link_evidence テスト...
+   ✅ u.link_evidence 成功
 
-```bash
-npm run run-coordinator -- --issue 100 --dry-run
-```
-
-**結果:**
-- 実際のIssueを取得
-- タスク分解とDAG生成
-- エージェント実行（シミュレーション）
-- GitHubには**書き込まない**（安全）
-
-### レベル3: 本番実行（AI + 実際の変更）
-
-⚠️ **注意**: 実際にコード生成、PR作成、デプロイを実行します
-
-#### ステップ1: Anthropic API Keyの設定
-
-```bash
-export ANTHROPIC_API_KEY="sk-ant-your_key_here"
-```
-
-#### ステップ2: 実行
-
-```bash
-npm run run-coordinator -- --issue 100
+...
 ```
 
 **実行内容:**
-- AI（Claude）による実際のコード生成
-- コードレビューの実行
-- テストの実行
-- GitHubへのコメント投稿
-- ラベルの自動更新
+- 6つのKernel操作（`u.record_decision`, `u.link_evidence`, `u.set_state`等）を実行
+- 権限チェック（Authority Service）の動作確認
+- Gateチェック（AL0ブロック等）の動作確認
+
+### Phase A2: Kernel Ledger
+
+Event Sourcing型のLedger（追記専用ログ）をテストします。
+
+```bash
+npx tsx scripts/test-kernel-ledger-a2.ts
+```
+
+**期待される出力:**
+```
+🧪 Phase A2: Kernel Ledger テスト
+
+✅ Rules configuration loaded
+
+1. KernelRuntime初期化（Ledger有効）...
+   ✅ KernelRuntime初期化完了
+
+2. Kernel操作を実行（Ledgerに記録）...
+   ✅ u.record_decision 成功
+   ✅ u.set_state 成功
+
+3. Ledgerからエントリを読み込み...
+   ✅ 3件のエントリを読み込み
+
+4. Ledger Replay機能をテスト...
+   ✅ Replay成功: 3件のエントリを再実行
+```
+
+**実行内容:**
+- Ledgerへの追記（append-only）
+- Ledger読み込みとReplay機能
+- 決定論的例外ID生成（再現性保証）
+
+### Phase A3: CR-Runtime接続
+
+ChangeRequestからKernel操作を自動実行します。
+
+```bash
+npx tsx scripts/test-phase-a3-cr-runtime.ts
+```
+
+**期待される出力:**
+```
+🧪 Phase A3: CR-Runtime統合テスト
+
+✅ Rules configuration loaded
+
+📦 Phase A3: ChangeRequest実行テスト
+
+1️⃣  ChangeRequest作成
+   ✅ CR作成成功: CR-2026-010
+   ✅ 3件の操作を含む
+
+2️⃣  ChangeRequest承認
+   ✅ CR承認成功: CR-2026-010
+
+3️⃣  ChangeRequest実行（Kernel操作実行）
+   ✅ CR実行完了: CR-2026-010
+   実行成功率: 3/3
+```
+
+**実行内容:**
+- ChangeRequest作成（operation_details含む）
+- ChangeRequest承認（人間の意思決定をシミュレート）
+- ChangeRequest実行（Kernel操作の自動実行）
+
+### Phase A1+A2: 統合テスト
+
+Kernel RuntimeとLedgerの統合動作を確認します。
+
+```bash
+npx tsx scripts/test-phase-a1-a2-integration.ts
+```
+
+**期待される出力:**
+```
+🧪 Phase A1+A2 統合テスト
+
+✅ Rules configuration loaded
+
+📦 Phase A1: Kernel Runtime テスト
+   1️⃣ u.record_decision テスト: ✅ Success
+   2️⃣ u.link_evidence テスト: ✅ Success
+   3️⃣ u.raise_exception テスト: ✅ Success
+   4️⃣ u.close_exception テスト: ✅ Success
+   5️⃣ u.set_state テスト: ✅ Success
+   Phase A1テスト結果: 6/6 成功
+
+📚 Phase A2: Kernel Ledger テスト
+   7️⃣ Ledger全エントリ読み込み: ✅ 6件
+   8️⃣ Ledger Replay: ✅ 6件再実行成功
+
+🎉 Phase A1+A2統合テスト完了！
+```
+
+### Phase C1: Bootstrap Kernel保護
+
+システムの根本ルールを保護する機能をテストします。
+
+```bash
+npx tsx scripts/test-phase-c1-bootstrap.ts
+```
+
+**期待される出力:**
+```
+🧪 Phase C1: Bootstrap Kernel & Issue一本道テスト
+
+✅ Rules configuration loaded
+
+1️⃣  Issue必須チェック
+   ✅ Issue なし操作が正しく拒否されました
+   ✅ Issue あり操作が正しく許可されました
+
+2️⃣  Bootstrap Kernel保護チェック
+   ✅ Bootstrap Kernel変更が正しく拒否されました
+   ✅ 通常のKernel変更が正しく許可されました
+
+🎉 Phase C1テスト完了！
+```
+
+**実行内容:**
+- Issue必須の強制（すべてのKernel操作は`issue`パラメータが必須）
+- Bootstrap Kernel保護（`BOOTSTRAP-*`は変更禁止）
+- 強制機能の有効/無効切り替え
+
+---
+
+## Rules Configuration: ルール設定
+
+Lunaは`rules-config.yaml`ファイルで人間-AI責任分界ルールを一元管理します。
+
+### ルール設定の確認
+
+```bash
+cat rules-config.yaml
+```
+
+**主要な設定項目:**
+
+```yaml
+human_ai_boundary:
+  # Phase 0: DEST Judgment
+  dest_judgment:
+    enabled: true
+    al_threshold:
+      block_below: "AL0"        # AL0: 実装ブロック
+      require_approval: "AL1"   # AL1: 人間承認必要
+      auto_proceed: "AL2"       # AL2以上: 自動進行
+
+  # Phase 8: Auto Deployment
+  auto_deployment:
+    environments:
+      dev:
+        enabled: true
+        require_approval: false  # 自動デプロイ
+      staging:
+        enabled: true
+        require_approval: true   # 承認必要
+      production:
+        enabled: false
+        require_approval: true   # 承認必須
+
+core_architecture:
+  # Kernel Runtime設定
+  kernel_runtime:
+    default_registry_path: "data/ssot/kernels-luna-base.yaml"
+    default_ledger_path: "data/ssot/ledger.ndjson"
+    solo_mode_default: false  # 権限チェック有効
+
+  # AL0ブロック
+  al0_gate:
+    enabled: true  # AL0（Not Assured）は状態遷移をブロック
+```
+
+### ルールのカスタマイズ
+
+開発環境向けの設定例：
+
+```yaml
+core_architecture:
+  kernel_runtime:
+    solo_mode_default: true   # 権限チェック無効（開発用）
+
+  al0_gate:
+    enabled: false            # AL0でも遷移許可（テスト用）
+
+individual_preferences:
+  verbose_logging: true       # 詳細ログ出力
+  dry_run_default: true       # Dry-runモードをデフォルトに
+```
+
+**詳細は [`RULES_CONFIGURATION.md`](./RULES_CONFIGURATION.md) を参照してください。**
+
+### ルール設定のテスト
+
+```bash
+npx tsx scripts/test-rules-config.ts
+```
+
+**期待される出力:**
+```
+🧪 Testing Rules Configuration Service
+
+✅ Rules configuration loaded
+✅ Validation passed
+✅ All rules accessible
+✅ Fallback to defaults working
+
+🎉 Rules configuration test complete!
+```
 
 ---
 
 ## 次のステップ
 
-### ドキュメント
+### 📖 ドキュメント
 
 | ドキュメント | 内容 |
 |------------|------|
-| [`README.md`](./README.md) | プロジェクト概要 |
-| [`CLAUDE.md`](./CLAUDE.md) | Claude Code コンテキスト |
+| [`README.md`](../../README.md) | プロジェクト概要 |
+| [`CLAUDE.md`](../../CLAUDE.md) | Claude Code コンテキスト |
+| [`RULES_CONFIGURATION.md`](./RULES_CONFIGURATION.md) | ルール設定ガイド（理論的背景含む） |
 | [`SETUP_GUIDE.md`](./SETUP_GUIDE.md) | 詳細なセットアップ手順 |
 | [`MVP_VERIFICATION.md`](./MVP_VERIFICATION.md) | MVP検証ドキュメント |
 
-### 利用可能なコマンド
+### 🧪 利用可能なテスト
 
 ```bash
-# ビルド・テスト
-npm run build                # TypeScriptビルド
-npm test                     # 全テスト実行
-npm run lint                 # ESLint実行
-npm run format               # Prettier実行
+# Phase A-C統合テスト
+npx tsx scripts/test-phase-a1-a2-integration.ts  # Phase A1+A2
+npx tsx scripts/test-phase-a3-cr-runtime.ts      # Phase A3
+npx tsx scripts/test-phase-b1-graph-schema.ts    # Phase B1
+npx tsx scripts/test-phase-c1-bootstrap.ts       # Phase C1
 
-# デモ・テスト
-npm run demo:kernel-registry # Kernel Registry デモ
-npm run test:ssot-v2         # SSOT Agent テスト
-npm run test:coordinator     # Coordinator Agent テスト
-npm run test:e2e             # E2E統合テスト
-
-# 環境・実行
-npm run check-env            # 環境変数確認
-npm run create-test-issue    # テストIssue作成
-npm run run-coordinator      # CoordinatorAgent実行
+# 個別テスト
+npx tsx scripts/test-kernel-runtime-a1.ts        # Kernel Runtime
+npx tsx scripts/test-kernel-ledger-a2.ts         # Kernel Ledger
+npx tsx scripts/test-rules-config.ts             # Rules Config
+npx tsx scripts/test-change-control-agent.ts     # Change Control
 ```
 
-### エージェント個別実行
+### 🚀 実際のプロジェクトで使う
 
-```bash
-# 各エージェントを個別に実行（開発用）
-npm run agents:coordinator
-npm run agents:ssot-v2
-npm run agents:codegen
-npm run agents:review
-npm run agents:test
-npm run agents:deployment
-npm run agents:monitoring
-```
+1. **環境変数の設定**
+   ```bash
+   export GITHUB_TOKEN="ghp_your_token_here"
+   export GITHUB_REPOSITORY="your-username/repo"
+   export ANTHROPIC_API_KEY="sk-ant-your_key_here"
+   ```
+
+2. **CoordinatorAgentの実行**
+   ```bash
+   npm run run-coordinator -- --issue <issue-number>
+   ```
+
+3. **Dry-runモードでテスト**
+   ```bash
+   npm run run-coordinator -- --issue <issue-number> --dry-run
+   ```
+
+**詳細は [`SETUP_GUIDE.md`](./SETUP_GUIDE.md) を参照してください。**
 
 ---
 
@@ -293,80 +382,56 @@ node --version  # v20.0.0以上が必要
 
 ### Q: `npm run build` でエラーが出る
 
-**A:** TypeScriptの型エラーです。以下を確認:
+**A:** 以下を実行してください:
 ```bash
-# node_modulesを再インストール
 rm -rf node_modules package-lock.json
 npm install
-
-# ビルド再実行
 npm run build
 ```
 
-### Q: 環境変数が設定できない
+### Q: テストで警告が出る
 
-**A:** OSごとに設定方法が異なります。詳細は [`SETUP_GUIDE.md`](./SETUP_GUIDE.md) を参照。
+**A:** `⚠️ Rules config not loaded!` という警告が出た場合、テストスクリプトに `ensureRulesConfigLoaded()` が呼ばれているか確認してください。Phase A-Cのテストスクリプトは既に対応済みです。
 
-### Q: GitHub API Rate Limitエラー
+### Q: Kernel操作が失敗する
 
-**A:** Personal Access Tokenを使用すると、制限が5000req/hに増えます:
-```bash
-export GITHUB_TOKEN="ghp_your_token_here"
-```
+**A:** 以下を確認してください:
+- `data/ssot/kernels-luna-base.yaml` にKernelが存在するか
+- `issue` パラメータが設定されているか（Issue必須）
+- AL0 Gateが有効な場合、KernelのALが AL1以上か
 
----
-
-## サポート
-
-### 問題が発生した場合
-
-1. **ドキュメント確認**:
-   - [`SETUP_GUIDE.md`](./SETUP_GUIDE.md)
-   - [`MVP_VERIFICATION.md`](./MVP_VERIFICATION.md)
-
-2. **環境確認**:
-   ```bash
-   npm run check-env
-   ```
-
-3. **詳細ログ出力**:
-   ```bash
-   npm run run-coordinator -- --issue <number> --verbose
-   ```
-
-4. **GitHub Issues**:
-   - バグ報告や機能要望は GitHub Issues へ
+**詳細は [`RULES_CONFIGURATION.md`](./RULES_CONFIGURATION.md) を参照してください。**
 
 ---
 
 ## まとめ
 
-### Luna を使い始める3ステップ
+### Lunaを使い始める3ステップ
 
 1. **インストール**
    ```bash
    npm install && npm run build
    ```
 
-2. **デモ実行**
+2. **Phase A-Cテスト実行**
    ```bash
-   npm run test:e2e
+   npx tsx scripts/test-phase-a1-a2-integration.ts
    ```
 
-3. **実環境テスト**（オプション）
+3. **ルール設定確認**
    ```bash
-   npm run check-env
-   npm run create-test-issue
-   npm run run-coordinator -- --issue <number> --dry-run
+   cat rules-config.yaml
    ```
+
+**🎉 これでLunaの基本機能を体験できました！**
 
 ---
 
 ## リソース
 
-- **GitHub**: https://github.com/your-org/luna
-- **ドキュメント**: このリポジトリの docs/ フォルダ
-- **Miyabi Framework**: https://github.com/ShunsukeHayashi/Autonomous-Operations
+- **GitHub**: https://github.com/sawadari/luna
+- **ドキュメント**: [`docs/guides/`](.) フォルダ
+- **理論的背景**: [`RULES_CONFIGURATION.md`](./RULES_CONFIGURATION.md)
 
 ---
 
@@ -374,6 +439,6 @@ export GITHUB_TOKEN="ghp_your_token_here"
 
 ---
 
-**最終更新日**: 2026-01-13
-**バージョン**: Phase 1 MVP
+**最終更新日**: 2026-02-08
+**バージョン**: Phase A-C & Issue #40 Complete
 **ステータス**: Production Ready

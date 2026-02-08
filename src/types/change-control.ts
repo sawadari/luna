@@ -85,6 +85,13 @@ export interface ChangeRequest {
   /** 提案される操作のリスト */
   proposed_operations: OperationType[];
 
+  /** Phase A3: 操作詳細（KernelOperationのpayload相当） */
+  operation_details?: Array<{
+    operation_type: OperationType;
+    kernel_id: string;
+    payload: Record<string, any>;
+  }>;
+
   /** 必要なレビュー */
   required_reviews: GateType[];
 
@@ -111,6 +118,21 @@ export interface ChangeRequest {
 
   /** 実行日時 */
   executed_at?: string;
+
+  /** Phase A3: 実行結果（op_id群） */
+  execution_results?: Array<{
+    operation_type: OperationType;
+    op_id: string;
+    success: boolean;
+    error?: string;
+  }>;
+
+  /** Phase A3: Rollback用の補償操作 */
+  compensating_operations?: Array<{
+    original_op_id: string;
+    compensating_op_id: string;
+    operation_type: OperationType;
+  }>;
 }
 
 /**

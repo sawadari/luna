@@ -18,11 +18,13 @@ import {
 } from '../types';
 import { KernelRegistryService } from '../ssot/kernel-registry';
 import type { Validation } from '../types/nrvv';
+import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
 
 export class MonitoringAgent {
   private octokit: Octokit;
   private config: AgentConfig;
   private kernelRegistry: KernelRegistryService;
+  private rulesConfig: RulesConfigService;
   private metrics: Metric[] = [];
   private alerts: Alert[] = [];
 
@@ -30,6 +32,7 @@ export class MonitoringAgent {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService();
+    this.rulesConfig = getRulesConfig();
   }
 
   private log(message: string): void {
@@ -73,6 +76,9 @@ export class MonitoringAgent {
 
       this.log(`📋 Retrieved issue: ${issue.title}`);
 
+      // 2. Ensure Rules Configuration is loaded
+      await ensureRulesConfigLoaded();
+
       // コードが生成されていない場合はスキップ
       if (deploymentContext.codeGenContext.generatedCode.length === 0) {
         this.log(`ℹ️  No deployment to monitor (0 files deployed)`);
@@ -108,6 +114,16 @@ export class MonitoringAgent {
       // 4. アラート生成
       this.generateAlerts(healthStatus);
       this.log(`🚨 Generated ${this.alerts.length} alerts`);
+
+      // 4.5. Alert to Human (from rules-config.yaml)
+      const alertToHuman = this.rulesConfig.get<boolean>(
+        'human_ai_boundary.continuous_monitoring.alert_to_human'
+      ) ?? true;
+
+      if (alertToHuman && this.alerts.length > 0) {
+        this.log(`⚠️  Alerting human: ${this.alerts.length} issues detected`);
+        // In production, this would send notifications via configured channels
+      }
 
       // 5. 健全性判定
       const isHealthy = healthStatus.status === 'healthy';

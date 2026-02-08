@@ -6,9 +6,14 @@
 import '../src/config/env.js';
 import { ChangeControlAgent } from '../src/agents/change-control-agent';
 import { AgentConfig } from '../src/types';
+import { ensureRulesConfigLoaded } from '../src/services/rules-config-service';
 
 async function main() {
   console.log('🧪 Testing ChangeControlAgent\n');
+
+  // Ensure rules configuration is loaded before creating agents
+  await ensureRulesConfigLoaded();
+  console.log('✅ Rules configuration loaded\n');
 
   const config: AgentConfig = {
     githubToken: process.env.GITHUB_TOKEN || 'test-token',

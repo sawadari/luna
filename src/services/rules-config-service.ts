@@ -261,6 +261,118 @@ export class RulesConfigService {
       });
     }
 
+    // core_architecture の必須項目チェック
+    if (!this.config.core_architecture) {
+      errors.push({
+        path: 'core_architecture',
+        message: 'Core architecture configuration is required',
+        value: undefined,
+      });
+    } else {
+      // kernel_runtime 設定チェック
+      if (!this.config.core_architecture.kernel_runtime) {
+        errors.push({
+          path: 'core_architecture.kernel_runtime',
+          message: 'Kernel runtime configuration is required',
+          value: undefined,
+        });
+      } else {
+        const kernelRuntime = this.config.core_architecture.kernel_runtime;
+        if (!kernelRuntime.default_registry_path) {
+          errors.push({
+            path: 'core_architecture.kernel_runtime.default_registry_path',
+            message: 'Default registry path is required',
+            value: undefined,
+          });
+        }
+        if (!kernelRuntime.default_ledger_path) {
+          errors.push({
+            path: 'core_architecture.kernel_runtime.default_ledger_path',
+            message: 'Default ledger path is required',
+            value: undefined,
+          });
+        }
+      }
+
+      // AL0 Gate チェック
+      if (!this.config.core_architecture.al0_gate) {
+        errors.push({
+          path: 'core_architecture.al0_gate',
+          message: 'AL0 gate configuration is required',
+          value: undefined,
+        });
+      }
+    }
+
+    // 環境キー整合チェック（auto_deployment.environments）
+    const autoDeployment = this.get<any>('human_ai_boundary.auto_deployment');
+    if (autoDeployment && autoDeployment.environments) {
+      const validEnvironments = ['dev', 'staging', 'production'];
+      const envKeys = Object.keys(autoDeployment.environments);
+
+      for (const key of envKeys) {
+        if (!validEnvironments.includes(key)) {
+          errors.push({
+            path: `human_ai_boundary.auto_deployment.environments.${key}`,
+            message: `Invalid environment key: ${key}. Valid keys are: ${validEnvironments.join(', ')}`,
+            value: key,
+          });
+        }
+      }
+
+      // 必須環境キーの存在チェック
+      for (const env of validEnvironments) {
+        if (!autoDeployment.environments[env]) {
+          errors.push({
+            path: `human_ai_boundary.auto_deployment.environments.${env}`,
+            message: `Environment configuration for ${env} is required`,
+            value: undefined,
+          });
+        }
+      }
+    }
+
+    // organization_rules の必須項目チェック
+    if (!this.config.organization_rules) {
+      errors.push({
+        path: 'organization_rules',
+        message: 'Organization rules configuration is required',
+        value: undefined,
+      });
+    } else {
+      if (!this.config.organization_rules.max_issue_complexity) {
+        errors.push({
+          path: 'organization_rules.max_issue_complexity',
+          message: 'Max issue complexity is required',
+          value: undefined,
+        });
+      }
+      if (!this.config.organization_rules.branch_strategy) {
+        errors.push({
+          path: 'organization_rules.branch_strategy',
+          message: 'Branch strategy configuration is required',
+          value: undefined,
+        });
+      }
+    }
+
+    // individual_preferences の必須項目チェック
+    if (!this.config.individual_preferences) {
+      errors.push({
+        path: 'individual_preferences',
+        message: 'Individual preferences configuration is required',
+        value: undefined,
+      });
+    } else {
+      if (this.config.individual_preferences.notification_level === undefined) {
+        errors.push({
+          path: 'individual_preferences.notification_level',
+          message: 'Notification level is required',
+          value: undefined,
+        });
+      }
+    }
+
     return {
       isValid: errors.length === 0,
       errors,
@@ -350,13 +462,45 @@ export class RulesConfigService {
 
 // シングルトンインスタンス
 let instance: RulesConfigService | null = null;
+let loadPromise: Promise<void> | null = null;
 
 /**
- * グローバルインスタンスを取得
+ * グローバルインスタンスを取得（同期）
+ *
+ * ⚠️ IMPORTANT: 使用前に必ず ensureRulesConfigLoaded() を await してください
  */
 export function getRulesConfig(): RulesConfigService {
   if (!instance) {
     instance = new RulesConfigService();
   }
   return instance;
+}
+
+/**
+ * ルール設定が確実にロードされていることを保証（非同期）
+ *
+ * すべてのエージェントのコンストラクタまたは初期化メソッドで呼び出してください
+ */
+export async function ensureRulesConfigLoaded(): Promise<void> {
+  const rulesConfig = getRulesConfig();
+
+  // 既にロード済みの場合は何もしない
+  if (rulesConfig.isLoaded()) {
+    return;
+  }
+
+  // ロード中の場合は既存のPromiseを待つ（複数同時呼び出し対策）
+  if (loadPromise) {
+    return loadPromise;
+  }
+
+  // ロードを開始
+  loadPromise = rulesConfig.load().catch(error => {
+    console.error('❌ Failed to load rules-config.yaml:', error);
+    throw error;
+  }).finally(() => {
+    loadPromise = null;
+  });
+
+  return loadPromise;
 }

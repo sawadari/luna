@@ -14,17 +14,20 @@ import {
 } from '../types';
 import { KernelWithNRVV } from '../types/nrvv';
 import { KernelRegistryService } from '../ssot/kernel-registry';
+import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
 
 export class CodeGenAgent {
   private octokit: Octokit;
   private config: AgentConfig;
   private anthropic?: Anthropic;
   private kernelRegistry: KernelRegistryService;
+  private rulesConfig: RulesConfigService;
 
   constructor(config: AgentConfig, kernelRegistryPath?: string) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService(kernelRegistryPath);
+    this.rulesConfig = getRulesConfig();
 
     if (config.anthropicApiKey) {
       this.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
@@ -69,7 +72,10 @@ export class CodeGenAgent {
 
       this.log(`📋 Retrieved issue: ${issue.title}`);
 
-      // 2. Load Kernel Registry
+      // 2. Ensure Rules Configuration is loaded
+      await ensureRulesConfigLoaded();
+
+      // 3. Load Kernel Registry
       await this.kernelRegistry.load();
       this.log('📚 Kernel Registry loaded');
 
@@ -88,6 +94,17 @@ export class CodeGenAgent {
       // 6. 品質メトリクス計算
       const metrics = this.calculateMetrics(generatedCode);
       this.log(`📈 Quality metrics: ${metrics.overallScore}/100`);
+
+      // 6.5. 品質閾値チェック (from rules-config.yaml)
+      const qualityThreshold = this.rulesConfig.get<number>(
+        'human_ai_boundary.code_generation.quality_threshold'
+      ) ?? 80;
+
+      if (metrics.overallScore < qualityThreshold) {
+        this.log(`⚠️  Quality score ${metrics.overallScore} below threshold ${qualityThreshold}`);
+        // Note: We still return the context but mark it as below threshold
+        // The ReviewAgent will handle the final decision
+      }
 
       // 7. Kernel更新 (Generated code artifacts)
       await this.updateKernelsWithGeneratedCode(relatedKernels, generatedCode, issue);

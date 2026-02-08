@@ -1,5 +1,15 @@
 # Phase 1 MVP 本番検証
 
+> **⚠️ LEGACY DOCUMENT WARNING (2026-02-08)**
+>
+> このドキュメントは Phase 1 MVP の検証に関するものです。**Phase A-C実装（2026-02-08完了）により、アーキテクチャが根本的に変更されています**。
+>
+> Phase A-C の検証については:
+> - Phase A1+A2テスト: `npx tsx scripts/test-phase-a1-a2-integration.ts`
+> - Phase A3テスト: `npx tsx scripts/test-phase-a3-cr-runtime.ts`
+> - Phase B1テスト: `npx tsx scripts/test-phase-b1-graph-schema.ts`
+> - Phase C1テスト: `npx tsx scripts/test-phase-c1-bootstrap.ts`
+
 ## 🎯 検証対象
 
 Luna Phase 1 MVP - 自律型開発パイプライン

@@ -1,9 +1,9 @@
 # luna
 
-**世界最高の知識創造プラットフォーム** - Miyabi + DEST理論による自律型開発
+**世界最高の知識創造プラットフォーム** - Event Sourcing + Knowledge Graph + NRVV Traceability
 
-[![Phase 1 MVP](https://img.shields.io/badge/Phase-1%20MVP-blue)](https://github.com)
-[![DEST Integration](https://img.shields.io/badge/DEST-AL%20判定-green)](https://github.com)
+[![Core Architecture](https://img.shields.io/badge/Architecture-Phase%20A--C%20Complete-brightgreen)](https://github.com)
+[![Event Sourcing](https://img.shields.io/badge/Ledger-Event%20Sourcing-blue)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](LICENSE)
 
 ---
@@ -12,20 +12,27 @@
 
 **luna**は以下を統合した世界最高の知識創造プラットフォームです：
 
-- **Miyabiフレームワーク**: GitHub完結型自律開発OS、7つの専門エージェント
-- **DEST理論**: Decision-Embedded Systems Thinking（意思決定埋め込み型システム思考）によるAssurance Level (AL)判定
-- **Planning Layer**: Opportunity、Option、Decision、Assumptionの管理（Phase 3）
-- **SSOT Layer**: Kernel管理による単一情報源（Phase 4）
+- **🏗️ Core Architecture (Phase A-C)**: Event Sourcing型の変更管理、型付き知識グラフ、Bootstrap Kernel
+- **📚 Legacy Features**: Miyabiフレームワーク、DEST理論によるAL判定
+- **🔄 Self-Improvement Loop**: 使えば使うほど賢くなるシステム
 
-### 現在のステータス: Phase 1 MVP - DEST AL判定システム ✅
+### 現在のステータス: Phase A-C & Issue #40 完了 ✅ (2026-02-08更新)
 
-Phase 1では、すべてのGitHub Issue/PRに対する**Assurance Level (AL)**の自動判定を実装しました：
+**Phase A-Cコアアーキテクチャ & Issue #40（Rules Configuration）が完了しました**：
 
-- **AL2（保証あり）**: outcome_ok AND safety_ok → デプロイ可能
-- **AL1（条件付き）**: outcome_ok BUT safety要監視 → 条件付き承認
-- **AL0（保証なし）**: safety NG または重大な不確実性 → 解決まで実装ブロック
+- **✅ Phase A1: Kernel Runtime一本化** - すべてのKernel操作の単一エントリーポイント
+- **✅ Phase A2: Kernel Ledger正本化** - Event Sourcing型の追記専用ログ、Replay機能
+- **✅ Phase A3: CR-Runtime接続** - ChangeRequestからKernel操作の自動実行
+- **✅ Phase B1: Kernel Graph Schema** - 型付き知識グラフ（10種ノード、8種エッジ）
+- **✅ Phase C1: Issue一本道の運用固定** - すべての変更はIssue経由、Bootstrap Kernel保護
+- **✅ Issue #40: Rules Configuration** - 人間-AI責任分界ルールの一元管理（`rules-config.yaml`）
 
-**AL0のIssue**は自動的に**AL0 Reason**（R01-R11）を分析され、適切な**Protocol**（P0-P4）とエスカレーションへルーティングされます。
+**New Features**:
+- 📝 **rules-config.yaml**: 人間-AI責任分界ルールを一元管理
+- 🛠️ **Core Architecture Rules**: Kernel Runtime、Issue Enforcement、Bootstrap Protection、AL0 Gateの設定
+- 🔒 **Environment-specific Deployment**: dev/staging/production環境ごとのデプロイ制御
+
+**Lunaは使われるほど賢くなります**: すべての変更が追跡可能で、完全な監査証跡とRollback機能を持ちます。
 
 ---
 
@@ -48,76 +55,90 @@ cd luna
 # 依存関係をインストール
 npm install
 
-# 環境変数を設定
-cp .env.example .env
-# .envを編集して以下を追加:
-# GITHUB_TOKEN=ghp_xxxxx
-# ANTHROPIC_API_KEY=sk-ant-xxxxx (AI分析に必要、オプション)
-
-# ルール設定（オプション）
-# rules-config.yaml で人間-AI責任分界を一元管理できます
-# 詳細は RULES_CONFIGURATION.md を参照
+# ビルド
+npm run build
 ```
 
-### テスト実行
+### Phase A-C テスト実行
+
+新しいコアアーキテクチャの動作確認：
 
 ```bash
+# Phase A1+A2: Kernel Runtime + Ledger統合テスト
+npx tsx scripts/test-phase-a1-a2-integration.ts
+
+# Phase A3: CR-Runtime接続テスト
+npx tsx scripts/test-phase-a3-cr-runtime.ts
+
+# Phase B1: Kernel Graph Schemaテスト
+npx tsx scripts/test-phase-b1-graph-schema.ts
+
+# Phase C1: Bootstrap Kernel保護テスト
+npx tsx scripts/test-phase-c1-bootstrap.ts
+
 # 全テスト実行
 npm test
 
 # カバレッジ付き実行
 npm run test:coverage
-
-# Watchモード
-npm run test:watch
 ```
 
-**テスト結果**: AL判定、AL0 Reason検出、Protocolルーティングをカバーする56個のテスト
+**Phase A-C実装内容**:
+- ✅ 6つのKernel操作（u.record_decision, u.link_evidence, u.set_state等）
+- ✅ Event Sourcing型Ledger（append-only、Replay機能）
+- ✅ ChangeRequest自動実行
+- ✅ 型付き知識グラフ（10種類のノード、8種類のエッジ）
+- ✅ Bootstrap Kernel保護（不変ルール）
 
-### DEST対応Issueの作成
+### Phase A-C対応Issueの作成
 
-以下のテンプレートでIssueを作成してください：
+Phase A-Cアーキテクチャでは、すべての変更はIssue経由で行います：
 
 ```markdown
 # [Issue タイトル]
 
 [問題や機能の説明]
 
-## Outcome Assessment
-- Current state: [現在の状態を記述]
-- Target state: [目標とする状態を記述]
-- Progress: [improving/stable/degrading]
+## 変更内容
+- [変更したいKernelまたは新規作成するKernelの説明]
+- [NRVV (Needs-Requirements-Verification-Validation) の情報]
 
-## Safety Assessment
-- Feedback loops: [stable/oscillating/amplifying]
-- Safety constraints: [安全要件をリスト]
-- Violations: [none / 違反があればリスト]
+## 関連Kernel
+- [関連するKernel IDがあれば記載]
+
+## 期待される結果
+- [変更後の期待される状態]
 ```
 
 **例**:
 
 ```markdown
-# APIレスポンス時間改善
+# セキュリティ基準の追加
 
-APIレスポンス時間が現在2.5秒で、500ms以下にする必要があります。
+HTTPSとJWT認証を必須化するセキュリティKernelを作成します。
 
-## Outcome Assessment
-- Current state: APIレスポンス時間2.5秒
-- Target state: APIレスポンス時間 < 500ms
-- Progress: degrading（悪化中）
+## 変更内容
+- Kernel ID: KRN-SEC-001
+- Statement: "すべての通信はHTTPSを使用し、JWT認証を実装する"
+- Category: security
+- Requirements:
+  - REQ-001: HTTPSを必須とする（TLS 1.2以上）
+  - REQ-002: JWT認証を実装する（トークン有効期限1時間）
 
-## Safety Assessment
-- Feedback loops: oscillating（パラメータ調整のみで構造に対応していない）
-- Safety constraints: SLA 99.9%稼働率、最大1秒レスポンス時間
-- Violations: SLA違反寸前（2.5秒 > 1秒）
+## 関連Kernel
+- なし（新規作成）
+
+## 期待される結果
+- セキュリティKernelがfrozen状態で作成される
+- Verification/Validationが自動生成される
+- 他のKernelからの参照が可能になる
 ```
 
-**DESTAgent**が自動的に：
-1. AL判定（この場合：**AL0**）
-2. AL0 Reason検出（この場合：**R02-DelayIgnored**、**R07-ParameterOnlyFix**）
-3. Protocolへルーティング（この場合：**P2-AlignDelay** + **P3-RaiseLeverage**）
-4. ラベル適用と判定コメント投稿
-5. AL0解決まで`implementing`状態をブロック
+**処理フロー**:
+1. Issue作成 → ChangeRequest作成
+2. CR承認 → `KernelRuntime.apply()` で自動実行
+3. Ledgerに記録 → Registry更新
+4. Graph構造検証 → 完了
 
 ---
 
@@ -177,16 +198,262 @@ npm install luna --workspace=workspaces/my-project
 
 ---
 
-## 📊 DEST理論統合
+## 📊 Phase A-C のメリット
 
-### DESTとは？
+### なぜPhase A-Cが重要か？
+
+**従来の課題**:
+- Kernel変更が追跡不可能（誰が、いつ、なぜ変更したか不明）
+- Rollbackが困難（過去の状態に戻せない）
+- NRVV構造が弱い（Needsと Requirementsのトレーサビリティが不十分）
+- 変更の一貫性が保証されない（直接YAMLを編集すると矛盾が生じる）
+
+**Phase A-Cで解決**:
+- ✅ **完全な監査証跡**: すべての変更がLedgerに記録される
+- ✅ **Rollback可能**: Event Sourcing により任意の時点に復元可能
+- ✅ **NRVV構造の強制**: 型付き知識グラフで構造を検証
+- ✅ **変更の一貫性**: 単一エントリーポイント経由でのみ変更可能
+- ✅ **Issue一本道**: すべての変更の起点がIssueで明確
+
+### Phase A-C vs 従来のアプローチ
+
+| 項目 | 従来 | Phase A-C |
+|-----|------|----------|
+| **変更方法** | YAML直接編集 | `KernelRuntime.apply(op)` |
+| **履歴管理** | Git commitのみ | Event Sourcing Ledger |
+| **Rollback** | Git revert（部分的） | 完全な状態復元 |
+| **NRVV検証** | 手動チェック | 自動グラフ検証 |
+| **監査証跡** | コミットログ | 詳細な操作ログ |
+| **変更の起点** | 不明確 | Issue必須 |
+
+---
+
+## 🏗️ Core Architecture (Phase A-C) - NEW
+
+### アーキテクチャ概要
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   GitHub Issues                         │
+│            (変更の唯一の起点 - Issue一本道)              │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│            ChangeRequest (CR)                           │
+│        (形式的な変更管理、承認フロー)                     │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│          KernelRuntime.apply(op)                        │
+│     (すべてのKernel操作の単一エントリーポイント)          │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ u.record_decision  - 意思決定を記録              │   │
+│  │ u.link_evidence    - 証拠を紐付け               │   │
+│  │ u.set_state        - 状態を遷移                 │   │
+│  │ u.raise_exception  - 例外を記録                 │   │
+│  │ u.close_exception  - 例外を解決                 │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│           Kernel Ledger (Event Sourcing)                │
+│         (append-only操作ログ、完全な監査証跡)            │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ - NDJSON形式で永続化                             │   │
+│  │ - すべての操作を追跡可能                          │   │
+│  │ - Replay機能で状態を再構築                       │   │
+│  │ - Rollback可能                                  │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│        Kernel Registry (YAML)                           │
+│    (Kernelの現在状態、NRVV情報を保持)                    │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ - Needs → Requirements (トレーサビリティ)         │   │
+│  │ - Requirements → Verification (検証)            │   │
+│  │ - Requirements → Validation (妥当性確認)         │   │
+│  │ - Decision、Evidence、Exceptionsを含む           │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────┬───────────────────────────────────────┘
+                  │
+                  ▼
+┌─────────────────────────────────────────────────────────┐
+│         Kernel Graph (型付き知識グラフ)                  │
+│    (NRVV構造を強制、トレーサビリティを視覚化)              │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ - 10種類のノード (Kernel, Decision, Need等)      │   │
+│  │ - 8種類のエッジ (satisfies, verifies等)         │   │
+│  │ - グラフ制約の検証（孤立ノード、サイクル検出）      │   │
+│  │ - トレーサビリティマトリクス生成                   │   │
+│  └─────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────┘
+```
+
+### システムコンポーネント
+
+```
+luna/
+├── src/
+│   ├── types/
+│   │   ├── kernel-operations.ts  # Phase A1: 5つのu.*操作定義
+│   │   ├── kernel-graph.ts       # Phase B1: グラフ型定義
+│   │   ├── nrvv.ts              # NRVV構造（Decision, Evidence含む）
+│   │   └── change-control.ts    # Phase A3: CR操作詳細
+│   ├── ssot/
+│   │   ├── kernel-runtime.ts    # Phase A1: 単一エントリーポイント
+│   │   ├── kernel-ledger.ts     # Phase A2: Event Sourcing Ledger
+│   │   ├── kernel-graph-converter.ts  # Phase B1: YAML↔Graphコンバーター
+│   │   └── kernel-graph-validator.ts  # Phase B1: グラフ制約検証
+│   └── agents/
+│       └── change-control-agent.ts    # Phase A3: CR自動実行
+├── data/
+│   └── ssot/
+│       ├── bootstrap-kernel.yaml      # Phase C1: 不変ルール定義
+│       ├── kernels-luna-base.yaml     # メインKernel Registry
+│       └── ledger.ndjson             # Event Sourcingログ
+├── scripts/
+│   ├── test-phase-a1-a2-integration.ts  # A1+A2統合テスト
+│   ├── test-phase-a3-cr-runtime.ts      # A3 CRテスト
+│   ├── test-phase-b1-graph-schema.ts    # B1 Graphテスト
+│   └── test-phase-c1-bootstrap.ts       # C1 Bootstrapテスト
+└── README.md（このファイル）
+```
+
+### Phase A-C 詳細説明
+
+#### Phase A1: Kernel Runtime一本化
+
+**目的**: すべてのKernel変更を単一のエントリーポイント経由で実行
+
+**実装**: `KernelRuntime.apply(op)` メソッド
+
+**5つのu.*操作**:
+- `u.record_decision` - 意思決定を記録（AL、反証条件等）
+- `u.link_evidence` - 証拠をKernelに紐付け
+- `u.set_state` - Kernel状態を遷移（draft→agreed→frozen等）
+- `u.raise_exception` - 例外（逸脱）を記録
+- `u.close_exception` - 例外を解決
+
+**メリット**:
+- 変更の一貫性を保証
+- Authority（権限）チェックを一箇所で実施
+- Gateチェック（状態遷移の妥当性）を強制
+
+#### Phase A2: Kernel Ledger正本化
+
+**目的**: Event Sourcing型の変更管理、完全な監査証跡
+
+**実装**: `KernelLedger` クラス（NDJSON形式）
+
+**特徴**:
+- **append-only**: 過去の操作は絶対に削除されない
+- **Replay機能**: 操作ログから現在の状態を完全に再構築可能
+- **Rollback可能**: 任意の時点の状態に復元可能
+- **監査証跡**: すべての変更が追跡可能（誰が、いつ、なぜ）
+
+**ファイル形式**: `data/ssot/ledger.ndjson`（1行 = 1操作）
+
+#### Phase A3: CR-Runtime接続
+
+**目的**: ChangeRequestから自動的にKernel操作を実行
+
+**実装**: `ChangeControlAgent` + `KernelRuntime` 統合
+
+**フロー**:
+1. ChangeRequestを作成（`operation_details`を含む）
+2. 承認後、`executeChangeRequest()` を呼び出し
+3. 各操作が自動的に `KernelRuntime.apply()` で実行される
+4. 実行結果が `execution_results` に記録される
+
+**メリット**:
+- 形式的な変更管理プロセス
+- 承認フローとKernel更新の自動連携
+- 実行結果の記録
+
+#### Phase B1: Kernel Graph Schema
+
+**目的**: 型付き知識グラフによるNRVV構造の強制
+
+**実装**: `KernelGraphConverter` + `KernelGraphValidator`
+
+**ノードタイプ（10種類）**:
+- Kernel, Decision, Need, Requirement, Verification, Validation, Evidence, Exception, Task, Artifact
+
+**エッジタイプ（8種類）**:
+- derived_from, satisfies, verifies, validates, references, blocked_by, depends_on, traces_to
+
+**検証機能**:
+- 孤立ノード検出
+- サイクル検出
+- 必須エッジのチェック（例: RequirementはNeedから派生必須）
+- 禁止エッジのチェック
+- トレーサビリティマトリクス生成
+
+#### Phase C1: Issue一本道の運用固定
+
+**目的**: すべての変更をIssue経由に限定、Bootstrap Kernel保護
+
+**実装**: Bootstrap Kernel + 強制機能
+
+**Bootstrap Kernel** (`data/ssot/bootstrap-kernel.yaml`):
+- **不変ルール**: "すべてのKernel変更はIssue経由で行われる"
+- **immutable: true**: 変更禁止フラグ
+- **frozen状態**: 凍結された不変Kernel
+
+**強制機能**:
+- `enforceIssueRequired`: Issue番号なしの操作を拒否
+- `enforceBootstrapProtection`: Bootstrap Kernelの変更を禁止
+
+**メリット**:
+- 変更のトレーサビリティを保証
+- システムの根本ルールを保護
+- 運用の一貫性を強制
+
+### ワークフロー統合 (Phase A-C)
+
+```mermaid
+graph TD
+    A[GitHub Issue作成] --> B[ChangeRequest作成]
+    B --> C[CR承認]
+    C --> D[KernelRuntime.apply]
+    D --> E{Issue必須チェック}
+    E -->|Issue なし| F[拒否]
+    E -->|Issue あり| G{Bootstrap保護チェック}
+    G -->|Bootstrap変更| F
+    G -->|通常Kernel| H[Authority/Gateチェック]
+    H --> I[Kernel操作実行]
+    I --> J[Ledger記録]
+    J --> K[Registry更新]
+    K --> L[Graph構造検証]
+    L --> M{検証OK?}
+    M -->|NG| N[Rollback]
+    M -->|OK| O[完了]
+```
+
+---
+
+---
+
+## 📚 Legacy Features (Pre-Phase A-C)
+
+以下の機能は Phase A-C 実装前に開発されたレガシー機能です。現在も動作しますが、新しいアーキテクチャへの移行を推奨します。
+
+### Legacy: DEST理論統合
+
+<details>
+<summary>DEST理論の詳細を表示</summary>
 
 **DEST（Decision-Embedded Systems Thinking）**は、システム介入を以下に基づいて評価する理論です：
 
 1. **Outcome OK**: システムは目標状態に向けて進捗しているか？
 2. **Safety OK**: フィードバックループは安定しているか？安全制約は満たされているか？
 
-### Assurance Level（保証レベル）
+#### Assurance Level（保証レベル）
 
 | AL | 名称 | 条件 | 意味 | アクション |
 |----|------|------|------|-----------|
@@ -194,116 +461,33 @@ npm install luna --workspace=workspaces/my-project
 | **AL1** | 条件付き | outcome_ok **AND NOT** safety_ok | 条件付き承認 | ⚠️ 注意深く監視 |
 | **AL0** | 保証なし | **NOT** safety_ok | 安全でない | 🚫 `implementing`ブロック |
 
-**Safetyが第一ゲート**: safetyがNGの場合、outcomeに関係なく必ずAL0になります。
+#### AL0 Reason（失敗パターン：R01-R11）
 
-### AL0 Reason（失敗パターン：R01-R11）
+IssueがAL0と判定された場合、DESTAgentはどの失敗パターンが該当するかを検出します。
 
-IssueがAL0と判定された場合、DESTAgentはどの失敗パターンが該当するかを検出します：
+詳細は [`docs/input/dest.yaml`](./docs/input/dest.yaml) を参照してください。
 
-| コード | 理由 | 説明 | Protocol |
-|--------|------|------|----------|
-| **R01** | 悪い正のフィードバック | 破壊的増幅を検出 | **P0** 増幅停止 |
-| **R02** | 遅れ無視 | 遅れを無視、振動リスク | **P2** 遅れ整合 |
-| **R03** | 負のフィードバック弱化 | 安定化フィードバックを除去 | **P1** 観測修正 |
-| **R04** | 反復介入 | 継続的な手動介入（連打） | **P0** 増幅停止 |
-| **R05** | 観測断絶 | フィードバックなし、盲点 | **P1** 観測修正 |
-| **R06** | 誤った観測対象 | 間違ったものを測定 | **P1** 観測修正 |
-| **R07** | パラメータ調整のみ | 構造変更なしのチューニング | **P3** レバレッジ引き上げ |
-| **R08** | 遅れ不整合 | 介入遅れ ≠ システム遅れ | **P2** 遅れ整合 |
-| **R09** | 目標構造矛盾 | 最適化目標が矛盾 | **P4** エスカレート |
-| **R10** | パラダイム盲点 | パラダイムが解決を妨げる | **P4** エスカレート |
-| **R11** | 安全制約違反 | 安全制約を侵害 | **P4** エスカレート |
+</details>
 
-### Protocol（標準対応：P0-P4）
+### Legacy: Miyabiフレームワーク
 
-AL0状況に対する標準対応：
+<details>
+<summary>Miyabi 8つのエージェントの詳細を表示</summary>
 
-| Protocol | 名称 | 目的 | エスカレーション |
-|----------|------|------|-----------------|
-| **P0** | 増幅停止 | 破壊的増幅を停止 | **Guardian** |
-| **P1** | 観測修正 | 観測/フィードバックシステムを修正 | TechLead |
-| **P2** | 遅れ整合 | 遅れとタイミングを分析・整合 | TechLead |
-| **P3** | レバレッジ引き上げ | より高いレバレッジポイントで再設計 | TechLead |
-| **P4** | エスカレート | パラダイム/安全問題をGuardianへエスカレート | **Guardian** |
+Miyabiフレームワークは以下の8つの自律エージェントで構成されています：
 
-**優先度**: P0 > P4 > P1 > P2 > P3
+1. **CoordinatorAgent** - タスク統括・並列実行制御
+2. **SSOTAgentV2** - Single Source of Truth管理
+3. **CodeGenAgent** - AI駆動コード生成
+4. **ReviewAgent** - コード品質判定
+5. **TestAgent** - テスト自動実行
+6. **DeploymentAgent** - CI/CDデプロイ自動化
+7. **MonitoringAgent** - システム監視・アラート
+8. **KernelRegistryService** - 中央Kernel管理
 
-**P0はすべての実行をブロック**し、直ちにGuardianへエスカレートします。
+詳細は [`CLAUDE.md`](./CLAUDE.md) を参照してください。
 
----
-
-## 🏗️ アーキテクチャ
-
-### システムコンポーネント
-
-```
-luna/
-├── .github/
-│   ├── labels-dest.yml          # 35個のDESTラベル（AL、AL0Reason、Protocolなど）
-│   └── workflows/
-│       ├── dest-judgment.yml    # AL判定ワークフロー（自動トリガー）
-│       └── state-machine.yml    # ALゲート付き状態遷移
-├── .claude/
-│   └── agents/
-│       ├── dest-agent.md        # DESTAgent仕様書
-│       └── coordinator-agent.md # DEST統合済みCoordinatorAgent
-├── src/
-│   ├── types/
-│   │   └── index.ts             # TypeScript型定義
-│   └── agents/
-│       ├── dest-agent.ts        # DESTAgentメイン実装
-│       ├── al-judge.ts          # AL判定ロジック
-│       ├── al0-reason-detector.ts  # R01-R11パターンマッチャー
-│       └── protocol-router.ts   # P0-P4ルーティングロジック
-├── tests/
-│   └── agents/
-│       ├── al-judge.test.ts     # AL判定の15テスト
-│       ├── al0-reason-detector.test.ts  # Reason検出の16テスト
-│       └── protocol-router.test.ts      # Protocolルーティングの24テスト
-├── package.json
-├── tsconfig.json
-├── vitest.config.ts
-└── README.md（このファイル）
-```
-
-### ワークフロー統合
-
-```mermaid
-graph TD
-    A[Issue作成] --> B[DESTAgentトリガー]
-    B --> C{Outcome/Safetyあり?}
-    C -->|なし| D[DEST判定スキップ]
-    C -->|あり| E[Outcome/Safety解析]
-    E --> F[AL判定]
-    F --> G{AL0?}
-    G -->|いいえ| H[AL1/AL2ラベル適用]
-    G -->|はい| I[AL0 Reason検出]
-    I --> J[Protocolルーティング]
-    J --> K[ラベル適用]
-    K --> L[判定コメント投稿]
-    L --> M{P0 Protocol?}
-    M -->|はい| N[Guardianへエスカレート]
-    M -->|いいえ| O[次の状態を許可]
-
-    H --> P{状態: implementing?}
-    O --> P
-    P -->|AL0| Q[ブロック - 状態ラベル削除]
-    P -->|AL1+| R[許可 - 続行]
-
-    R --> S{状態: deploying?}
-    S -->|AL2以外| T[ブロック - AL2必須]
-    S -->|AL2| U[許可 - デプロイ]
-```
-
-### ALゲートチェック
-
-**ゲート1: `implementing`状態の前**
-- **要件**: AL1またはAL2（AL0はブロック）
-- **失敗時のアクション**: `🏗️ state:implementing`ラベル削除、`🚫 state:blocked`ラベル追加
-
-**ゲート2: `deploying`状態の前**
-- **要件**: AL2のみ（AL0とAL1はブロック）
-- **失敗時のアクション**: `🚀 state:deploying`ラベル削除、`🚫 state:blocked`ラベル追加
+</details>
 
 ---
 
@@ -449,54 +633,62 @@ npm run test:coverage
 
 ---
 
-## 🎯 成功メトリクス（Phase 1 MVP）
+## 🎯 成功メトリクス（Phase A-C）
 
 | メトリクス | 目標 | 現在 |
 |-----------|------|------|
-| AL判定レイテンシ | < 30秒 | ✅（自動トリガー） |
-| AL0検出再現率 | > 85% | ✅（パターンベース） |
-| Protocolルーティング精度 | > 95% | ✅（ルールベース） |
-| 後方互換性 | 100% | ✅（グレースフルスキップ） |
-| テストカバレッジ | > 80% | ✅（56テスト） |
+| Kernel操作の一本化 | 100% | ✅ 5つのu.*操作すべて実装 |
+| Event Sourcing Ledger | append-only | ✅ NDJSON形式で実装 |
+| Replay機能 | 完全な状態再構築 | ✅ 6操作のReplay成功 |
+| CR-Runtime統合 | 自動実行 | ✅ 3操作の自動実行成功 |
+| Graph Schema検証 | 制約チェック | ✅ 孤立ノード/サイクル検出 |
+| Bootstrap Kernel保護 | 不変保証 | ✅ 変更拒否を確認 |
+| Issue必須強制 | 100%強制 | ✅ Issue なし操作を拒否 |
+| テストカバレッジ | すべてPass | ✅ 4つのPhaseテスト全合格 |
 
 ---
 
 ## 🗺️ ロードマップ
 
-### ✅ Phase 1: DEST AL判定システム（第1-2週）- **完了**
+### ✅ Phase A-C: Core Architecture (2026-02-08) - **完了**
 
-- [x] 35個のDESTラベル（AL、AL0Reason、Protocolなど）
-- [x] DESTAgent実装
-- [x] AL判定ロジック（AL0/AL1/AL2）
-- [x] AL0 Reason検出（R01-R11）
-- [x] Protocolルーティング（P0-P4）
-- [x] State MachineへのALゲート統合
-- [x] 56個の包括的テスト
-- [ ] 5個のパイロットIssueでデプロイ・検証
+- [x] **Phase A1**: Kernel Runtime一本化 - `KernelRuntime.apply(op)` 単一エントリーポイント
+- [x] **Phase A2**: Kernel Ledger正本化 - Event Sourcing、append-only、Replay機能
+- [x] **Phase A3**: CR-Runtime接続 - ChangeRequestから自動実行
+- [x] **Phase B1**: Kernel Graph Schema - 型付き知識グラフ、NRVV構造強制
+- [x] **Phase C1**: Issue一本道の運用固定 - Bootstrap Kernel、Issue必須強制
+- [x] 包括的テストスイート（4つのPhaseテスト、すべて合格）
 
-### 🔜 Phase 2: CrePS 6-Boxナビゲーション（第3-4週）
+### 🔜 Phase D: Self-Improvement Loop強化
 
-- [ ] 12個の新ラベル（B1-B6 boxes、G2-G6 gates）
-- [ ] BoxNavigatorAgent（B1→B6フロー）
-- [ ] GateKeeperAgent（G2→G6ゲートチェック）
-- [ ] Box-State マッピング
+**P0課題**: Self-Improvement Loopの完成（推定: 2-4時間）
 
-### 🔜 Phase 3: Planning Layer（第5-6週）
+- [ ] CoordinatorAgentデータフロー修正（Phase 0.5: SSot先行実行）
+- [ ] CodeGenAgentのKernel連携確認（既存実装の検証）
+- [ ] TestAgentのVerification記録確認（既存実装の検証）
+- [ ] E2Eテスト実行（Issue → Kernel自動変換 → Code生成 → Test記録）
 
-- [ ] 8個の新ラベル（Decision、Assumption、Constraint）
-- [ ] PlanningAgent（Opportunity、OptionSet管理）
+**P1課題**: Self-Improvement Loop高度化
+
+- [ ] Issue → Kernel 自動変換の強化（AI でIssue bodyからNRVVを抽出）
+- [ ] Kernel Convergence 自動監視（週次で収束率をチェック）
+- [ ] NRVV 自動補完（RequirementsからVerification/Validationを提案）
+
+### 🔜 Phase E: Planning Layer統合
+
+- [ ] Opportunity、Option、Decisionの管理
 - [ ] AssumptionTrackerAgent（Assumption無効化追跡）
 - [ ] DecisionRecord YAMLスキーマ
+- [ ] Kernel RuntimeへのPlanning統合
 
-### 🔜 Phase 4: SSOT Layer（第7-8週）
+### 🔜 Phase F: 本番運用最適化
 
-- [ ] 10個の新ラベル（Maturity、Evidence、Exception）
-- [ ] SSOTAgent（Kernel管理）
-- [ ] EvidenceGovernanceAgent（AIコンテンツ隔離）
-- [ ] ChangeControlAgent（Kernel整合性）
-- [ ] ExceptionRegistryAgent（逸脱追跡）
+- [ ] パフォーマンスチューニング（大規模Kernel Registry対応）
+- [ ] バックアップ・リストア機能
+- [ ] 監視・アラート機能
+- [ ] ドキュメント自動生成
 
-**最終ビジョン**: 19エージェント、118ラベル、19ワークフロー - 世界最高の知識創造プラットフォーム
+**最終ビジョン**: 使えば使うほど賢くなる、世界最高の知識創造プラットフォーム
 
 ---
 
@@ -586,6 +778,12 @@ MITライセンス - 詳細は[LICENSE](LICENSE)を参照
 
 ---
 
-**ステータス**: Phase 1 MVP完了 ✅ | 5個のIssueでパイロットテスト準備完了
+**ステータス**: Phase A-C完了 ✅ (2026-02-08) | Core Architecture実装完了
 
-**次のステップ**: 本番へデプロイ、1週間監視、AL判定精度検証 → Phase 2（CrePS 6-Boxナビゲーション）へ進む
+**次のステップ**: Phase D（Self-Improvement Loop強化） → Phase E（Planning Layer統合） → Phase F（本番運用最適化）
+
+**重要な変更**:
+- ✅ Event Sourcing型の変更管理（完全な監査証跡、Rollback可能）
+- ✅ 型付き知識グラフ（NRVV構造の強制、トレーサビリティ）
+- ✅ Issue一本道の運用（Bootstrap Kernel保護、変更の起点を一元化）
+- ✅ 使えば使うほど賢くなる基盤（Self-Improvement Loop）

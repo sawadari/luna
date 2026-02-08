@@ -1,5 +1,15 @@
 # Luna - Getting Started Guide
 
+> **⚠️ LEGACY DOCUMENT WARNING (2026-02-08)**
+>
+> このドキュメントは Phase 1 MVP（Miyabiフレームワーク）に基づいており、**Phase A-C実装（2026-02-08完了）後は一部情報が古くなっています**。
+>
+> 最新の Core Architecture (Phase A-C) については以下を参照してください：
+> - [`README.md`](../../README.md) - 最新のアーキテクチャ概要
+> - [`docs/input/CORE_ARCHITECTURE_PROPOSAL.md`](../input/CORE_ARCHITECTURE_PROPOSAL.md) - Phase A-C実装詳細
+>
+> このガイドは参考資料として残されていますが、新しいプロジェクトでは Phase A-C アーキテクチャの使用を推奨します。
+
 ## 🌸 Welcome to Luna
 
 Luna は Miyabi フレームワークで構築された**自律型開発プラットフォーム**です。

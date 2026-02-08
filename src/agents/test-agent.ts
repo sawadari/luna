@@ -20,16 +20,19 @@ import {
 } from '../types';
 import { KernelRegistryService } from '../ssot/kernel-registry';
 import type { Verification } from '../types/nrvv';
+import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
 
 export class TestAgent {
   private octokit: Octokit;
   private config: AgentConfig;
   private kernelRegistry: KernelRegistryService;
+  private rulesConfig: RulesConfigService;
 
   constructor(config: AgentConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService();
+    this.rulesConfig = getRulesConfig();
   }
 
   private log(message: string): void {
@@ -73,6 +76,9 @@ export class TestAgent {
       };
 
       this.log(`📋 Retrieved issue: ${issue.title}`);
+
+      // 2. Ensure Rules Configuration is loaded
+      await ensureRulesConfigLoaded();
 
       // コードが生成されていない場合はスキップ
       if (codeGenContext.generatedCode.length === 0) {
@@ -129,8 +135,12 @@ export class TestAgent {
         timestamp: new Date().toISOString(),
       };
 
-      // 6. Verification記録 (dry-runモードではスキップ)
-      if (!this.config.dryRun && overallPassed && coverageMet) {
+      // 6. Verification記録 (from rules-config.yaml)
+      const autoAddToKernel = this.rulesConfig.get<boolean>(
+        'human_ai_boundary.auto_verification.auto_add_to_kernel'
+      ) ?? true;
+
+      if (!this.config.dryRun && autoAddToKernel && overallPassed && coverageMet) {
         try {
           await this.recordVerification(issueNumber, context);
           this.log('✅ Verification recorded to kernels.yaml');
@@ -391,10 +401,13 @@ export class TestAgent {
   }
 
   /**
-   * カバレッジ達成判定 (80%以上)
+   * カバレッジ達成判定 (from rules-config.yaml)
    */
   private checkCoverageMet(coverage: CoverageReport): boolean {
-    const targetCoverage = 80;
+    // Get target coverage from rules-config.yaml
+    const targetCoverage = this.rulesConfig.get<number>(
+      'human_ai_boundary.auto_verification.coverage_threshold'
+    ) ?? 80;
 
     return (
       coverage.statements.percentage >= targetCoverage &&

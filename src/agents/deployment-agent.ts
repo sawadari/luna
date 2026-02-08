@@ -22,11 +22,13 @@ import {
 } from '../types';
 import { KernelRegistryService } from '../ssot/kernel-registry';
 import type { Validation } from '../types/nrvv';
+import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
 
 export class DeploymentAgent {
   private octokit: Octokit;
   private config: AgentConfig;
   private kernelRegistry: KernelRegistryService;
+  private rulesConfig: RulesConfigService;
   private defaultDeploymentConfig: DeploymentConfig = {
     environment: 'staging',
     autoRollback: true,
@@ -38,6 +40,7 @@ export class DeploymentAgent {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService();
+    this.rulesConfig = getRulesConfig();
   }
 
   private log(message: string): void {
@@ -83,6 +86,40 @@ export class DeploymentAgent {
       };
 
       this.log(`📋 Retrieved issue: ${issue.title}`);
+
+      // 2. Ensure Rules Configuration is loaded
+      await ensureRulesConfigLoaded();
+
+      // 3. Check deployment rules for target environment
+      const targetEnv = deployConfig?.environment || this.defaultDeploymentConfig.environment;
+      const autoDeployEnabled = this.rulesConfig.get<boolean>(
+        `human_ai_boundary.auto_deployment.environments.${targetEnv}.enabled`
+      ) ?? (targetEnv === 'dev' || targetEnv === 'staging');
+
+      if (!autoDeployEnabled) {
+        this.log(`⚠️  Auto-deployment disabled for ${targetEnv} environment`);
+
+        // Early return with blocked status - actually prevent deployment
+        const context: DeploymentContext = {
+          issue,
+          codeGenContext,
+          reviewContext,
+          testContext,
+          deploymentResults: [],
+          overallSuccess: false,
+          timestamp: new Date().toISOString(),
+        };
+
+        return {
+          status: 'blocked',
+          data: context,
+          error: new Error(`Auto-deployment to ${targetEnv} is disabled by rules-config.yaml`),
+          metrics: {
+            durationMs: Date.now() - startTime,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
 
       // コードが生成されていない場合はスキップ
       if (codeGenContext.generatedCode.length === 0) {
@@ -252,7 +289,7 @@ export class DeploymentAgent {
   private async executeDeployment(config: DeploymentConfig): Promise<void> {
     // 環境別のデプロイコマンド
     const commands: Record<DeploymentEnvironment, string> = {
-      development: 'npm run deploy:dev',
+      dev: 'npm run deploy:dev',
       staging: 'npm run deploy:staging',
       production: 'npm run deploy:prod',
     };
@@ -332,7 +369,7 @@ export class DeploymentAgent {
     }
 
     const commands: Record<DeploymentEnvironment, string> = {
-      development: 'npm run rollback:dev',
+      dev: 'npm run rollback:dev',
       staging: 'npm run rollback:staging',
       production: 'npm run rollback:prod',
     };

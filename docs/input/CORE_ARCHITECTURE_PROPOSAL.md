@@ -216,11 +216,78 @@ Lunaのコアは「Issue一本化」「Decision正本のKernel化」「Ledger/Gr
 - **SSOTAgentV2**: Issue → Kernel自動変換
 - **KernelEnhancementService**: AI-powered NRVV自動補完
 
-#### 🔄 次期実装予定
-- **Kernel Ledger**: イベントソーシング型の変更管理（Phase A）
-- **Kernel Graph Schema**: 型付き知識グラフ（Phase B）
-- **Kernel Runtime**: 運用エンジン（Phase A-B）
-- **Issue一本道**: Bootstrap Kernel + CR自動生成（Phase C）
+#### ✅ Phase A1実装完了 (2026-02-08)
+- **Kernel Runtime**: KernelRuntime.apply(op)による一本化完了
+  - 5つのu.*操作実装: u.record_decision, u.link_evidence, u.set_state, u.raise_exception, u.close_exception
+  - AuthorityService統合（Solo Mode対応）
+  - Gate判定実装
+  - 実装ファイル: src/ssot/kernel-runtime.ts, src/types/kernel-operations.ts
+
+#### ✅ Phase A2実装完了 (2026-02-08)
+- **Kernel Ledger**: イベントソーシング型の変更管理完了
+  - append-only操作ログ（NDJSON/YAMLフォーマット対応）
+  - Ledger読み込み・フィルタ機能（by Kernel ID, by Issue, by Time Range）
+  - replay()による状態再構成
+  - KernelRuntime統合（自動記録）
+  - Kernel Registry形式へのエクスポート
+  - 実装ファイル: src/ssot/kernel-ledger.ts
+
+#### ✅ Phase A3実装完了 (2026-02-08)
+- **CR-Runtime接続**: ChangeRequestからKernel操作を自動実行
+  - ChangeControlAgentへのKernelRuntime統合
+  - operation_detailsからKernelOperationへの自動変換
+  - 実行結果（op_id群）のCRへの記録
+  - Ledgerへの自動記録（Rollback用）
+  - 実装ファイル: src/agents/change-control-agent.ts (Phase A3拡張)
+
+#### ✅ Phase B1実装完了 (2026-02-08)
+- **Kernel Graph Schema**: 型付き知識グラフによるNRVV構造の強制
+  - グラフノード・エッジ型定義（Kernel, Decision, Need, Requirement, Verification, Validation）
+  - KernelWithNRVV ⇄ KernelGraph 双方向変換
+  - グラフ制約検証（孤立ノード検出、サイクル検出、必須エッジ検証）
+  - トレーサビリティマトリクス生成（グラフクエリベース）
+  - 実装ファイル: src/types/kernel-graph.ts, src/ssot/kernel-graph-converter.ts, src/ssot/kernel-graph-validator.ts
+
+#### ✅ Phase C1実装完了 (2026-02-08)
+- **Issue一本道の運用固定**: Bootstrap Kernelによる不変ルール定義
+  - Bootstrap Kernel作成（data/ssot/bootstrap-kernel.yaml）
+  - Issue必須の強制（enforceIssueRequired）
+  - Bootstrap Kernel変更の禁止（enforceBootstrapProtection）
+  - 強制機能のON/OFF切り替え
+  - 実装ファイル: data/ssot/bootstrap-kernel.yaml, src/ssot/kernel-runtime.ts (Phase C1拡張)
+
+#### ⚠️ Phase A-C 実装中 - 重大欠陥修正中 (2026-02-08更新)
+
+**コアアーキテクチャの根本的見直し（Section 11実行プラン）が実装されましたが、重大な欠陥が7つ発見されました。**
+
+**修正完了**:
+- ✅ 問題1: ChangeControlAgent の Runtime 設定固定を解除
+- ✅ 問題2: CR成功判定を「全操作成功」基準に変更
+- ✅ 問題3: Ledger replayの例外ID再現を修正
+- ✅ 問題4: u.record_decision を更新可能に修正
+- ✅ 問題5: AL0ブロックをGate実装に追加
+- ✅ 問題6: 検証スクリプトの成功条件を厳密化
+- 🔄 問題7: ドキュメントの「完了」主張を修正中
+
+**修正後の検証が必要**:
+- [ ] Phase A1+A2統合テスト実行
+- [ ] Phase A3 CR-Runtimeテスト実行
+- [ ] Phase B1 Graph Schemaテスト実行
+- [ ] Phase C1 Bootstrapテスト実行
+- [ ] すべてのテストが成功することを確認
+
+**設計目標**:
+- ✅ 変更の正本化（Ledger）- 実装済み、修正後検証必要
+- ✅ トレーサビリティ（Issue→CR→u.*→Kernel）- 実装済み、修正後検証必要
+- ✅ Rollback可能性（Ledger replay）- 実装済み、例外ID再現を修正
+- ✅ 型安全性（Graph Schema）- 実装済み、修正後検証必要
+- ✅ Issue一本道の強制（Bootstrap Kernel）- 実装済み、修正後検証必要
+
+#### 🔄 次期拡張候補
+- **Anti-Kernel**: 失敗パターンの構造化保存
+- **Meta-Kernel**: 成功パターンの抽象化
+- **Graph DB統合**: Neo4j/ArangoDB等への移行
+- **複数人運用**: Role分離の詳細化
 
 ### 現在の状態
 
@@ -228,3 +295,103 @@ Lunaのコアは「Issue一本化」「Decision正本のKernel化」「Ledger/Gr
 IssueからKernelが生成され、Kernelを参照してタスク/コード生成が行われ、結果がKernelに蓄積されます。
 
 コアアーキテクチャ提案の完全実装は今後の課題ですが、基本的な知識蓄積サイクルは既に動作しています。
+
+---
+
+## 11. 実行プラン（Codex提案・個人利用最適化版）
+
+日付: 2026-02-08
+
+### 11.1 方針
+
+- 三本柱（Ledger / Graph / Runtime）は維持する
+- 個人利用のため、初期は「単一運用者モード（you = product_owner）」を標準にする
+- 先に「変更の正本」を確立し、その後に表現（Graph）を強化する
+- すべての新機能は `Issue -> CR -> u.* -> Kernel` の一本道に接続する
+
+### 11.2 優先順位（結論）
+
+1. **Phase Aを最優先**（Ledger + Runtime最小版）
+2. **Phase Bを次点**（Graphを内部表現として導入）
+3. **Phase Cを最後に完成**（Issue一本道を運用として固定）
+
+### 11.3 フェーズ別実装
+
+#### Phase A1: Kernel Runtimeの一本化（最優先）
+目的: `u.*` 操作の実行経路を一つにする。
+
+実装:
+- `KernelRuntime.apply(op)` を新設
+- 最小操作を実装: `u.record_decision`, `u.link_evidence`, `u.set_state`, `u.raise_exception`, `u.close_exception`
+- `AuthorityService` と Gate判定を `u.set_state` に統合
+
+Done条件:
+- Kernel更新はRuntime経由のみで成功する
+- Runtimeを通らない更新は拒否される
+
+#### Phase A2: Kernel Ledger正本化（イベントソーシング）
+目的: 状態ではなく操作ログを真実にする。
+
+実装:
+- append-only の `kernel-ledger.yaml`（または ndjson）を導入
+- `op_id`, `issue`, `actor`, `timestamp`, `payload`, `result` を標準記録
+- 再生（replay）でKernel状態を再構成可能にする
+
+Done条件:
+- 空状態 + Ledger replay で現行Kernelを再現できる
+- 監査時に任意Kernelの変更履歴を時系列で出せる
+
+#### Phase A3: CRとRuntimeの接続
+目的: ChangeRequestを「記録」から「実行入口」に昇格する。
+
+実装:
+- `ChangeControlAgent.executeChangeRequest()` から Runtime を呼ぶ
+- `proposed_operations` を実際の `u.*` 実行に変換
+- 実行結果を CR に逆リンク（実行op_id群）
+
+Done条件:
+- CR承認後、Kernel更新が自動で反映される
+- Rollback時に逆操作または補償操作が必ず記録される
+
+#### Phase B1: Kernel Graph Schema導入（軽量）
+目的: NRVVとDecisionの接続をグラフ制約で壊れにくくする。
+
+実装:
+- `nodes[]` / `edges[]` の型を導入（永続化はYAMLのまま）
+- 最小制約を実装: `derived_from`, `satisfies`, `verifies`, `validates`
+- `validateNRVV` を「配列走査」から「グラフ検証」中心へ移行
+
+Done条件:
+- 不正グラフ（孤立Requirement等）を保存前に拒否できる
+- Traceability Matrixをgraph queryで生成できる
+
+#### Phase C1: Issue一本道の運用固定
+目的: 例外なく「Issueが唯一の入口」を守る。
+
+実装:
+- Bootstrap Kernelを明文化し固定
+- direct update APIを禁止し、Issue/CR経由のみ許可
+- 承認ポイントは1人運用モードを既定値にする（将来multi-roleへ拡張）
+
+Done条件:
+- 手動更新経路が閉じられている
+- すべてのKernel更新に `issue` と `cr_id` が紐づく
+
+### 11.4 非機能要件（最初から入れる）
+
+- **可観測性**: op単位で失敗原因を追跡可能
+- **再現性**: 同一Ledgerから同一状態を再構成可能
+- **安全性**: `AL0` 時は `u.set_state` を強制ブロック
+- **性能**: replay時間の上限目標を設定（例: 10k opsで5秒以内）
+
+### 11.5 今はやらない（意図的後回し）
+
+- Anti-Kernel / Meta-Kernel の本実装
+- Graph DB導入（まずはファイルベースで十分）
+- 複雑な組織ロール分離（個人利用では過剰）
+
+### 11.6 期待される最終状態
+
+- Lunaの変更はすべて説明可能（Why/Who/When/What）
+- 知識はKernelに残るだけでなく、操作列として再生可能
+- 将来の拡張（複数人運用、厳格監査、高度自動化）へ破綻なく接続できる

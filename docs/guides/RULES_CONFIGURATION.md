@@ -401,6 +401,73 @@ review_required:
 
 **理論的背景**: SSOT LayerのOperator Set（許された操作）において、コード生成は`θ_generate`（仮説・構造・候補の生成）と`θ_execute`（核Kから成果物Bを生成）に対応します。生成された成果物は、必ず`θ_learn`（違反・滞留・コストを観測し、設計を更新）を経由して、核Kにフィードバックされます。
 
+#### Phase 8: Continuous Monitoring & Auto Deployment（監視とデプロイ）
+
+```yaml
+continuous_monitoring:
+  enabled: true
+  alert_to_human: true
+  rationale: "異常検知時は人間にエスカレーション"
+  alert_channels:
+    - "github_issue"
+    - "log"
+
+auto_deployment:
+  enabled: false
+  rationale: "デプロイは人間の明示的な承認が必要"
+  environments:
+    dev:
+      enabled: true
+      require_approval: false
+    staging:
+      enabled: true
+      require_approval: true
+    production:
+      enabled: false
+      require_approval: true
+```
+
+**なぜこのルールが存在するのか**:
+
+1. **Continuous Monitoring**: 本番環境の継続的監視
+   - **alert_to_human**: 異常検知時は人間にエスカレーション
+   - **alert_channels**: GitHub Issueやログで通知
+   - AIは異常を検知できますが、対処方針の決定は人間が行います
+
+2. **Auto Deployment**: 環境別のデプロイ制御
+   - **dev環境**: 自動デプロイ有効（承認不要）
+     - 開発者のフィードバックループを高速化
+     - 失敗しても影響は限定的
+   - **staging環境**: 自動デプロイ有効（承認必要）
+     - 本番環境のリハーサル
+     - QAチームによる検証が必要
+   - **production環境**: 自動デプロイ無効（承認必須）
+     - 最も慎重な運用が必要
+     - 責任主体（Product Owner等）の明示的承認が必須
+
+3. **なぜデプロイに人間承認が必要なのか**:
+   - **責任の明確化**: デプロイの最終責任は人間が負います
+   - **ビジネス判断**: デプロイタイミングは、技術的成立性だけでなく、ビジネス要因（リリース計画・マーケティング・顧客調整）を考慮する必要があります
+   - **リスク管理**: 本番環境への影響を最小化するため、段階的なロールアウト（dev → staging → production）を制御します
+
+**カスタマイズ例**:
+```yaml
+# より積極的な自動化（CI/CD強化）
+auto_deployment:
+  environments:
+    dev:
+      enabled: true
+      require_approval: false  # 自動デプロイ
+    staging:
+      enabled: true
+      require_approval: false  # 自動デプロイ（テスト通過時）
+    production:
+      enabled: true
+      require_approval: true   # 承認が必要
+```
+
+**理論的背景**: デプロイは SSOT LayerのOperator `θ_execute`（核Kから成果物Bを生成）の最終段階です。デプロイ判断は、技術的成立性（テスト通過・品質スコア）と、ビジネス価値（リリース計画・市場タイミング）の両方を考慮する必要があります。Planning Layer公理A5「評価と決定の分離」により、AIは技術的評価を行い、人間が最終決定を行います。
+
 ### 3. 組織ルール (`organization_rules`)
 
 組織レベルの制約を定義します。
@@ -450,19 +517,81 @@ organization_rules:
 
 **理論的背景**: 組織ルールは、SSOT Layerの不変条件Φ（Phi）と対応します。特に`Phi_star`（全体として破綻しないための最小セット）において、「Hard constraint（物理/法規/安全/契約）が価値判断で上書きされない」ことが保証されます。
 
-### 4. 個人設定 (`individual_preferences`)
+### 4. コアアーキテクチャ (`core_architecture`) - NEW
+
+Phase A-C完了に伴い、システムの核心的な動作を制御するルールを定義します。
+
+```yaml
+core_architecture:
+  # Kernel Runtime設定
+  kernel_runtime:
+    default_registry_path: "data/ssot/kernels-luna-base.yaml"
+    default_ledger_path: "data/ssot/ledger.ndjson"
+    solo_mode_default: false      # デフォルトは権限チェック有効
+    enable_ledger_default: true   # Ledger記録を有効化
+
+  # Issue一本道の強制
+  issue_enforcement:
+    enforce_issue_required: true
+    rationale: "すべての変更はIssue経由で行う（トレーサビリティ確保）"
+
+  # Bootstrap Kernel保護
+  bootstrap_protection:
+    enforce_bootstrap_protection: true
+    rationale: "Bootstrap Kernelは不変（システムの根本ルール）"
+
+  # AL0ブロック
+  al0_gate:
+    enabled: true
+    rationale: "AL0（Not Assured）はstate transitionをブロック（安全性制約）"
+```
+
+**なぜこのルールが存在するのか**:
+
+1. **Kernel Runtime**: すべてのKernel操作の単一エントリーポイント
+   - **default_registry_path**: Kernelデータの保存先（SSOT）
+   - **default_ledger_path**: イベントソーシング用のLedger（追記専用ログ）
+   - **solo_mode_default**: 開発時は`true`、本番は`false`（権限チェック有効）
+   - **enable_ledger_default**: Ledger記録を有効化（監査連鎖の基盤）
+
+2. **Issue Enforcement**: Issue一本道の強制
+   - すべてのKernel操作は`issue`パラメータが必須
+   - トレーサビリティ確保（誰が・なぜ・いつ変更したか）
+   - GitHub IssueとKernel変更の完全な紐付け
+
+3. **Bootstrap Protection**: Bootstrap Kernelの不変性
+   - Bootstrap Kernel（`BOOTSTRAP-*`）は変更禁止
+   - システムの根本ルール（例: Issue必須、AL0ブロック）は上書き不可
+   - Phase C1で実装
+
+4. **AL0 Gate**: AL0（Not Assured）のブロック
+   - AL0判定のKernelは状態遷移をブロック
+   - Safetyが確保されていない場合、実装を防ぐ
+   - 開発・テスト時は`enabled: false`に設定可能
+
+**カスタマイズ例**:
+```yaml
+# 開発環境向け（権限チェックとAL0ゲートを無効化）
+core_architecture:
+  kernel_runtime:
+    solo_mode_default: true      # 権限チェック無効
+  al0_gate:
+    enabled: false               # AL0でも遷移許可
+```
+
+### 5. 個人設定 (`individual_preferences`)
 
 開発者個人の好みを設定します。
 
 ```yaml
 individual_preferences:
-  verbose_logging: true
+  verbose_logging: false
   dry_run_default: false
-  notification_level: "all"  # all/important/critical
-  language: "ja"  # ja/en
+  notification_level: "important"  # all/important/critical
+  ai_assistance_level: "balanced"   # minimal/balanced/maximal
 ```
 
-### 5. 変更履歴 (`change_history`)
+### 6. 変更履歴 (`change_history`)
 
 ルール変更が自動記録されます。
 
@@ -499,6 +628,40 @@ change_history:
    ```
 
    Lunaは自動的に`rules-config.yaml`をロードし、ルールに従って動作します。
+
+### プログラムから使用する場合
+
+**重要**: `ChangeControlAgent` または `KernelRuntime` を作成する前に、必ず `ensureRulesConfigLoaded()` を呼んでください。
+
+```typescript
+import { ensureRulesConfigLoaded } from './services/rules-config-service';
+import { ChangeControlAgent } from './agents/change-control-agent';
+
+async function main() {
+  // ルール設定を確実にロード
+  await ensureRulesConfigLoaded();
+  console.log('✅ Rules configuration loaded');
+
+  // Agentを作成
+  const agent = new ChangeControlAgent({
+    githubToken: process.env.GITHUB_TOKEN,
+    repository: process.env.GITHUB_REPOSITORY,
+    verbose: true,
+  });
+
+  // 実行
+  await agent.execute();
+}
+
+main();
+```
+
+**理由**: `ChangeControlAgent` と `KernelRuntime` は、constructor 内で rules-config.yaml から設定を読み込みます。`ensureRulesConfigLoaded()` を事前に呼ばないと、デフォルト値にフォールバックし、以下の警告が表示されます：
+
+```
+⚠️  [ChangeControlAgent] Rules config not loaded! Using default values.
+⚠️  [KernelRuntime] Rules config not loaded! Using default values.
+```
 
 ### 環境変数との併用（後方互換性）
 

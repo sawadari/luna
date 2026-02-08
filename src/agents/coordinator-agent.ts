@@ -39,7 +39,7 @@ import { DeploymentAgent } from './deployment-agent';
 import { MonitoringAgent } from './monitoring-agent';
 import { KernelRegistryService } from '../ssot/kernel-registry';
 import type { KernelWithNRVV } from '../types/nrvv';
-import { getRulesConfig, RulesConfigService } from '../services/rules-config-service';
+import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
 
 export class CoordinatorAgent {
   private octokit: Octokit;
@@ -136,10 +136,8 @@ export class CoordinatorAgent {
     try {
       const [owner, repo] = this.config.repository.split('/');
 
-      // Load rules configuration
-      if (!this.rulesConfig.isLoaded()) {
-        await this.rulesConfig.load();
-      }
+      // Ensure rules configuration is loaded
+      await ensureRulesConfigLoaded();
 
       // ExecutionContext to pass data between agents
       const executionContext: any = {};
@@ -192,8 +190,13 @@ export class CoordinatorAgent {
         }
       }
 
-      // Phase 0.5: SSOT Pre-execution for Kernel loading
-      if (!this.config.dryRun) {
+      // Phase 0.5: SSOT Pre-execution for Kernel loading (from rules-config.yaml)
+      const kernelGenerationEnabled = this.rulesConfig.get<boolean>(
+        'human_ai_boundary.kernel_generation.enabled',
+        { fallbackToEnv: true }
+      ) ?? true;
+
+      if (!this.config.dryRun && kernelGenerationEnabled) {
         this.log('Phase 0.5: SSOT Pre-execution for Kernel loading');
 
         try {

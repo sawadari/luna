@@ -1,5 +1,18 @@
 # luna Development with luna itself
 
+> **⚠️ LEGACY DOCUMENT WARNING (2026-02-08)**
+>
+> このドキュメントは Phase 1 MVP (DEST理論) に基づいています。**Phase A-C実装（2026-02-08完了）後は開発フローが変更されています**。
+>
+> **Phase A-C開発フロー**:
+> 1. Issue作成（すべての変更の起点）
+> 2. ChangeRequest作成・承認
+> 3. KernelRuntime.apply(op) で実行
+> 4. Ledgerに記録（Event Sourcing）
+> 5. Graph構造検証
+>
+> 最新情報は [`README.md`](../../README.md) を参照してください。
+
 **lunaでlunaを開発する** - メタ開発フロー
 
 ## 🌸 基本原則

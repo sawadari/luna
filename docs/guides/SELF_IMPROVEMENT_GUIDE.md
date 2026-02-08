@@ -1,7 +1,20 @@
 # Luna Self-Improvement Guide
 
+> **⚠️ LEGACY DOCUMENT WARNING (2026-02-08)**
+>
+> このドキュメントは Phase 1 MVP（CrePS、Gate、Box Navigator等）に基づいており、**Phase A-C実装（2026-02-08完了）後は一部情報が古くなっています**。
+>
+> **Phase A-C Self-Improvement Loop**:
+> - Issue → ChangeRequest → KernelRuntime.apply(op) → Ledger → Registry → Graph
+> - すべての変更はEvent Sourcingで追跡可能、完全なRollback機能
+> - 型付き知識グラフによるNRVV構造の強制
+>
+> 最新の情報については以下を参照してください：
+> - [`README.md`](../../README.md) - Phase A-Cアーキテクチャ
+> - [`docs/input/CORE_ARCHITECTURE_PROPOSAL.md`](../input/CORE_ARCHITECTURE_PROPOSAL.md) - 実装詳細
+
 **日時**: 2026-01-15
-**ステータス**: 📚 **完了**
+**ステータス**: 📚 **完了（レガシー）**
 
 ---
 

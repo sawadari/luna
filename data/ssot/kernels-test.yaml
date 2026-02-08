@@ -1,0 +1,770 @@
+meta:
+  registry_version: 1.0.0
+  last_updated: 2026-02-08T14:10:18.008Z
+  last_updated_by: KernelRegistryService
+  schema_version: 1.0.0
+  description: Test Kernel Registry for Phase A1/A2
+kernels:
+  KRN-TEST-001:
+    id: KRN-TEST-001
+    statement: テストKernel
+    category: architecture
+    owner: test-user
+    maturity: frozen
+    createdAt: 2026-02-08T00:00:00Z
+    lastUpdatedAt: 2026-02-08T14:10:18.008Z
+    needs: []
+    requirements: []
+    verification: []
+    validation: []
+    history:
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T11:59:08.998Z
+        op: u.record_decision
+        actor: test-user
+        issue: "#TEST-001"
+        summary: Decision DR-INT-001 recorded
+      - timestamp: 2026-02-08T11:59:08.998Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - action: link_evidence
+        by: test-user
+        timestamp: 2026-02-08T11:59:09.007Z
+        op: u.link_evidence
+        actor: test-user
+        issue: "#TEST-001"
+        summary: Evidence EV-INT-001 linked
+      - timestamp: 2026-02-08T11:59:09.007Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - action: raise_exception
+        by: test-user
+        timestamp: 2026-02-08T11:59:09.011Z
+        op: u.raise_exception
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "Exception raised: risk (medium)"
+      - timestamp: 2026-02-08T11:59:09.011Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - action: close_exception
+        by: test-user
+        timestamp: 2026-02-08T11:59:09.015Z
+        op: u.close_exception
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "Exception closed: EX-1770551949011"
+      - timestamp: 2026-02-08T11:59:09.015Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - action: set_state
+        by: test-user
+        timestamp: 2026-02-08T11:59:09.019Z
+        maturity: under_review
+        op: u.set_state
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "State transitioned: draft -> under_review (レビュー準備完了)"
+      - timestamp: 2026-02-08T11:59:09.019Z
+        action: updated
+        by: KernelRegistryService
+        maturity: under_review
+      - action: set_state
+        by: test-user
+        timestamp: 2026-02-08T11:59:09.023Z
+        maturity: agreed
+        op: u.set_state
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "State transitioned: under_review -> agreed (レビュー承認)"
+      - timestamp: 2026-02-08T11:59:09.023Z
+        action: updated
+        by: KernelRegistryService
+        maturity: agreed
+      - action: record_decision
+        by: test-executor
+        timestamp: 2026-02-08T12:04:14.896Z
+        op: u.record_decision
+        actor: test-executor
+        issue: CR-2026-003
+        summary: Decision DR-A3-001 recorded
+      - timestamp: 2026-02-08T12:04:14.896Z
+        action: updated
+        by: KernelRegistryService
+        maturity: agreed
+      - action: link_evidence
+        by: test-executor
+        timestamp: 2026-02-08T12:04:14.906Z
+        op: u.link_evidence
+        actor: test-executor
+        issue: CR-2026-003
+        summary: Evidence EV-A3-001 linked
+      - timestamp: 2026-02-08T12:04:14.906Z
+        action: updated
+        by: KernelRegistryService
+        maturity: agreed
+      - action: set_state
+        by: test-executor
+        timestamp: 2026-02-08T12:04:14.947Z
+        maturity: frozen
+        op: u.set_state
+        actor: test-executor
+        issue: CR-2026-003
+        summary: "State transitioned: agreed -> frozen (Phase A3テストによるfreeze)"
+      - timestamp: 2026-02-08T12:04:14.947Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T12:11:04.669Z
+        op: u.record_decision
+        actor: test-user
+        issue: "#C1-TEST-001"
+        summary: Decision DR-WITH-ISSUE-001 recorded
+      - timestamp: 2026-02-08T12:11:04.669Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: set_state
+        by: test-user
+        timestamp: 2026-02-08T12:11:04.719Z
+        maturity: deprecated
+        op: u.set_state
+        actor: test-user
+        issue: "#C1-TEST-003"
+        summary: "State transitioned: frozen -> deprecated (Testing normal Kernel
+          operation)"
+      - timestamp: 2026-02-08T12:11:04.719Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T12:11:04.731Z
+        op: u.record_decision
+        actor: test-user
+        issue: ""
+        summary: Decision DR-NO-ISSUE-001 recorded
+      - timestamp: 2026-02-08T12:11:04.731Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T12:33:44.978Z
+        op: u.record_decision
+        actor: test-user
+        issue: "#C1-TEST-001"
+        summary: Decision DR-WITH-ISSUE-001 recorded
+      - timestamp: 2026-02-08T12:33:44.978Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: set_state
+        by: test-user
+        timestamp: 2026-02-08T12:33:44.997Z
+        maturity: deprecated
+        op: u.set_state
+        actor: test-user
+        issue: "#C1-TEST-003"
+        summary: "State transitioned: frozen -> deprecated (Testing normal Kernel
+          operation)"
+      - timestamp: 2026-02-08T12:33:44.997Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T12:33:45.020Z
+        op: u.record_decision
+        actor: test-user
+        issue: ""
+        summary: Decision DR-NO-ISSUE-001 recorded
+      - timestamp: 2026-02-08T12:33:45.020Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: record_decision
+        by: test-executor
+        timestamp: 2026-02-08T12:33:45.068Z
+        op: u.record_decision
+        actor: test-executor
+        issue: CR-2026-004
+        summary: Decision DR-A3-001 recorded
+      - timestamp: 2026-02-08T12:33:45.068Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: link_evidence
+        by: test-executor
+        timestamp: 2026-02-08T12:33:45.087Z
+        op: u.link_evidence
+        actor: test-executor
+        issue: CR-2026-004
+        summary: Evidence EV-A3-001 linked
+      - timestamp: 2026-02-08T12:33:45.087Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: set_state
+        by: test-executor
+        timestamp: 2026-02-08T12:33:45.134Z
+        maturity: frozen
+        op: u.set_state
+        actor: test-executor
+        issue: CR-2026-004
+        summary: "State transitioned: agreed -> frozen (Phase A3テストによるfreeze)"
+      - timestamp: 2026-02-08T12:33:45.134Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T12:54:47.489Z
+        op: u.record_decision
+        actor: test-user
+        issue: "#TEST-001"
+        summary: Decision DR-INT-001 recorded
+      - timestamp: 2026-02-08T12:54:47.491Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: link_evidence
+        by: test-user
+        timestamp: 2026-02-08T12:54:47.515Z
+        op: u.link_evidence
+        actor: test-user
+        issue: "#TEST-001"
+        summary: Evidence EV-INT-001 linked
+      - timestamp: 2026-02-08T12:54:47.515Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: raise_exception
+        by: test-user
+        timestamp: 2026-02-08T12:54:47.524Z
+        op: u.raise_exception
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "Exception raised: risk (medium)"
+      - timestamp: 2026-02-08T12:54:47.524Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: close_exception
+        by: test-user
+        timestamp: 2026-02-08T12:54:47.532Z
+        op: u.close_exception
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "Exception closed: EX-1770555287524"
+      - timestamp: 2026-02-08T12:54:47.532Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: set_state
+        by: test-user
+        timestamp: 2026-02-08T12:54:47.543Z
+        maturity: under_review
+        op: u.set_state
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "State transitioned: draft -> under_review (レビュー準備完了)"
+      - timestamp: 2026-02-08T12:54:47.543Z
+        action: updated
+        by: KernelRegistryService
+        maturity: under_review
+      - action: set_state
+        by: test-user
+        timestamp: 2026-02-08T12:54:47.557Z
+        maturity: agreed
+        op: u.set_state
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "State transitioned: under_review -> agreed (レビュー承認)"
+      - timestamp: 2026-02-08T12:54:47.557Z
+        action: updated
+        by: KernelRegistryService
+        maturity: agreed
+      - action: record_decision
+        by: test-executor
+        timestamp: 2026-02-08T13:01:38.146Z
+        op: u.record_decision
+        actor: test-executor
+        issue: CR-2026-006
+        summary: Decision DR-A3-001 recorded
+      - timestamp: 2026-02-08T13:01:38.146Z
+        action: updated
+        by: KernelRegistryService
+        maturity: agreed
+      - action: link_evidence
+        by: test-executor
+        timestamp: 2026-02-08T13:01:38.164Z
+        op: u.link_evidence
+        actor: test-executor
+        issue: CR-2026-006
+        summary: Evidence EV-A3-001 linked
+      - timestamp: 2026-02-08T13:01:38.164Z
+        action: updated
+        by: KernelRegistryService
+        maturity: agreed
+      - action: set_state
+        by: test-executor
+        timestamp: 2026-02-08T13:01:38.172Z
+        maturity: frozen
+        op: u.set_state
+        actor: test-executor
+        issue: CR-2026-006
+        summary: "State transitioned: agreed -> frozen (Phase A3テストによるfreeze)"
+      - timestamp: 2026-02-08T13:01:38.172Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-executor
+        timestamp: 2026-02-08T13:10:33.845Z
+        op: u.record_decision
+        actor: test-executor
+        issue: CR-2026-007
+        summary: Decision DR-A3-001 recorded
+      - timestamp: 2026-02-08T13:10:33.845Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: link_evidence
+        by: test-executor
+        timestamp: 2026-02-08T13:10:33.858Z
+        op: u.link_evidence
+        actor: test-executor
+        issue: CR-2026-007
+        summary: Evidence EV-A3-001 linked
+      - timestamp: 2026-02-08T13:10:33.858Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: set_state
+        by: test-executor
+        timestamp: 2026-02-08T13:10:33.903Z
+        maturity: frozen
+        op: u.set_state
+        actor: test-executor
+        issue: CR-2026-007
+        summary: "State transitioned: agreed -> frozen (Phase A3テストによるfreeze)"
+      - timestamp: 2026-02-08T13:10:33.903Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-executor
+        timestamp: 2026-02-08T13:39:48.771Z
+        op: u.record_decision
+        actor: test-executor
+        issue: CR-2026-008
+        summary: Decision DR-A3-001 recorded
+      - timestamp: 2026-02-08T13:39:48.771Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T13:39:48.803Z
+        op: u.record_decision
+        actor: test-user
+        issue: ""
+        summary: Decision DR-NO-ISSUE-001 recorded
+      - timestamp: 2026-02-08T13:39:48.803Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-executor
+        timestamp: 2026-02-08T13:52:14.758Z
+        op: u.record_decision
+        actor: test-executor
+        issue: CR-2026-009
+        summary: Decision DR-A3-001 recorded
+      - timestamp: 2026-02-08T13:52:14.758Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: link_evidence
+        by: test-executor
+        timestamp: 2026-02-08T13:52:14.778Z
+        op: u.link_evidence
+        actor: test-executor
+        issue: CR-2026-009
+        summary: Evidence EV-A3-001 linked
+      - timestamp: 2026-02-08T13:52:14.778Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: set_state
+        by: test-executor
+        timestamp: 2026-02-08T13:52:14.791Z
+        maturity: frozen
+        op: u.set_state
+        actor: test-executor
+        issue: CR-2026-009
+        summary: "State transitioned: agreed -> frozen (Phase A3テストによるfreeze)"
+      - timestamp: 2026-02-08T13:52:14.791Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-executor
+        timestamp: 2026-02-08T13:58:48.405Z
+        op: u.record_decision
+        actor: test-executor
+        issue: CR-2026-010
+        summary: Decision DR-A3-001 recorded
+      - timestamp: 2026-02-08T13:58:48.405Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: link_evidence
+        by: test-executor
+        timestamp: 2026-02-08T13:58:48.418Z
+        op: u.link_evidence
+        actor: test-executor
+        issue: CR-2026-010
+        summary: Evidence EV-A3-001 linked
+      - timestamp: 2026-02-08T13:58:48.418Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: set_state
+        by: test-executor
+        timestamp: 2026-02-08T13:58:48.428Z
+        maturity: frozen
+        op: u.set_state
+        actor: test-executor
+        issue: CR-2026-010
+        summary: "State transitioned: agreed -> frozen (Phase A3テストによるfreeze)"
+      - timestamp: 2026-02-08T13:58:48.428Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T14:02:59.755Z
+        op: u.record_decision
+        actor: test-user
+        issue: "#C1-TEST-001"
+        summary: Decision DR-WITH-ISSUE-001 recorded
+      - timestamp: 2026-02-08T14:02:59.755Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-executor
+        timestamp: 2026-02-08T14:02:59.806Z
+        op: u.record_decision
+        actor: test-executor
+        issue: CR-2026-011
+        summary: Decision DR-A3-001 recorded
+      - timestamp: 2026-02-08T14:02:59.806Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: link_evidence
+        by: test-executor
+        timestamp: 2026-02-08T14:02:59.829Z
+        op: u.link_evidence
+        actor: test-executor
+        issue: CR-2026-011
+        summary: Evidence EV-A3-001 linked
+      - timestamp: 2026-02-08T14:02:59.829Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: set_state
+        by: test-executor
+        timestamp: 2026-02-08T14:02:59.881Z
+        maturity: frozen
+        op: u.set_state
+        actor: test-executor
+        issue: CR-2026-011
+        summary: "State transitioned: agreed -> frozen (Phase A3テストによるfreeze)"
+      - timestamp: 2026-02-08T14:02:59.881Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T14:07:48.730Z
+        op: u.record_decision
+        actor: test-user
+        issue: "#C1-TEST-001"
+        summary: Decision DR-WITH-ISSUE-001 recorded
+      - timestamp: 2026-02-08T14:07:48.730Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+      - action: set_state
+        by: test-user
+        timestamp: 2026-02-08T14:07:48.744Z
+        maturity: deprecated
+        op: u.set_state
+        actor: test-user
+        issue: "#C1-TEST-003"
+        summary: "State transitioned: frozen -> deprecated (Testing normal Kernel
+          operation)"
+      - timestamp: 2026-02-08T14:07:48.744Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T14:07:48.769Z
+        op: u.record_decision
+        actor: test-user
+        issue: ""
+        summary: Decision DR-NO-ISSUE-001 recorded
+      - timestamp: 2026-02-08T14:07:48.769Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: record_decision
+        by: test-user
+        timestamp: 2026-02-08T14:08:11.326Z
+        op: u.record_decision
+        actor: test-user
+        issue: "#TEST-001"
+        summary: Decision DR-INT-001 recorded
+      - timestamp: 2026-02-08T14:08:11.326Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: link_evidence
+        by: test-user
+        timestamp: 2026-02-08T14:08:11.342Z
+        op: u.link_evidence
+        actor: test-user
+        issue: "#TEST-001"
+        summary: Evidence EV-INT-001 linked
+      - timestamp: 2026-02-08T14:08:11.342Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: raise_exception
+        by: test-user
+        timestamp: 2026-02-08T14:08:11.351Z
+        op: u.raise_exception
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "Exception raised: risk (medium)"
+      - timestamp: 2026-02-08T14:08:11.351Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: close_exception
+        by: test-user
+        timestamp: 2026-02-08T14:08:11.362Z
+        op: u.close_exception
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "Exception closed: EX-1770559691351"
+      - timestamp: 2026-02-08T14:08:11.362Z
+        action: updated
+        by: KernelRegistryService
+        maturity: deprecated
+      - action: set_state
+        by: test-user
+        timestamp: 2026-02-08T14:08:11.371Z
+        maturity: under_review
+        op: u.set_state
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "State transitioned: draft -> under_review (レビュー準備完了)"
+      - timestamp: 2026-02-08T14:08:11.371Z
+        action: updated
+        by: KernelRegistryService
+        maturity: under_review
+      - action: set_state
+        by: test-user
+        timestamp: 2026-02-08T14:08:11.377Z
+        maturity: agreed
+        op: u.set_state
+        actor: test-user
+        issue: "#TEST-001"
+        summary: "State transitioned: under_review -> agreed (レビュー承認)"
+      - timestamp: 2026-02-08T14:08:11.377Z
+        action: updated
+        by: KernelRegistryService
+        maturity: agreed
+      - action: record_decision
+        by: test-executor
+        timestamp: 2026-02-08T14:10:17.925Z
+        op: u.record_decision
+        actor: test-executor
+        issue: CR-2026-012
+        summary: Decision DR-A3-001 recorded
+      - timestamp: 2026-02-08T14:10:17.925Z
+        action: updated
+        by: KernelRegistryService
+        maturity: agreed
+      - action: link_evidence
+        by: test-executor
+        timestamp: 2026-02-08T14:10:17.948Z
+        op: u.link_evidence
+        actor: test-executor
+        issue: CR-2026-012
+        summary: Evidence EV-A3-001 linked
+      - timestamp: 2026-02-08T14:10:17.948Z
+        action: updated
+        by: KernelRegistryService
+        maturity: agreed
+      - action: set_state
+        by: test-executor
+        timestamp: 2026-02-08T14:10:18.008Z
+        maturity: frozen
+        op: u.set_state
+        actor: test-executor
+        issue: CR-2026-012
+        summary: "State transitioned: agreed -> frozen (Phase A3テストによるfreeze)"
+      - timestamp: 2026-02-08T14:10:18.008Z
+        action: updated
+        by: KernelRegistryService
+        maturity: frozen
+    decision:
+      decision_id: DR-A3-001
+      decision_type: architectural
+      decided_by: test-user
+      rationale: Phase A3でCRからRuntime経由の実行をテスト
+      falsification_conditions: []
+      linked_issue: CR-2026-012
+      assurance_level: AL1
+    evidence:
+      - id: EV-INT-001
+        type: test_result
+        source: test-suite-alpha
+        source_type: external
+        collected_at: 2026-02-08T11:59:09.007Z
+        verification_status: passed
+      - id: EV-A3-001
+        type: test_result
+        source: test-phase-a3-cr-runtime.ts
+        source_type: external
+        collected_at: 2026-02-08T12:04:14.906Z
+        verification_status: passed
+      - id: EV-A3-001
+        type: test_result
+        source: test-phase-a3-cr-runtime.ts
+        source_type: external
+        collected_at: 2026-02-08T12:33:45.087Z
+        verification_status: passed
+      - id: EV-INT-001
+        type: test_result
+        source: test-suite-alpha
+        source_type: external
+        collected_at: 2026-02-08T12:54:47.515Z
+        verification_status: passed
+      - id: EV-A3-001
+        type: test_result
+        source: test-phase-a3-cr-runtime.ts
+        source_type: external
+        collected_at: 2026-02-08T13:01:38.164Z
+        verification_status: passed
+      - id: EV-A3-001
+        type: test_result
+        source: test-phase-a3-cr-runtime.ts
+        source_type: external
+        collected_at: 2026-02-08T13:10:33.858Z
+        verification_status: passed
+      - id: EV-A3-001
+        type: test_result
+        source: test-phase-a3-cr-runtime.ts
+        source_type: external
+        collected_at: 2026-02-08T13:52:14.778Z
+        verification_status: passed
+      - id: EV-A3-001
+        type: test_result
+        source: test-phase-a3-cr-runtime.ts
+        source_type: external
+        collected_at: 2026-02-08T13:58:48.418Z
+        verification_status: passed
+      - id: EV-A3-001
+        type: test_result
+        source: test-phase-a3-cr-runtime.ts
+        source_type: external
+        collected_at: 2026-02-08T14:02:59.829Z
+        verification_status: passed
+      - id: EV-INT-001
+        type: test_result
+        source: test-suite-alpha
+        source_type: external
+        collected_at: 2026-02-08T14:08:11.342Z
+        verification_status: passed
+      - id: EV-A3-001
+        type: test_result
+        source: test-phase-a3-cr-runtime.ts
+        source_type: external
+        collected_at: 2026-02-08T14:10:17.948Z
+        verification_status: passed
+    exceptions:
+      - id: EX-1770551949011
+        type: risk
+        severity: medium
+        description: パフォーマンス懸念
+        raised_at: 2026-02-08T11:59:09.011Z
+        raised_by: test-user
+        status: closed
+        resolution: 最適化実施済み
+        resolved_at: 2026-02-08T11:59:09.015Z
+        resolved_by: test-user
+      - id: EX-1770555287524
+        type: risk
+        severity: medium
+        description: パフォーマンス懸念
+        raised_at: 2026-02-08T12:54:47.524Z
+        raised_by: test-user
+        status: closed
+        resolution: 最適化実施済み
+        resolved_at: 2026-02-08T12:54:47.532Z
+        resolved_by: test-user
+      - id: EX-1770559691351
+        type: risk
+        severity: medium
+        description: パフォーマンス懸念
+        raised_at: 2026-02-08T14:08:11.351Z
+        raised_by: test-user
+        status: closed
+        resolution: 最適化実施済み
+        resolved_at: 2026-02-08T14:08:11.362Z
+        resolved_by: test-user
+indices:
+  by_maturity:
+    draft: []
+    under_review: []
+    agreed: []
+    frozen:
+      - KRN-TEST-001
+    deprecated: []
+  by_category:
+    architecture:
+      - KRN-TEST-001
+    requirement: []
+    constraint: []
+    interface: []
+    quality: []
+    security: []
+  by_owner:
+    test-user:
+      - KRN-TEST-001
+  by_tag: {}
+statistics:
+  total_kernels: 1
+  by_maturity:
+    draft: 0
+    under_review: 0
+    agreed: 0
+    frozen: 1
+    deprecated: 0
+  convergence_rate: 0
+  last_computed: 2026-02-08T14:10:18.008Z

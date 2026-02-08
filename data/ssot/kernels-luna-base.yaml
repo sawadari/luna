@@ -1,0 +1,33 @@
+meta:
+  registry_version: "1.0"
+  last_updated: 2026-02-08T12:33:45.170Z
+  last_updated_by: KernelRegistryService
+  schema_version: nrvv-1.0
+  description: Central Kernel Registry with NRVV Traceability
+kernels: {}
+indices:
+  by_maturity:
+    draft: []
+    under_review: []
+    agreed: []
+    frozen: []
+    deprecated: []
+  by_category:
+    architecture: []
+    requirement: []
+    constraint: []
+    interface: []
+    quality: []
+    security: []
+  by_owner: {}
+  by_tag: {}
+statistics:
+  total_kernels: 0
+  by_maturity:
+    draft: 0
+    under_review: 0
+    agreed: 0
+    frozen: 0
+    deprecated: 0
+  convergence_rate: 0
+  last_computed: 2026-02-08T12:33:45.170Z

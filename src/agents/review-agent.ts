@@ -12,14 +12,17 @@ import {
   CodeReview,
   ReviewIssue,
 } from '../types';
+import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
 
 export class ReviewAgent {
   private octokit: Octokit;
   private config: AgentConfig;
+  private rulesConfig: RulesConfigService;
 
   constructor(config: AgentConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.rulesConfig = getRulesConfig();
   }
 
   private log(message: string): void {
@@ -63,7 +66,10 @@ export class ReviewAgent {
 
       this.log(`📋 Retrieved issue: ${issue.title}`);
 
-      // 2. コードレビュー実行
+      // 2. Ensure Rules Configuration is loaded
+      await ensureRulesConfigLoaded();
+
+      // 3. コードレビュー実行
       const reviews: CodeReview[] = [];
 
       // コードが生成されていない場合はスキップ
@@ -107,9 +113,15 @@ export class ReviewAgent {
 
       // 5. 総合スコア計算
       const overallScore = this.calculateOverallScore(reviews);
-      const passed = overallScore >= 80;
+
+      // 5.5. 品質閾値チェック (from rules-config.yaml)
+      const minQualityScore = this.rulesConfig.get<number>(
+        'human_ai_boundary.review_required.min_quality_score'
+      ) ?? 80;
+
+      const passed = overallScore >= minQualityScore;
       this.log(
-        `📈 Overall score: ${overallScore}/100 (${passed ? 'PASS' : 'FAIL'})`
+        `📈 Overall score: ${overallScore}/100 (${passed ? 'PASS' : 'FAIL'}, threshold: ${minQualityScore})`
       );
 
       // 6. 結果作成

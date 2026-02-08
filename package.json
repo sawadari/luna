@@ -38,6 +38,7 @@
     "check-env": "tsx scripts/check-env.ts",
     "check-convergence": "tsx scripts/check-kernel-convergence.ts",
     "auto-complete-nrvv": "tsx scripts/auto-complete-nrvv.ts",
+    "test:rules-config": "tsx scripts/test-rules-config.ts",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""
   },
@@ -55,8 +56,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.30.0",
     "@octokit/rest": "^20.0.2",
+    "@types/uuid": "^10.0.0",
     "commander": "^12.0.0",
     "dotenv": "^16.4.5",
+    "uuid": "^13.0.0",
     "yaml": "^2.4.0"
   },
   "devDependencies": {

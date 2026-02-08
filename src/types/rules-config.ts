@@ -2,29 +2,30 @@
  * Rules Configuration Types
  *
  * 人間-AI責任分界ルール設定の型定義
+ * ⚠️ IMPORTANT: この型定義は rules-config.yaml の構造と100%一致する必要があります
  */
 
-// Meta情報
+// =============================================================================
+// Meta Information
+// =============================================================================
+
 export interface RulesConfigMeta {
   version: string;
   last_updated: string;
   last_updated_by: string;
   description: string;
+  author?: string;  // Optional: YAML has author field
 }
+
+// =============================================================================
+// Human-AI Responsibility Boundary Rules
+// =============================================================================
 
 // AL (Appropriateness Level) 閾値
 export interface ALThreshold {
-  block_below: 'AL0' | 'AL1' | 'AL2' | 'AL3' | 'AL4';
-  require_approval: 'AL0' | 'AL1' | 'AL2' | 'AL3' | 'AL4';
-  auto_proceed: 'AL0' | 'AL1' | 'AL2' | 'AL3' | 'AL4';
-}
-
-// DEST分析設定
-export interface DESTAnalysis {
-  destination: boolean;
-  effectiveness: boolean;
-  safety: boolean;
-  traceability: boolean;
+  block_below: string;        // "AL0"
+  require_approval: string;   // "AL1"
+  auto_proceed: string;       // "AL2"
 }
 
 // Phase 0: DEST Judgment
@@ -32,24 +33,20 @@ export interface DESTJudgmentRules {
   enabled: boolean;
   rationale: string;
   al_threshold: ALThreshold;
-  dest_analysis: DESTAnalysis;
+  auto_label: boolean;  // AL判定結果を自動的にIssueラベルに反映
 }
 
-// CREPS Gates設定
+// CrePS Gates設定
 export interface CREPSGates {
   enabled: boolean;
-  threshold: number;
-  completeness: boolean;
-  relevance: boolean;
-  evidence: boolean;
-  prioritization: boolean;
-  synergy: boolean;
+  threshold: number;      // 70点以下は人間レビュー必要
+  auto_advance: boolean;  // Gate通過時も人間確認を要求
 }
 
-// DecisionRecord設定
-export interface DecisionRecordRules {
-  auto_generate: boolean;
-  require_human_approval: boolean;
+// Assumption Tracking設定
+export interface AssumptionTrackingRules {
+  enabled: boolean;
+  rationale: string;
 }
 
 // Phase 1: Planning Layer
@@ -57,116 +54,96 @@ export interface PlanningLayerRules {
   enabled: boolean;
   rationale: string;
   creps_gates: CREPSGates;
-  decision_record: DecisionRecordRules;
+  assumption_tracking: AssumptionTrackingRules;
 }
 
 // AI抽出設定
 export interface AIExtractionRules {
   enabled: boolean;
+  model: string;                     // "claude-sonnet-4.5"
   fallback_to_template: boolean;
-  rationale: string;
-}
-
-// 自動補完設定
-export interface AutoCompletionRules {
-  enabled: boolean;
-  rationale: string;
+  confidence_threshold: number;      // 信頼度70%以上でのみ自動生成
 }
 
 // Convergence監視設定
 export interface ConvergenceMonitoringRules {
   enabled: boolean;
-  threshold: number;
-  weekly_check: boolean;
-  rationale: string;
+  threshold: number;         // 収束率70%以下でアラート
+  check_interval: string;    // "weekly"
 }
 
-// Maturity遷移設定
-export interface MaturityTransitionRules {
-  auto_promote: boolean;
-  require_approval: string[];
+// Enhancement Service設定
+export interface EnhancementServiceRules {
+  enabled: boolean;
   rationale: string;
 }
 
 // Phase 2: Kernel Generation
 export interface KernelGenerationRules {
   enabled: boolean;
+  auto_extract_nrvv: boolean;
   rationale: string;
   ai_extraction: AIExtractionRules;
-  auto_completion: AutoCompletionRules;
   convergence_monitoring: ConvergenceMonitoringRules;
-  maturity_transition: MaturityTransitionRules;
+  enhancement_service: EnhancementServiceRules;
 }
 
-// Critical Path分析設定
-export interface CriticalPathAnalysis {
-  enabled: boolean;
-  algorithm: string;
-}
-
-// 並列実行設定
-export interface ParallelExecutionRules {
-  enabled: boolean;
-  max_parallel_tasks: number;
-}
-
-// Phase 3: Task Decomposition
-export interface TaskDecompositionRules {
-  enabled: boolean;
-  rationale: string;
-  critical_path_analysis: CriticalPathAnalysis;
-  parallel_execution: ParallelExecutionRules;
-}
-
-// Phase 4-5: Code Generation
+// Phase 3-5: Code Generation
 export interface CodeGenerationRules {
   enabled: boolean;
   rationale: string;
-  ai_model: string;
-  quality_threshold: number;
+  quality_threshold: number;       // 80点以上で合格
   generate_tests: boolean;
-  test_coverage_target: number;
+  test_coverage_target: number;    // カバレッジ80%を目標
+  ai_model: string;                // "claude-sonnet-4.5"
 }
 
 // Code Review設定
 export interface ReviewRequiredRules {
   enabled: boolean;
   rationale: string;
-  static_analysis: boolean;
-  security_scan: boolean;
   min_quality_score: number;
+  require_human_approval: boolean;
+  automated_checks: string[];  // ["lint", "type_check", "security_scan"]
 }
 
 // Phase 6-7: Verification & Validation
 export interface AutoVerificationRules {
   enabled: boolean;
   rationale: string;
-  auto_run_tests: boolean;
-  auto_add_to_kernel: boolean;
+  run_on_commit: boolean;
+  fail_on_coverage_drop: boolean;
+  coverage_threshold: number;
+  auto_add_to_kernel: boolean;  // テスト成功時に Verification を Kernel に自動記録
 }
 
-// アラート設定
-export interface AlertToHuman {
+export interface AutoValidationRules {
   enabled: boolean;
-  severity_threshold: 'info' | 'warning' | 'error' | 'critical';
+  rationale: string;
+  require_human_sign_off: boolean;
 }
 
-// Phase 8: Monitoring
+// Phase 8: Monitoring & Deployment
 export interface ContinuousMonitoringRules {
   enabled: boolean;
+  alert_to_human: boolean;
   rationale: string;
-  collect_metrics: boolean;
-  health_check_interval: number;
-  alert_to_human: AlertToHuman;
+  alert_channels: string[];  // ["github_issue", "log"]
 }
 
-// Phase 9: Self-Improvement
-export interface SelfImprovementRules {
+export interface EnvironmentDeploymentConfig {
+  enabled: boolean;
+  require_approval: boolean;
+}
+
+export interface AutoDeploymentRules {
   enabled: boolean;
   rationale: string;
-  auto_update_kernel: boolean;
-  require_human_approval: boolean;
-  accumulate_knowledge: boolean;
+  environments: {
+    dev: EnvironmentDeploymentConfig;
+    staging: EnvironmentDeploymentConfig;
+    production: EnvironmentDeploymentConfig;
+  };
 }
 
 // 人間-AI責任分界
@@ -174,45 +151,82 @@ export interface HumanAIBoundary {
   dest_judgment: DESTJudgmentRules;
   planning_layer: PlanningLayerRules;
   kernel_generation: KernelGenerationRules;
-  task_decomposition: TaskDecompositionRules;
   code_generation: CodeGenerationRules;
   review_required: ReviewRequiredRules;
   auto_verification: AutoVerificationRules;
+  auto_validation: AutoValidationRules;
   continuous_monitoring: ContinuousMonitoringRules;
-  self_improvement: SelfImprovementRules;
+  auto_deployment: AutoDeploymentRules;
 }
 
-// 自動実行制限
-export interface AutoExecutionLimits {
-  max_files_generated: number;
-  max_lines_per_file: number;
-  max_deployment_environments: number;
+// =============================================================================
+// Organization-specific Rules
+// =============================================================================
+
+export interface BranchStrategyConfig {
+  main_branch: string;
+  require_pull_request: boolean;
+  require_reviews: number;
+  require_ci_pass: boolean;
 }
 
-// セキュリティポリシー
-export interface SecurityPolicy {
-  scan_dependencies: boolean;
-  check_vulnerabilities: boolean;
-  require_security_review: boolean;
-}
-
-// 組織ルール
 export interface OrganizationRules {
-  max_issue_complexity: 'small' | 'medium' | 'large' | 'xlarge';
+  max_issue_complexity: string;     // "small" | "medium" | "large" | "xlarge"
   require_approval_for: string[];
-  auto_execution_limits: AutoExecutionLimits;
-  security_policy: SecurityPolicy;
+  forbidden_operations: string[];
+  branch_strategy: BranchStrategyConfig;
 }
 
-// 個人設定
+// =============================================================================
+// Individual-specific Preferences
+// =============================================================================
+
 export interface IndividualPreferences {
   verbose_logging: boolean;
   dry_run_default: boolean;
-  notification_level: 'all' | 'important' | 'critical';
-  language: 'ja' | 'en';
+  notification_level: string;       // "all" | "important" | "critical"
+  ai_assistance_level: string;      // "minimal" | "balanced" | "maximal"
+  auto_comment_on_pr: boolean;
+  auto_comment_on_issue: boolean;
 }
 
-// 変更履歴エントリ
+// =============================================================================
+// Core Architecture Rules
+// =============================================================================
+
+export interface KernelRuntimeConfig {
+  default_registry_path: string;
+  default_ledger_path: string;
+  solo_mode_default: boolean;
+  enable_ledger_default: boolean;
+}
+
+export interface IssueEnforcementConfig {
+  enforce_issue_required: boolean;
+  rationale: string;
+}
+
+export interface BootstrapProtectionConfig {
+  enforce_bootstrap_protection: boolean;
+  rationale: string;
+}
+
+export interface AL0GateConfig {
+  enabled: boolean;
+  rationale: string;
+}
+
+export interface CoreArchitecture {
+  kernel_runtime: KernelRuntimeConfig;
+  issue_enforcement: IssueEnforcementConfig;
+  bootstrap_protection: BootstrapProtectionConfig;
+  al0_gate: AL0GateConfig;
+}
+
+// =============================================================================
+// Change History
+// =============================================================================
+
 export interface ChangeHistoryEntry {
   timestamp: string;
   changed_by: string;
@@ -222,16 +236,23 @@ export interface ChangeHistoryEntry {
   rationale: string;
 }
 
-// ルール設定全体
+// =============================================================================
+// Root Configuration
+// =============================================================================
+
 export interface RulesConfig {
   meta: RulesConfigMeta;
   human_ai_boundary: HumanAIBoundary;
   organization_rules: OrganizationRules;
   individual_preferences: IndividualPreferences;
+  core_architecture: CoreArchitecture;
   change_history: ChangeHistoryEntry[];
 }
 
-// バリデーション結果
+// =============================================================================
+// Validation Result
+// =============================================================================
+
 export interface ValidationResult {
   isValid: boolean;
   errors: ValidationError[];
@@ -250,7 +271,10 @@ export interface ValidationWarning {
   suggestion: string;
 }
 
-// ルール取得オプション
+// =============================================================================
+// Rule Get Options
+// =============================================================================
+
 export interface RuleGetOptions {
   fallbackToEnv?: boolean;  // 環境変数へのフォールバック
   useDefault?: boolean;      // デフォルト値の使用

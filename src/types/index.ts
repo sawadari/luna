@@ -170,6 +170,11 @@ export interface AgentConfig {
   enableDestJudgment?: boolean;
   enablePlanningLayer?: boolean;
   enableSsotLayer?: boolean;
+
+  // Phase A-C: Kernel Runtime settings
+  kernelRegistryPath?: string; // デフォルト: 'data/ssot/kernels-luna-base.yaml'
+  kernelLedgerPath?: string;   // デフォルト: 'data/ssot/ledger.ndjson'
+  kernelSoloMode?: boolean;     // デフォルト: false（本番では false）
   enableCrepsGates?: boolean;
 }
 
@@ -675,7 +680,7 @@ export interface TestContext {
 // Deployment Types (Phase 6)
 // =============================================================================
 
-export type DeploymentEnvironment = 'development' | 'staging' | 'production';
+export type DeploymentEnvironment = 'dev' | 'staging' | 'production';
 
 export type DeploymentStatus = 'pending' | 'deploying' | 'deployed' | 'failed' | 'rolled_back';
 

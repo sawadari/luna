@@ -13,6 +13,11 @@
 - End-to-End統合テスト成功
 - 本番検証準備完了（環境設定ガイド作成済み）
 
+**Issue #40: Rules Configuration**: ✅ 実装完了 (2026-02-08)
+- 人間-AI責任分界ルールの一元管理（`rules-config.yaml`）
+- Phase A-C: Core Architecture実装完了（Kernel Runtime, Issue Enforcement, Bootstrap Protection, AL0 Gate）
+- すべてのエージェントがRules Configurationに対応
+
 ## 🌸 Miyabi Framework - Phase 1 MVP
 
 ### 8つの自律エージェント
@@ -222,8 +227,15 @@ luna/
 │   └── settings.json     # Claude設定
 ├── .github/
 │   └── workflows/        # 26+ GitHub Actions
+├── data/ssot/            # SSOT Layer データ
+│   ├── kernels-luna-base.yaml  # Kernel Registry
+│   └── ledger.ndjson     # Event Sourcing Ledger
 ├── src/                  # ソースコード
+│   ├── agents/          # 8つの自律エージェント
+│   ├── ssot/            # SSOT Layer実装
+│   └── services/        # Rules Config等のサービス
 ├── tests/                # テストコード
+├── rules-config.yaml     # 人間-AI責任分界ルール（新）
 ├── CLAUDE.md             # このファイル
 └── package.json
 ```
@@ -264,6 +276,8 @@ ANTHROPIC_API_KEY=sk-ant-xxxxx
 |------------|------|
 | [`README.md`](./README.md) | プロジェクト概要 |
 | [`CLAUDE.md`](./CLAUDE.md) | Claude Code コンテキスト（このファイル） |
+| [`rules-config.yaml`](./rules-config.yaml) | 人間-AI責任分界ルール設定 |
+| [`docs/guides/RULES_CONFIGURATION.md`](./docs/guides/RULES_CONFIGURATION.md) | ルール設定ガイド（理論的背景含む） |
 | [`docs/guides/SETUP_GUIDE.md`](./docs/guides/SETUP_GUIDE.md) | 詳細なセットアップ手順 |
 | [`docs/guides/GETTING_STARTED.md`](./docs/guides/GETTING_STARTED.md) | クイックスタートガイド |
 | [`docs/guides/MVP_VERIFICATION.md`](./docs/guides/MVP_VERIFICATION.md) | MVP検証ドキュメント |

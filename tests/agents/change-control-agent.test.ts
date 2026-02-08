@@ -1,13 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ChangeControlAgent } from '../../src/agents/change-control-agent';
 import type { AgentConfig, GitHubIssue } from '../../src/types';
+import { ensureRulesConfigLoaded } from '../../src/services/rules-config-service';
 
 describe('ChangeControlAgent', () => {
   let agent: ChangeControlAgent;
   let mockConfig: AgentConfig;
   let mockOctokit: any;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Ensure rules configuration is loaded before creating agents
+    await ensureRulesConfigLoaded();
+
     mockOctokit = {
       issues: {
         get: vi.fn(),

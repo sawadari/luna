@@ -47,7 +47,8 @@ export const env = {
   anthropicApiKey: getEnv('ANTHROPIC_API_KEY'),
 
   // Kernel Registry Configuration
-  kernelRegistryPath: getEnv('KERNEL_REGISTRY_PATH') || 'kernels-luna-base.yaml', // Default: Luna's own Kernels
+  // Default path matches rules-config.yaml (single source of truth)
+  kernelRegistryPath: getEnv('KERNEL_REGISTRY_PATH') || 'data/ssot/kernels-luna-base.yaml',
 
   // DEST Configuration (default: enabled for safety, opt-out with =false)
   enableDestJudgment: getEnv('ENABLE_DEST_JUDGMENT') !== 'false', // Default: true

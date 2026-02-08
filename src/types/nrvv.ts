@@ -192,6 +192,11 @@ export interface KernelHistory {
   by: string;
   maturity?: MaturityLevel;
   notes?: string;
+  // Phase A1: Kernel Runtime統合
+  op?: string; // u.*操作種別
+  actor?: string; // 実行者（byと同じだが、Runtimeでは標準化）
+  issue?: string; // 関連Issue
+  summary?: string; // 操作サマリー
 }
 
 export interface RelatedArtifact {
@@ -244,6 +249,37 @@ export interface KernelWithNRVV {
   // Tags & Labels
   tags?: string[];
   labels?: string[];
+
+  // Phase A1: Kernel Runtime統合
+  decision?: {
+    decision_id: string;
+    decision_type: string;
+    decided_by: string;
+    rationale: string;
+    falsification_conditions?: string[];
+    linked_issue?: string;
+    assurance_level?: 'AL0' | 'AL1' | 'AL2' | 'AL3';
+  };
+  evidence?: Array<{
+    id: string;
+    type: 'test_result' | 'observation' | 'document' | 'artifact';
+    source: string;
+    source_type: string;
+    collected_at: string;
+    verification_status?: 'passed' | 'failed' | 'pending';
+  }>;
+  exceptions?: Array<{
+    id: string;
+    type: 'blocker' | 'risk' | 'warning';
+    severity: 'critical' | 'high' | 'medium' | 'low';
+    description: string;
+    raised_at: string;
+    raised_by: string;
+    status: 'open' | 'closed';
+    resolution?: string;
+    resolved_at?: string;
+    resolved_by?: string;
+  }>;
 }
 
 // =============================================================================

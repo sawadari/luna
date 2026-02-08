@@ -1,0 +1,168 @@
+# Bootstrap Kernel - Phase C1実装
+# システムの不変ルールを定義するimmutable Kernel
+# このKernelは変更禁止であり、すべてのKernel操作の基盤となる
+
+meta:
+  registry_version: "1.0.0"
+  last_updated: "2026-02-08T00:00:00Z"
+  last_updated_by: "System"
+  schema_version: "1.0.0"
+  description: "Bootstrap Kernel - Immutable Foundation Rules"
+  immutable: true # このフラグがtrueの場合、変更を禁止
+
+kernels:
+  BOOTSTRAP-001:
+    id: "BOOTSTRAP-001"
+    statement: "すべてのKernel変更はIssue経由で行われる"
+    category: constraint
+    owner: system
+    maturity: frozen
+    createdAt: "2026-02-08T00:00:00Z"
+    lastUpdatedAt: "2026-02-08T00:00:00Z"
+
+    # Decision
+    decision:
+      decision_id: "DR-BOOTSTRAP-001"
+      decision_type: "governance"
+      decided_by: "system"
+      rationale: "変更のトレーサビリティを確保し、Rollbackを可能にするため、すべての変更はIssueを起点とし、CR経由で実行される必要がある"
+      falsification_conditions:
+        - "トレーサビリティが不要になった場合"
+        - "システムが完全に自動化され、人間の介入が不要になった場合"
+      assurance_level: "AL3"
+      linked_issue: "BOOTSTRAP"
+
+    needs:
+      - id: "NEED-BOOTSTRAP-001"
+        statement: "変更履歴を追跡可能にする"
+        stakeholder: "ProductOwner"
+        sourceType: "business_requirement"
+        priority: "critical"
+        traceability:
+          upstream: []
+          downstream: ["REQ-BOOTSTRAP-001", "REQ-BOOTSTRAP-002"]
+
+    requirements:
+      - id: "REQ-BOOTSTRAP-001"
+        statement: "すべてのKernel操作はIssue番号を持つ"
+        type: "functional"
+        priority: "must"
+        rationale: "変更の起点を明確にする"
+        traceability:
+          upstream: ["NEED-BOOTSTRAP-001"]
+          downstream: ["VER-BOOTSTRAP-001"]
+        acceptanceCriteria:
+          - "KernelOperation.issueフィールドが必須"
+          - "Issueが存在しない操作は拒否される"
+
+      - id: "REQ-BOOTSTRAP-002"
+        statement: "すべてのKernel操作はLedgerに記録される"
+        type: "functional"
+        priority: "must"
+        rationale: "監査証跡とRollbackを可能にする"
+        traceability:
+          upstream: ["NEED-BOOTSTRAP-001"]
+          downstream: ["VER-BOOTSTRAP-002"]
+        acceptanceCriteria:
+          - "Ledgerが有効化されている"
+          - "操作ログがappend-onlyで記録される"
+
+      - id: "REQ-BOOTSTRAP-003"
+        statement: "直接更新APIは禁止される"
+        type: "constraint"
+        priority: "must"
+        rationale: "Issue/CR経由のみを強制する"
+        traceability:
+          upstream: ["NEED-BOOTSTRAP-001"]
+          downstream: ["VER-BOOTSTRAP-003"]
+        acceptanceCriteria:
+          - "KernelRuntime経由以外の更新は拒否"
+          - "Bootstrap Kernelの変更は常に拒否"
+
+    verification:
+      - id: "VER-BOOTSTRAP-001"
+        statement: "Issue番号の必須チェック"
+        method: "test"
+        criteria:
+          - "Issue番号なしの操作はエラーを返す"
+        traceability:
+          upstream: ["REQ-BOOTSTRAP-001"]
+          downstream: []
+        status: "passed"
+
+      - id: "VER-BOOTSTRAP-002"
+        statement: "Ledger記録の確認"
+        method: "test"
+        criteria:
+          - "すべての操作がLedgerに記録される"
+        traceability:
+          upstream: ["REQ-BOOTSTRAP-002"]
+          downstream: []
+        status: "passed"
+
+      - id: "VER-BOOTSTRAP-003"
+        statement: "直接更新の禁止確認"
+        method: "test"
+        criteria:
+          - "KernelRegistry.saveKernel()直接呼び出しは警告"
+          - "Bootstrap Kernel変更は拒否される"
+        traceability:
+          upstream: ["REQ-BOOTSTRAP-003"]
+          downstream: []
+        status: "passed"
+
+    validation:
+      - id: "VAL-BOOTSTRAP-001"
+        statement: "運用での動作確認"
+        method: "audit"
+        criteria:
+          - "すべてのKernel変更にIssueが紐づいている"
+          - "Ledgerから完全な履歴が取得できる"
+        traceability:
+          upstream: ["NEED-BOOTSTRAP-001"]
+          downstream: []
+        status: "passed"
+
+    history:
+      - timestamp: "2026-02-08T00:00:00Z"
+        action: "created"
+        by: "System"
+        maturity: "frozen"
+        notes: "Bootstrap Kernel creation - immutable foundation rules"
+
+    tags:
+      - "bootstrap"
+      - "immutable"
+      - "governance"
+
+indices:
+  by_maturity:
+    draft: []
+    under_review: []
+    agreed: []
+    frozen: ["BOOTSTRAP-001"]
+    deprecated: []
+  by_category:
+    architecture: []
+    requirement: []
+    constraint: ["BOOTSTRAP-001"]
+    interface: []
+    quality: []
+    security: []
+  by_owner:
+    system: ["BOOTSTRAP-001"]
+  by_tag:
+    bootstrap: ["BOOTSTRAP-001"]
+    immutable: ["BOOTSTRAP-001"]
+    governance: ["BOOTSTRAP-001"]
+
+statistics:
+  total_kernels: 1
+  by_maturity:
+    draft: 0
+    under_review: 0
+    agreed: 0
+    frozen: 1
+    deprecated: 0
+  convergence_rate: 1.0
+  last_computed: "2026-02-08T00:00:00Z"

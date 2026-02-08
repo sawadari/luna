@@ -384,28 +384,81 @@ export class CoordinatorAgent {
       // Fallback to traditional task definitions
     }
 
-    // Fallback: Use traditional task definitions if no Kernel tasks generated
-    if (taskDefinitions.length === 0) {
-      this.log(`  Using traditional task definitions (no Kernel tasks)`);
-      taskDefinitions = this.getTaskDefinitions(type, complexity);
-    }
+      // Fallback: Use traditional task definitions if no Kernel tasks generated
+      if (taskDefinitions.length === 0) {
+        this.log(`  Using traditional task definitions (no Kernel tasks)`);
+        taskDefinitions = this.getTaskDefinitions(type, complexity);
+      } else {
+        // Kernel-driven generation can produce codegen/test tasks without review.
+        // Add a review task so TestAgent receives required reviewContext.
+        const hasCodegen = taskDefinitions.some((t) => t.agent === 'codegen');
+        const hasTest = taskDefinitions.some((t) => t.agent === 'test');
+        const hasReview = taskDefinitions.some((t) => t.agent === 'review');
+        if (hasCodegen && hasTest && !hasReview) {
+          // Find the index of the first test task
+          const firstTestIndex = taskDefinitions.findIndex((t) => t.agent === 'test');
 
-    // Create task nodes
-    for (const [index, taskDef] of taskDefinitions.entries()) {
-      const taskId = `TASK-${String(index + 1).padStart(3, '0')}`;
-      nodes.set(taskId, {
-        id: taskId,
-        name: taskDef.name,
-        description: taskDef.description,
-        agent: taskDef.agent,
-        estimatedDuration: taskDef.duration,
-        status: 'pending',
-        dependencies: taskDef.dependencies || [],
-      });
+          // Insert review task before the first test task
+          taskDefinitions.splice(firstTestIndex, 0, {
+            name: 'Code Review (Kernel-driven)',
+            description: 'Review generated code before test execution',
+            agent: 'review',
+            duration: 15,
+            dependencies: [], // Resolved automatically below
+          });
+          this.log('  Added auto review task for kernel-driven test flow');
+        }
+      }
 
-      // Create edges for dependencies
-      if (taskDef.dependencies) {
-        for (const depId of taskDef.dependencies) {
+      // Create task nodes (first pass: assign IDs)
+      for (const [index, taskDef] of taskDefinitions.entries()) {
+        const taskId = `TASK-${String(index + 1).padStart(3, '0')}`;
+        nodes.set(taskId, {
+          id: taskId,
+          name: taskDef.name,
+          description: taskDef.description,
+          agent: taskDef.agent,
+          estimatedDuration: taskDef.duration,
+          status: 'pending',
+          dependencies: [],
+        });
+      }
+
+      // Resolve dependencies (second pass)
+      for (const [index, taskDef] of taskDefinitions.entries()) {
+        const taskId = `TASK-${String(index + 1).padStart(3, '0')}`;
+        const node = nodes.get(taskId)!;
+        let dependencies = taskDef.dependencies || [];
+
+        // Auto-wire review/test dependencies for kernel-driven tasks that omit deps.
+        if (dependencies.length === 0 && taskDef.agent === 'review') {
+          dependencies = taskDefinitions
+            .slice(0, index)
+            .map((t, i) => ({ task: t, id: `TASK-${String(i + 1).padStart(3, '0')}` }))
+            .filter((x) => x.task.agent === 'codegen')
+            .map((x) => x.id);
+        }
+
+        if (dependencies.length === 0 && taskDef.agent === 'test') {
+          const reviewDeps = taskDefinitions
+            .slice(0, index)
+            .map((t, i) => ({ task: t, id: `TASK-${String(i + 1).padStart(3, '0')}` }))
+            .filter((x) => x.task.agent === 'review')
+            .map((x) => x.id);
+
+          if (reviewDeps.length > 0) {
+            dependencies = reviewDeps;
+          } else {
+            dependencies = taskDefinitions
+              .slice(0, index)
+              .map((t, i) => ({ task: t, id: `TASK-${String(i + 1).padStart(3, '0')}` }))
+              .filter((x) => x.task.agent === 'codegen')
+              .map((x) => x.id);
+          }
+        }
+
+        node.dependencies = dependencies;
+        for (const depId of dependencies) {
           edges.push({
             from: depId,
             to: taskId,
@@ -413,7 +466,6 @@ export class CoordinatorAgent {
           });
         }
       }
-    }
 
     // Identify entry and exit nodes
     const allDependencies = new Set(edges.map((e) => e.from));

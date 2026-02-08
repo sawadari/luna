@@ -593,5 +593,57 @@ changeRequests:
         op_id: OP-1770559818008-17729c46
         success: true
     executed_at: '2026-02-08T14:10:18.024Z'
+  - cr_id: CR-2026-013
+    raised_by: test-user
+    raised_at: '2026-02-08T14:38:57.057Z'
+    trigger_type: manual
+    affected_scope:
+      - KRN-TEST-001
+    proposed_operations: []
+    required_reviews:
+      - gate.review
+    gate_outcome: approved
+    decision_update_rule: no_decision_update
+    evidence_pack_refs: []
+    notes: Phase A3統合テスト
+    executed: true
+    operation_details:
+      - operation_type: u.record_decision
+        kernel_id: KRN-TEST-001
+        payload:
+          decision_id: DR-A3-001
+          decision_type: architectural
+          decided_by: test-user
+          rationale: Phase A3でCRからRuntime経由の実行をテスト
+          assurance_level: AL1
+      - operation_type: u.link_evidence
+        kernel_id: KRN-TEST-001
+        payload:
+          evidence_type: test_result
+          evidence_id: EV-A3-001
+          evidence_source: test-phase-a3-cr-runtime.ts
+          verification_status: passed
+      - operation_type: u.set_state
+        kernel_id: KRN-TEST-001
+        payload:
+          from: agreed
+          to: frozen
+          reason: Phase A3テストによるfreeze
+          actor_role: product_owner
+          gate_checks:
+            nrvv_complete: true
+            evidence_sufficient: true
+            no_blocking_exceptions: true
+    execution_results:
+      - operation_type: u.record_decision
+        op_id: OP-1770561537079-c46c7e50
+        success: true
+      - operation_type: u.link_evidence
+        op_id: OP-1770561537149-758750eb
+        success: true
+      - operation_type: u.set_state
+        op_id: OP-1770561537168-e63374e9
+        success: true
+    executed_at: '2026-02-08T14:38:57.184Z'
 version: 1.0.0
-lastUpdated: '2026-02-08T14:10:18.024Z'
+lastUpdated: '2026-02-08T14:38:57.184Z'

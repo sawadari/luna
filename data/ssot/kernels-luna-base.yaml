@@ -1,33 +1,640 @@
 meta:
   registry_version: "1.0"
-  last_updated: 2026-02-08T12:33:45.170Z
+  last_updated: 2026-02-08T14:44:23.165Z
   last_updated_by: KernelRegistryService
   schema_version: nrvv-1.0
   description: Central Kernel Registry with NRVV Traceability
-kernels: {}
+kernels:
+  KRN-7901:
+    id: KRN-7901
+    statement: Implement user profile functionality to test Phase A-C Core
+      Architecture workflow
+    category: requirement
+    owner: TechLead
+    maturity: draft
+    createdAt: 2026-02-08T14:29:03.870Z
+    lastUpdatedAt: 2026-02-08T14:29:50.499Z
+    sourceIssue: "#41"
+    needs:
+      - id: NEED-KRN-7901-1
+        statement: Validate Phase A-C Core Architecture workflow through concrete
+          implementation
+        stakeholder: TechLead
+        sourceType: business_requirement
+        priority: high
+        rationale: Need to confirm the automated workflow from DEST judgment through
+          deployment works correctly
+        traceability:
+          upstream: []
+          downstream: &a1
+            - REQ-KRN-7901-1
+            - REQ-KRN-7901-2
+            - REQ-KRN-7901-3
+            - REQ-KRN-7901-4
+            - REQ-KRN-7901-5
+      - id: NEED-KRN-7901-2
+        statement: Demonstrate NRVV framework integration with Kernel Runtime and Ledger
+        stakeholder: ProductOwner
+        sourceType: stakeholder_requirement
+        priority: medium
+        rationale: Validate that traceability and change management systems work as
+          designed
+        traceability:
+          upstream: []
+          downstream: *a1
+      - id: NEED-KRN-7901-3
+        statement: Provide basic user profile management capabilities
+        stakeholder: EndUser
+        sourceType: business_requirement
+        priority: medium
+        rationale: Users need to view and manage their profile information
+        traceability:
+          upstream: []
+          downstream: *a1
+    requirements:
+      - id: REQ-KRN-7901-1
+        statement: Implement getUserName() function that returns user's display name
+        type: functional
+        priority: must
+        rationale: Core user identification functionality required for profile display
+        acceptanceCriteria:
+          - Function returns string type
+          - Function handles null/undefined gracefully
+          - Function is properly typed in TypeScript
+        traceability:
+          upstream: &a2
+            - NEED-KRN-7901-1
+            - NEED-KRN-7901-2
+            - NEED-KRN-7901-3
+          downstream: []
+      - id: REQ-KRN-7901-2
+        statement: Implement getUserEmail() function that retrieves user's email address
+        type: functional
+        priority: must
+        rationale: Essential contact information needed for user profile
+        acceptanceCriteria:
+          - Function returns valid email format
+          - Function validates email format
+          - Function handles missing email data
+        traceability:
+          upstream: *a2
+          downstream: []
+      - id: REQ-KRN-7901-3
+        statement: Implement formatProfile() function that structures profile information
+        type: functional
+        priority: must
+        rationale: Consistent profile data presentation across the application
+        acceptanceCriteria:
+          - Function combines name and email data
+          - Function returns formatted object
+          - Function handles partial data gracefully
+        traceability:
+          upstream: *a2
+          downstream: []
+      - id: REQ-KRN-7901-4
+        statement: All code must be implemented in TypeScript with proper type definitions
+        type: non-functional
+        priority: must
+        rationale: Type safety and code maintainability requirements
+        acceptanceCriteria:
+          - All functions have TypeScript signatures
+          - Interfaces defined for data structures
+          - No TypeScript compilation errors
+        traceability:
+          upstream: *a2
+          downstream: []
+      - id: REQ-KRN-7901-5
+        statement: Test coverage must be at least 80%
+        type: non-functional
+        priority: must
+        rationale: Quality assurance and regression prevention
+        acceptanceCriteria:
+          - Unit tests cover all functions
+          - Edge cases are tested
+          - Coverage report shows 80%+ coverage
+        traceability:
+          upstream: *a2
+          downstream: []
+    verification:
+      - id: VER-KRN-7901-1
+        statement: Verify user profile functions work correctly through automated testing
+        method: test
+        testCase: Execute unit tests for getUserName, getUserEmail, and formatProfile
+          functions
+        criteria:
+          - All unit tests pass
+          - Code coverage reaches 80%
+          - TypeScript compilation successful
+        status: not_started
+        traceability:
+          upstream: *a1
+          downstream: []
+      - id: VER-KRN-7901-2
+        statement: Verify Phase A-C workflow automation through end-to-end process
+          validation
+        method: demonstration
+        testCase: Monitor complete workflow from DEST judgment through deployment
+        criteria:
+          - AL2 judgment achieved
+          - Automatic code generation completed
+          - Quality score above 80
+          - Deployment to dev environment successful
+        status: not_started
+        traceability:
+          upstream: *a1
+          downstream: []
+    validation:
+      - id: VAL-KRN-7901-1
+        statement: Validate that Phase A-C architecture meets automation requirements
+        method: acceptance_test
+        criteria:
+          - Workflow completes without manual intervention
+          - All gates (CrePS) are passed automatically
+          - Integration between components works correctly
+        status: not_started
+        traceability:
+          upstream: *a1
+          downstream: []
+      - id: VAL-KRN-7901-2
+        statement: Validate user profile functionality meets basic usability requirements
+        method: user_trial
+        criteria:
+          - Profile information displays correctly
+          - Functions handle edge cases appropriately
+          - API responses are consistent
+        status: not_started
+        traceability:
+          upstream: *a1
+          downstream: []
+    history:
+      - timestamp: 2026-02-08T14:29:03.870Z
+        action: created
+        by: SSOTAgentV2
+        maturity: draft
+        notes: AI-extracted NRVV from Issue
+      - timestamp: 2026-02-08T14:29:46.647Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:29:47.640Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:29:48.710Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:29:49.677Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:29:50.499Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+    tags:
+      - auto-generated
+      - ai-extracted
+    relatedArtifacts: []
+  KRN-0487:
+    id: KRN-0487
+    statement: Implement user profile functionality to test Phase A-C Core
+      Architecture and Rules Configuration workflow
+    category: requirement
+    owner: TechLead
+    maturity: draft
+    createdAt: 2026-02-08T14:40:48.466Z
+    lastUpdatedAt: 2026-02-08T14:41:33.541Z
+    sourceIssue: "#41"
+    needs:
+      - id: NEED-KRN-0487-1
+        statement: Test and validate the Phase A-C Core Architecture workflow through a
+          real implementation
+        stakeholder: TechLead
+        sourceType: business_requirement
+        priority: high
+        rationale: Need to confirm that the automated workflow from DEST Judgment
+          through deployment works correctly
+        traceability:
+          upstream: []
+          downstream: &a3
+            - REQ-KRN-0487-1
+            - REQ-KRN-0487-2
+            - REQ-KRN-0487-3
+            - REQ-KRN-0487-4
+            - REQ-KRN-0487-5
+      - id: NEED-KRN-0487-2
+        statement: Verify Rules Configuration and human-AI responsibility boundaries are
+          functioning properly
+        stakeholder: ProductOwner
+        sourceType: business_requirement
+        priority: high
+        rationale: Essential to validate the rules configuration system before
+          production use
+        traceability:
+          upstream: []
+          downstream: *a3
+      - id: NEED-KRN-0487-3
+        statement: Provide basic user profile functionality for future development
+        stakeholder: EndUser
+        sourceType: stakeholder_requirement
+        priority: medium
+        rationale: Foundation for user management features in the application
+        traceability:
+          upstream: []
+          downstream: *a3
+    requirements:
+      - id: REQ-KRN-0487-1
+        statement: Implement getUserName() function to retrieve and display user names
+        type: functional
+        priority: must
+        rationale: Core user identification functionality required for profile feature
+        acceptanceCriteria:
+          - Function returns valid user name string
+          - Handles null/undefined inputs gracefully
+        traceability:
+          upstream: &a4
+            - NEED-KRN-0487-1
+            - NEED-KRN-0487-2
+            - NEED-KRN-0487-3
+          downstream: []
+      - id: REQ-KRN-0487-2
+        statement: Implement getUserEmail() function to retrieve user email addresses
+        type: functional
+        priority: must
+        rationale: Email retrieval is essential for user communication and identification
+        acceptanceCriteria:
+          - Function returns valid email format
+          - Validates email format before returning
+        traceability:
+          upstream: *a4
+          downstream: []
+      - id: REQ-KRN-0487-3
+        statement: Implement formatProfile() function to structure profile information
+        type: functional
+        priority: must
+        rationale: Need consistent formatting of profile data for display purposes
+        acceptanceCriteria:
+          - Returns properly formatted profile object
+          - Combines name and email data correctly
+        traceability:
+          upstream: *a4
+          downstream: []
+      - id: REQ-KRN-0487-4
+        statement: All code must be implemented in TypeScript with proper type definitions
+        type: non-functional
+        priority: must
+        rationale: Type safety is required for maintainability and code quality
+        acceptanceCriteria:
+          - All functions have TypeScript type annotations
+          - No TypeScript compilation errors
+        traceability:
+          upstream: *a4
+          downstream: []
+      - id: REQ-KRN-0487-5
+        statement: Test coverage must be 80% or higher
+        type: non-functional
+        priority: must
+        rationale: High test coverage ensures reliability and supports automated
+          workflow testing
+        acceptanceCriteria:
+          - Unit tests cover all functions
+          - Coverage report shows ≥80%
+          - All tests pass
+        traceability:
+          upstream: *a4
+          downstream: []
+    verification:
+      - id: VER-KRN-0487-1
+        statement: Verify all user profile functions work correctly through unit testing
+        method: test
+        testCase: Execute unit tests for getUserName, getUserEmail, and formatProfile
+          functions
+        criteria:
+          - All unit tests pass
+          - Test coverage ≥80%
+          - No TypeScript errors
+        status: not_started
+        traceability:
+          upstream: *a3
+          downstream: []
+      - id: VER-KRN-0487-2
+        statement: Verify Phase A-C workflow executes end-to-end successfully
+        method: demonstration
+        testCase: Monitor the automated workflow from DEST Judgment through deployment
+        criteria:
+          - DEST judges as AL2
+          - Kernel generation completes
+          - Code generation achieves quality score ≥80
+          - Deployment to dev environment succeeds
+        status: not_started
+        traceability:
+          upstream: *a3
+          downstream: []
+    validation:
+      - id: VAL-KRN-0487-1
+        statement: Validate that the automated workflow meets business expectations for
+          AI-driven development
+        method: acceptance_test
+        criteria:
+          - Workflow completes without manual intervention
+          - Generated code meets quality standards
+          - Rules configuration properly governs the process
+        status: not_started
+        traceability:
+          upstream: *a3
+          downstream: []
+      - id: VAL-KRN-0487-2
+        statement: Validate user profile functionality provides expected user value
+        method: user_trial
+        criteria:
+          - Profile functions return accurate data
+          - Functions are easy to integrate
+          - Performance meets expectations
+        status: not_started
+        traceability:
+          upstream: *a3
+          downstream: []
+    history:
+      - timestamp: 2026-02-08T14:40:48.466Z
+        action: created
+        by: SSOTAgentV2
+        maturity: draft
+        notes: AI-extracted NRVV from Issue
+      - timestamp: 2026-02-08T14:41:31.665Z
+        action: code_generated
+        by: CodeGenAgent
+        maturity: draft
+        notes: "Generated 0 files for Issue #41"
+      - timestamp: 2026-02-08T14:41:31.665Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:41:32.012Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:41:32.456Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:41:32.717Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:41:33.541Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+    tags:
+      - auto-generated
+      - ai-extracted
+    relatedArtifacts: []
+  KRN-0439:
+    id: KRN-0439
+    statement: Implement user profile functionality to demonstrate Phase A-C Core
+      Architecture workflow and automated AI-human collaboration
+    category: requirement
+    owner: TechLead
+    maturity: draft
+    createdAt: 2026-02-08T14:43:37.440Z
+    lastUpdatedAt: 2026-02-08T14:44:23.165Z
+    sourceIssue: "#41"
+    needs:
+      - id: NEED-KRN-0439-1
+        statement: Validate Phase A-C Core Architecture automation capabilities through
+          a concrete implementation example
+        stakeholder: TechLead
+        sourceType: business_requirement
+        priority: high
+        rationale: Need to verify that the core architecture can handle automated issue
+          processing from planning to deployment
+        traceability:
+          upstream: []
+          downstream: &a5
+            - REQ-KRN-0439-1
+            - REQ-KRN-0439-2
+            - REQ-KRN-0439-3
+            - REQ-KRN-0439-4
+            - REQ-KRN-0439-5
+      - id: NEED-KRN-0439-2
+        statement: Demonstrate AI-human collaboration boundaries and responsibility
+          distribution in development workflow
+        stakeholder: ProductOwner
+        sourceType: business_requirement
+        priority: medium
+        rationale: Must validate that the rules configuration properly governs automated
+          vs manual decision points
+        traceability:
+          upstream: []
+          downstream: *a5
+      - id: NEED-KRN-0439-3
+        statement: Establish baseline user profile management capabilities for future
+          feature development
+        stakeholder: EndUser
+        sourceType: stakeholder_requirement
+        priority: medium
+        rationale: Basic user profile functionality is foundational for user-centric
+          features
+        traceability:
+          upstream: []
+          downstream: *a5
+    requirements:
+      - id: REQ-KRN-0439-1
+        statement: Implement getUserName() function that returns user name as string
+        type: functional
+        priority: must
+        rationale: Core user identification functionality required for profile display
+        acceptanceCriteria:
+          - Function returns valid string
+          - Handles empty/null cases gracefully
+          - TypeScript typed correctly
+        traceability:
+          upstream: &a6
+            - NEED-KRN-0439-1
+            - NEED-KRN-0439-2
+            - NEED-KRN-0439-3
+          downstream: []
+      - id: REQ-KRN-0439-2
+        statement: Implement getUserEmail() function that retrieves user email address
+        type: functional
+        priority: must
+        rationale: Email is essential for user communication and identification
+        acceptanceCriteria:
+          - Returns valid email format
+          - Handles missing email cases
+          - Validates email format
+        traceability:
+          upstream: *a6
+          downstream: []
+      - id: REQ-KRN-0439-3
+        statement: Implement formatProfile() function that structures profile information
+        type: functional
+        priority: must
+        rationale: Consistent profile formatting needed for UI display
+        acceptanceCriteria:
+          - Combines user data consistently
+          - Handles partial data gracefully
+          - Returns structured object
+        traceability:
+          upstream: *a6
+          downstream: []
+      - id: REQ-KRN-0439-4
+        statement: All code must be implemented in TypeScript with complete type
+          definitions
+        type: non-functional
+        priority: must
+        rationale: Type safety ensures code quality and maintainability
+        acceptanceCriteria:
+          - No TypeScript compilation errors
+          - All functions have type annotations
+          - Interfaces defined for data structures
+        traceability:
+          upstream: *a6
+          downstream: []
+      - id: REQ-KRN-0439-5
+        statement: Test coverage must be 80% or higher
+        type: non-functional
+        priority: must
+        rationale: High test coverage ensures reliability and supports automated
+          deployment
+        acceptanceCriteria:
+          - Unit tests cover all functions
+          - Edge cases tested
+          - Coverage report shows ≥80%
+        traceability:
+          upstream: *a6
+          downstream: []
+    verification:
+      - id: VER-KRN-0439-1
+        statement: Verify all user profile functions work correctly through automated
+          unit tests
+        method: test
+        testCase: Execute comprehensive test suite covering normal and edge cases for
+          all profile functions
+        criteria:
+          - All unit tests pass
+          - Code coverage ≥80%
+          - TypeScript compilation successful
+        status: not_started
+        traceability:
+          upstream: *a5
+          downstream: []
+      - id: VER-KRN-0439-2
+        statement: Verify Phase A-C workflow automation through end-to-end process
+          validation
+        method: demonstration
+        testCase: Monitor complete issue lifecycle from DEST judgment through deployment
+        criteria:
+          - AL2 judgment achieved
+          - Automated code generation completes
+          - Quality score ≥80
+          - Automated deployment succeeds
+        status: not_started
+        traceability:
+          upstream: *a5
+          downstream: []
+    validation:
+      - id: VAL-KRN-0439-1
+        statement: Validate that the implemented workflow demonstrates effective
+          AI-human collaboration
+        method: acceptance_test
+        criteria:
+          - Rules configuration properly governs automation boundaries
+          - Human oversight points function correctly
+          - Kernel Runtime tracks all decisions accurately
+        status: not_started
+        traceability:
+          upstream: *a5
+          downstream: []
+      - id: VAL-KRN-0439-2
+        statement: Validate that user profile functionality meets basic usability
+          requirements
+        method: user_trial
+        criteria:
+          - Profile data displays correctly
+          - Functions handle various input scenarios
+          - Performance meets acceptable standards
+        status: not_started
+        traceability:
+          upstream: *a5
+          downstream: []
+    history:
+      - timestamp: 2026-02-08T14:43:37.440Z
+        action: created
+        by: SSOTAgentV2
+        maturity: draft
+        notes: AI-extracted NRVV from Issue
+      - timestamp: 2026-02-08T14:44:21.277Z
+        action: code_generated
+        by: CodeGenAgent
+        maturity: draft
+        notes: "Generated 0 files for Issue #41"
+      - timestamp: 2026-02-08T14:44:21.278Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:44:22.187Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:44:22.319Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:44:22.490Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+      - timestamp: 2026-02-08T14:44:23.165Z
+        action: updated
+        by: KernelRegistryService
+        maturity: draft
+    tags:
+      - auto-generated
+      - ai-extracted
+    relatedArtifacts: []
 indices:
   by_maturity:
-    draft: []
+    draft:
+      - KRN-7901
+      - KRN-0487
+      - KRN-0439
     under_review: []
     agreed: []
     frozen: []
     deprecated: []
   by_category:
     architecture: []
-    requirement: []
+    requirement:
+      - KRN-7901
+      - KRN-0487
+      - KRN-0439
     constraint: []
     interface: []
     quality: []
     security: []
-  by_owner: {}
-  by_tag: {}
+  by_owner:
+    TechLead:
+      - KRN-7901
+      - KRN-0487
+      - KRN-0439
+  by_tag:
+    auto-generated:
+      - KRN-7901
+      - KRN-0487
+      - KRN-0439
+    ai-extracted:
+      - KRN-7901
+      - KRN-0487
+      - KRN-0439
 statistics:
-  total_kernels: 0
+  total_kernels: 3
   by_maturity:
-    draft: 0
+    draft: 3
     under_review: 0
     agreed: 0
     frozen: 0
     deprecated: 0
   convergence_rate: 0
-  last_computed: 2026-02-08T12:33:45.170Z
+  last_computed: 2026-02-08T14:44:23.165Z

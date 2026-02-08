@@ -1,28 +1,586 @@
 meta:
   registry_version: "1.0"
-  last_updated: 2026-02-08T15:00:00.000Z
-  last_updated_by: Manual cleanup
+  last_updated: 2026-02-08T15:30:00.000Z
+  last_updated_by: Initial Setup
   schema_version: nrvv-1.0
-  description: Central Kernel Registry with NRVV Traceability
-kernels: {}
+  description: Central Kernel Registry with NRVV Traceability - Luna Knowledge Creation Platform
+
+kernels:
+  BOOTSTRAP-001:
+    id: BOOTSTRAP-001
+    statement: "すべてのKernel操作はIssue経由で実行されなければならない"
+    category: governance
+    owner: System
+    maturity: frozen
+    createdAt: 2026-02-08T15:30:00.000Z
+    lastUpdatedAt: 2026-02-08T15:30:00.000Z
+    sourceIssue: "#SYSTEM-INIT"
+    needs:
+      - id: NEED-BOOTSTRAP-001-1
+        statement: "すべての変更を追跡可能にし、完全な監査証跡を確保する"
+        stakeholder: System
+        sourceType: system_requirement
+        priority: critical
+        rationale: "Event Sourcingの原則に基づき、すべての操作は追跡可能である必要がある"
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-BOOTSTRAP-001-1
+    requirements:
+      - id: REQ-BOOTSTRAP-001-1
+        statement: "すべてのKernel操作にissueパラメータを必須とする"
+        type: functional
+        priority: must
+        rationale: "Issue一本道により変更の文脈と理由を記録"
+        acceptanceCriteria:
+          - "issueパラメータが空の場合、操作を拒否する"
+          - "issueパラメータは'#'で始まるGitHub Issue番号形式"
+        traceability:
+          upstream:
+            - NEED-BOOTSTRAP-001-1
+          downstream:
+            - VER-BOOTSTRAP-001-1
+      - id: REQ-BOOTSTRAP-001-2
+        statement: "Issue必須の強制はrules-config.yamlで制御可能とする"
+        type: non-functional
+        priority: should
+        rationale: "テスト時や開発時には強制を無効化できる必要がある"
+        acceptanceCriteria:
+          - "core_architecture.issue_enforcement.enforce_issue_required で制御"
+        traceability:
+          upstream:
+            - NEED-BOOTSTRAP-001-1
+          downstream:
+            - VER-BOOTSTRAP-001-1
+    verification:
+      - id: VER-BOOTSTRAP-001-1
+        statement: "Issue なし操作が正しく拒否されることを確認"
+        method: test
+        testCase: test-phase-c1-bootstrap.ts
+        criteria:
+          - "issueパラメータが空の場合、'Issue is required'エラーが返される"
+          - "issueパラメータがある場合、操作が正常に実行される"
+        traceability:
+          upstream:
+            - REQ-BOOTSTRAP-001-1
+            - REQ-BOOTSTRAP-001-2
+          downstream: []
+        status: passed
+        verifiedAt: 2026-02-08T15:30:00.000Z
+        verifiedBy: System
+    validation:
+      - id: VAL-BOOTSTRAP-001-1
+        statement: "Issue一本道により完全な監査証跡が確保されることを確認"
+        method: inspection
+        criteria:
+          - "すべてのLedgerエントリにissueフィールドが記録されている"
+          - "Issueから変更履歴をトレース可能"
+        traceability:
+          upstream:
+            - NEED-BOOTSTRAP-001-1
+          downstream: []
+        status: validated
+        validatedAt: 2026-02-08T15:30:00.000Z
+        validatedBy: System
+    tags:
+      - bootstrap
+      - governance
+      - immutable
+    relatedArtifacts: []
+
+  BOOTSTRAP-002:
+    id: BOOTSTRAP-002
+    statement: "AL0（Not Assured）判定のKernelは状態遷移をブロックする"
+    category: quality
+    owner: System
+    maturity: frozen
+    createdAt: 2026-02-08T15:30:00.000Z
+    lastUpdatedAt: 2026-02-08T15:30:00.000Z
+    sourceIssue: "#SYSTEM-INIT"
+    needs:
+      - id: NEED-BOOTSTRAP-002-1
+        statement: "保証レベルの低いKernelが本番環境に到達することを防ぐ"
+        stakeholder: System
+        sourceType: system_requirement
+        priority: critical
+        rationale: "AL0は仮説段階であり、実行には不十分"
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-BOOTSTRAP-002-1
+    requirements:
+      - id: REQ-BOOTSTRAP-002-1
+        statement: "AL0判定のKernelの状態遷移（u.set_state）をブロックする"
+        type: functional
+        priority: must
+        rationale: "AL0は保証されていないため、agreed/frozenに遷移させない"
+        acceptanceCriteria:
+          - "decision.assurance_level が AL0 の場合、u.set_stateを拒否"
+          - "AL1以上の場合は遷移を許可"
+        traceability:
+          upstream:
+            - NEED-BOOTSTRAP-002-1
+          downstream:
+            - VER-BOOTSTRAP-002-1
+      - id: REQ-BOOTSTRAP-002-2
+        statement: "AL0 Gateの有効/無効をrules-config.yamlで制御可能とする"
+        type: non-functional
+        priority: should
+        rationale: "開発時やテスト時には無効化が必要"
+        acceptanceCriteria:
+          - "core_architecture.al0_gate.enabled で制御"
+        traceability:
+          upstream:
+            - NEED-BOOTSTRAP-002-1
+          downstream:
+            - VER-BOOTSTRAP-002-1
+    verification:
+      - id: VER-BOOTSTRAP-002-1
+        statement: "AL0 Gateが正しく動作することを確認"
+        method: test
+        testCase: test-kernel-runtime-a1.ts
+        criteria:
+          - "AL0判定のKernelのu.set_stateが拒否される"
+          - "AL1以上のKernelのu.set_stateが許可される"
+        traceability:
+          upstream:
+            - REQ-BOOTSTRAP-002-1
+            - REQ-BOOTSTRAP-002-2
+          downstream: []
+        status: passed
+        verifiedAt: 2026-02-08T15:30:00.000Z
+        verifiedBy: System
+    validation:
+      - id: VAL-BOOTSTRAP-002-1
+        statement: "AL0ブロックにより品質が保証されることを確認"
+        method: inspection
+        criteria:
+          - "agreed/frozen状態のKernelはすべてAL1以上"
+          - "AL0 Kernelは draft/under_review のみ"
+        traceability:
+          upstream:
+            - NEED-BOOTSTRAP-002-1
+          downstream: []
+        status: validated
+        validatedAt: 2026-02-08T15:30:00.000Z
+        validatedBy: System
+    tags:
+      - bootstrap
+      - quality
+      - immutable
+    relatedArtifacts: []
+
+  BOOTSTRAP-003:
+    id: BOOTSTRAP-003
+    statement: "Bootstrap Kernel（BOOTSTRAP-*）は変更不可能である"
+    category: governance
+    owner: System
+    maturity: frozen
+    createdAt: 2026-02-08T15:30:00.000Z
+    lastUpdatedAt: 2026-02-08T15:30:00.000Z
+    sourceIssue: "#SYSTEM-INIT"
+    needs:
+      - id: NEED-BOOTSTRAP-003-1
+        statement: "システムの根本ルールを保護し、一貫性を保証する"
+        stakeholder: System
+        sourceType: system_requirement
+        priority: critical
+        rationale: "Bootstrap Kernelが変更されるとシステムの整合性が失われる"
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-BOOTSTRAP-003-1
+    requirements:
+      - id: REQ-BOOTSTRAP-003-1
+        statement: "BOOTSTRAP-* IDを持つKernelへのすべての操作を拒否する"
+        type: functional
+        priority: must
+        rationale: "不変性を保証"
+        acceptanceCriteria:
+          - "kernel_id が BOOTSTRAP- で始まる場合、すべての操作を拒否"
+          - "エラーメッセージで Bootstrap Kernel が変更不可であることを明示"
+        traceability:
+          upstream:
+            - NEED-BOOTSTRAP-003-1
+          downstream:
+            - VER-BOOTSTRAP-003-1
+      - id: REQ-BOOTSTRAP-003-2
+        statement: "Bootstrap保護の有効/無効をrules-config.yamlで制御可能とする"
+        type: non-functional
+        priority: should
+        rationale: "緊急時やシステムアップデート時に無効化が必要"
+        acceptanceCriteria:
+          - "core_architecture.bootstrap_protection.enforce_bootstrap_protection で制御"
+        traceability:
+          upstream:
+            - NEED-BOOTSTRAP-003-1
+          downstream:
+            - VER-BOOTSTRAP-003-1
+    verification:
+      - id: VER-BOOTSTRAP-003-1
+        statement: "Bootstrap Kernel保護が正しく動作することを確認"
+        method: test
+        testCase: test-phase-c1-bootstrap.ts
+        criteria:
+          - "BOOTSTRAP-* への操作が拒否される"
+          - "通常のKernelへの操作は許可される"
+        traceability:
+          upstream:
+            - REQ-BOOTSTRAP-003-1
+            - REQ-BOOTSTRAP-003-2
+          downstream: []
+        status: passed
+        verifiedAt: 2026-02-08T15:30:00.000Z
+        verifiedBy: System
+    validation:
+      - id: VAL-BOOTSTRAP-003-1
+        statement: "Bootstrap Kernel保護によりシステムの一貫性が保証されることを確認"
+        method: inspection
+        criteria:
+          - "Bootstrap Kernelが意図せず変更されていない"
+          - "システムの根本ルールが維持されている"
+        traceability:
+          upstream:
+            - NEED-BOOTSTRAP-003-1
+          downstream: []
+        status: validated
+        validatedAt: 2026-02-08T15:30:00.000Z
+        validatedBy: System
+    tags:
+      - bootstrap
+      - governance
+      - immutable
+    relatedArtifacts: []
+
+  KRN-SEC-001:
+    id: KRN-SEC-001
+    statement: "すべての通信はHTTPSを使用し、JWT認証を実装する"
+    category: security
+    owner: SecurityTeam
+    maturity: agreed
+    createdAt: 2026-02-08T15:30:00.000Z
+    lastUpdatedAt: 2026-02-08T15:30:00.000Z
+    sourceIssue: "#SECURITY-BASELINE"
+    needs:
+      - id: NEED-SEC-001-1
+        statement: "通信の機密性と完全性を保護する"
+        stakeholder: SecurityTeam
+        sourceType: security_requirement
+        priority: critical
+        rationale: "平文通信は盗聴や改ざんのリスクがある"
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-SEC-001-1
+      - id: NEED-SEC-001-2
+        statement: "ステートレスで拡張可能な認証機構を実装する"
+        stakeholder: SecurityTeam
+        sourceType: technical_requirement
+        priority: high
+        rationale: "セッション管理はスケーラビリティの課題となる"
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-SEC-001-2
+    requirements:
+      - id: REQ-SEC-001-1
+        statement: "HTTPSを必須とする（TLS 1.2以上）"
+        type: security
+        priority: must
+        rationale: "通信の暗号化"
+        acceptanceCriteria:
+          - "すべてのHTTP通信がTLS 1.2以上で暗号化されている"
+          - "HTTP接続は自動的にHTTPSにリダイレクトされる"
+          - "無効な証明書を持つ接続は拒否される"
+        traceability:
+          upstream:
+            - NEED-SEC-001-1
+          downstream:
+            - VER-SEC-001-1
+      - id: REQ-SEC-001-2
+        statement: "JWT認証を実装する（トークン有効期限1時間）"
+        type: functional
+        priority: must
+        rationale: "ステートレス認証"
+        acceptanceCriteria:
+          - "JWTトークンの有効期限は1時間"
+          - "トークンにはユーザーID、ロール、発行時刻が含まれる"
+          - "トークンはHS256またはRS256で署名される"
+          - "期限切れトークンは拒否される"
+        traceability:
+          upstream:
+            - NEED-SEC-001-2
+          downstream:
+            - VER-SEC-001-2
+      - id: REQ-SEC-001-3
+        statement: "認証エンドポイント /api/auth を実装する"
+        type: functional
+        priority: must
+        rationale: "ログイン機能の提供"
+        acceptanceCriteria:
+          - "POST /api/auth/login でJWTトークンを発行"
+          - "POST /api/auth/refresh でトークンを更新"
+          - "POST /api/auth/logout でトークンを無効化"
+        traceability:
+          upstream:
+            - NEED-SEC-001-2
+          downstream:
+            - VER-SEC-001-2
+    verification:
+      - id: VER-SEC-001-1
+        statement: "HTTPSが有効であることを確認"
+        method: test
+        testCase: security/https-enforcement.test.ts
+        criteria:
+          - "HTTP接続がHTTPSにリダイレクトされる"
+          - "接続がTLS 1.2以上で暗号化されている"
+        traceability:
+          upstream:
+            - REQ-SEC-001-1
+          downstream: []
+        status: pending
+        verifiedAt: null
+        verifiedBy: null
+      - id: VER-SEC-001-2
+        statement: "JWT認証が正しく機能することを確認"
+        method: test
+        testCase: security/jwt-authentication.test.ts
+        criteria:
+          - "有効なトークンで認証が成功する"
+          - "無効なトークンで認証が失敗する"
+          - "期限切れトークンで認証が失敗する"
+        traceability:
+          upstream:
+            - REQ-SEC-001-2
+            - REQ-SEC-001-3
+          downstream: []
+        status: pending
+        verifiedAt: null
+        verifiedBy: null
+    validation:
+      - id: VAL-SEC-001-1
+        statement: "セキュリティ基準が実運用で有効であることを確認"
+        method: security_audit
+        criteria:
+          - "第三者によるセキュリティ監査でHTTPS/JWT実装が承認される"
+          - "本番環境で1ヶ月間、セキュリティインシデントが発生しない"
+        traceability:
+          upstream:
+            - NEED-SEC-001-1
+            - NEED-SEC-001-2
+          downstream: []
+        status: pending
+        validatedAt: null
+        validatedBy: null
+    tags:
+      - security
+      - authentication
+      - https
+    relatedArtifacts: []
+
+  KRN-ARCH-001:
+    id: KRN-ARCH-001
+    statement: "Phase A-C Core Architectureの原則に従う"
+    category: architecture
+    owner: TechLead
+    maturity: frozen
+    createdAt: 2026-02-08T15:30:00.000Z
+    lastUpdatedAt: 2026-02-08T15:30:00.000Z
+    sourceIssue: "#ARCH-BASELINE"
+    needs:
+      - id: NEED-ARCH-001-1
+        statement: "システムの拡張性と保守性を確保する"
+        stakeholder: TechLead
+        sourceType: technical_requirement
+        priority: critical
+        rationale: "アーキテクチャの一貫性がなければ長期的な保守が困難"
+        traceability:
+          upstream: []
+          downstream:
+            - REQ-ARCH-001-1
+            - REQ-ARCH-001-2
+            - REQ-ARCH-001-3
+    requirements:
+      - id: REQ-ARCH-001-1
+        statement: "すべてのKernel操作はKernelRuntime経由で実行する"
+        type: architectural
+        priority: must
+        rationale: "Phase A1: 単一エントリーポイントの原則"
+        acceptanceCriteria:
+          - "KernelRegistry直接アクセスは禁止"
+          - "すべての操作はKernelRuntime.apply()を経由"
+        traceability:
+          upstream:
+            - NEED-ARCH-001-1
+          downstream:
+            - VER-ARCH-001-1
+      - id: REQ-ARCH-001-2
+        statement: "すべてのKernel操作はLedgerに記録する"
+        type: architectural
+        priority: must
+        rationale: "Phase A2: Event Sourcing型の追記専用ログ"
+        acceptanceCriteria:
+          - "すべての操作がledger.ndjsonに追記される"
+          - "Replay機能で任意の時点の状態を再現可能"
+        traceability:
+          upstream:
+            - NEED-ARCH-001-1
+          downstream:
+            - VER-ARCH-001-2
+      - id: REQ-ARCH-001-3
+        statement: "すべての変更はChangeRequest経由で実行する"
+        type: architectural
+        priority: should
+        rationale: "Phase A3: 変更の計画と実行を分離"
+        acceptanceCriteria:
+          - "ChangeRequestで変更を計画"
+          - "承認後にKernelRuntimeで自動実行"
+        traceability:
+          upstream:
+            - NEED-ARCH-001-1
+          downstream:
+            - VER-ARCH-001-3
+    verification:
+      - id: VER-ARCH-001-1
+        statement: "KernelRuntimeが単一エントリーポイントとして機能することを確認"
+        method: test
+        testCase: test-kernel-runtime-a1.ts
+        criteria:
+          - "6つのKernel操作がすべてKernelRuntime経由で実行される"
+          - "権限チェックが動作する"
+        traceability:
+          upstream:
+            - REQ-ARCH-001-1
+          downstream: []
+        status: passed
+        verifiedAt: 2026-02-08T15:30:00.000Z
+        verifiedBy: System
+      - id: VER-ARCH-001-2
+        statement: "Ledgerが正しく動作することを確認"
+        method: test
+        testCase: test-kernel-ledger-a2.ts
+        criteria:
+          - "すべての操作がLedgerに記録される"
+          - "Replay機能で状態を再構成できる"
+        traceability:
+          upstream:
+            - REQ-ARCH-001-2
+          downstream: []
+        status: passed
+        verifiedAt: 2026-02-08T15:30:00.000Z
+        verifiedBy: System
+      - id: VER-ARCH-001-3
+        statement: "CR-Runtime接続が正しく動作することを確認"
+        method: test
+        testCase: test-phase-a3-cr-runtime.ts
+        criteria:
+          - "ChangeRequestが作成・承認・実行される"
+          - "Kernel操作が自動実行される"
+        traceability:
+          upstream:
+            - REQ-ARCH-001-3
+          downstream: []
+        status: passed
+        verifiedAt: 2026-02-08T15:30:00.000Z
+        verifiedBy: System
+    validation:
+      - id: VAL-ARCH-001-1
+        statement: "Core Architectureが長期的な保守性を提供することを確認"
+        method: inspection
+        criteria:
+          - "Phase A-C統合テストがすべて成功"
+          - "アーキテクチャドキュメントが整備されている"
+        traceability:
+          upstream:
+            - NEED-ARCH-001-1
+          downstream: []
+        status: validated
+        validatedAt: 2026-02-08T15:30:00.000Z
+        validatedBy: TechLead
+    tags:
+      - architecture
+      - phase-a-c
+      - core
+    relatedArtifacts:
+      - type: documentation
+        path: docs/guides/GETTING_STARTED.md
+      - type: test
+        path: scripts/test-phase-a1-a2-integration.ts
+
 index:
-  by_source: {}
+  by_source:
+    "#SYSTEM-INIT":
+      - BOOTSTRAP-001
+      - BOOTSTRAP-002
+      - BOOTSTRAP-003
+    "#SECURITY-BASELINE":
+      - KRN-SEC-001
+    "#ARCH-BASELINE":
+      - KRN-ARCH-001
   by_maturity:
     draft: []
     under_review: []
-    agreed: []
-    frozen: []
+    agreed:
+      - KRN-SEC-001
+    frozen:
+      - BOOTSTRAP-001
+      - BOOTSTRAP-002
+      - BOOTSTRAP-003
+      - KRN-ARCH-001
     deprecated: []
-  by_owner: {}
-  by_category: {}
-  by_tag: {}
+  by_owner:
+    System:
+      - BOOTSTRAP-001
+      - BOOTSTRAP-002
+      - BOOTSTRAP-003
+    SecurityTeam:
+      - KRN-SEC-001
+    TechLead:
+      - KRN-ARCH-001
+  by_category:
+    governance:
+      - BOOTSTRAP-001
+      - BOOTSTRAP-003
+    quality:
+      - BOOTSTRAP-002
+    security:
+      - KRN-SEC-001
+    architecture:
+      - KRN-ARCH-001
+  by_tag:
+    bootstrap:
+      - BOOTSTRAP-001
+      - BOOTSTRAP-002
+      - BOOTSTRAP-003
+    immutable:
+      - BOOTSTRAP-001
+      - BOOTSTRAP-002
+      - BOOTSTRAP-003
+    governance:
+      - BOOTSTRAP-001
+      - BOOTSTRAP-003
+    quality:
+      - BOOTSTRAP-002
+    security:
+      - KRN-SEC-001
+    authentication:
+      - KRN-SEC-001
+    https:
+      - KRN-SEC-001
+    architecture:
+      - KRN-ARCH-001
+    phase-a-c:
+      - KRN-ARCH-001
+    core:
+      - KRN-ARCH-001
+
 statistics:
-  total_kernels: 0
+  total_kernels: 5
   by_maturity:
     draft: 0
     under_review: 0
-    agreed: 0
-    frozen: 0
+    agreed: 1
+    frozen: 4
     deprecated: 0
-  convergence_rate: 0
-  last_computed: 2026-02-08T15:00:00.000Z
+  convergence_rate: 1.0
+  last_computed: 2026-02-08T15:30:00.000Z

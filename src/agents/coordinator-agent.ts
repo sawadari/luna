@@ -192,6 +192,31 @@ export class CoordinatorAgent {
         }
       }
 
+      // Phase 0.5: SSOT Pre-execution for Kernel loading
+      if (!this.config.dryRun) {
+        this.log('Phase 0.5: SSOT Pre-execution for Kernel loading');
+
+        try {
+          const ssotPreResult = await this.ssotAgent.execute(
+            githubIssue.number,
+            {
+              destJudgment: executionContext.destJudgment,
+              planningData: executionContext.planningData,
+            }
+          );
+
+          if (ssotPreResult.status === 'success' && ssotPreResult.data) {
+            executionContext.ssotResult = ssotPreResult.data;
+            this.log(`  Pre-loaded ${ssotPreResult.data.suggestedKernels.length} kernels`);
+          } else {
+            this.log(`  ⚠️  SSOT pre-execution failed, will use traditional task definitions`);
+          }
+        } catch (error) {
+          this.log(`  ⚠️  SSOT pre-execution error: ${(error as Error).message}`);
+          // Continue with traditional task definitions
+        }
+      }
+
       // 2. Analyze Issue & Decompose into Tasks
       const dag = await this.decomposeToDAG(githubIssue, executionContext);
       this.log(`Task decomposition complete: ${dag.nodes.size} tasks`);
@@ -429,19 +454,21 @@ export class CoordinatorAgent {
 
     // Base task definitions
     const baseTasks = [
-      {
+      // SSot task: Only include in dry-run mode
+      // (In normal execution, SSOT is handled in Phase 0.5)
+      ...(this.config.dryRun ? [{
         name: 'SSOT & Kernel Management',
         description: 'Extract decisions and manage NRVV traceability',
         agent: 'ssot' as const,
         duration: 10 * durationMultiplier,
         dependencies: [],
-      },
+      }] : []),
       {
         name: 'Code Generation',
         description: 'Generate code based on requirements',
         agent: 'codegen' as const,
         duration: 30 * durationMultiplier,
-        dependencies: ['TASK-001'],
+        dependencies: this.config.dryRun ? ['TASK-001'] : [],
       },
       {
         name: 'Code Review',
@@ -812,7 +839,13 @@ export class CoordinatorAgent {
     try {
       switch (task.agent) {
         case 'ssot': {
-          // Pass DEST Judgment and PlanningData to SSOT
+          // Check if already executed in Phase 0.5
+          if (executionContext.ssotResult) {
+            this.log('SSOT already executed in Phase 0.5, reusing result');
+            return executionContext.ssotResult;
+          }
+
+          // Otherwise, execute normally (e.g., in dry-run mode)
           const result = await this.ssotAgent.execute(
             issue.number,
             {

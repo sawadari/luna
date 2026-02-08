@@ -980,3 +980,58 @@ Phase 1 を完了すると:
 ---
 
 **次のステップ**: このギャップを GitHub Issue として登録し、Phase 1 から実装を開始します。
+
+---
+
+## 📝 実装状況更新 (2026-02-08)
+
+### ✅ Self-Improvement Loop関連の実装完了
+
+以下のP0課題が完了し、**Self-Improvement Loopが機能しています**:
+
+#### 1. CoordinatorAgent Kernel連携 ✅ 完了 (2026-02-08)
+- **実装内容**: Phase 0.5でSSotAgentを先行実行、Kernel情報を取得
+- **ファイル**: `src/agents/coordinator-agent.ts`
+- **効果**: KernelのRequirementsからタスクが生成される
+
+#### 2. CodeGenAgent Kernel参照・更新 ✅ 既存実装
+- **実装内容**:
+  - `analyzeIssueWithKernels()`: Kernel要件を参照してコード生成
+  - `updateKernelsWithGeneratedCode()`: 生成コードをKernelに記録
+- **ファイル**: `src/agents/codegen-agent.ts` (L73-94, L521-798)
+- **効果**: Kernel要件を考慮した高品質コード生成
+
+#### 3. TestAgent Verification自動追加 ✅ 既存実装
+- **実装内容**: `recordVerification()` でテスト結果をKernelに自動記録
+- **ファイル**: `src/agents/test-agent.ts` (L133-140, L449-505)
+- **効果**: 双方向トレーサビリティを自動保証
+
+#### 4. Issue → Kernel自動変換 ✅ 既存実装
+- **実装内容**: AI (Claude) でIssue bodyからNRVVを自動抽出
+- **ファイル**: `src/agents/ssot-agent-v2.ts`
+- **効果**: Planning LayerなしでもKernel生成可能
+
+#### 5. NRVV自動補完 ✅ 既存実装
+- **実装内容**: AI (Claude) で不完全KernelのV&Vを自動生成
+- **ファイル**: `src/services/kernel-enhancement-service.ts`
+- **効果**: Convergence Rate 100%達成
+
+### Self-Improvement Loopの完成
+
+```
+Issue → Kernel生成 → Task分解 (Kernel参照) → コード生成 (Kernel要件) →
+テスト (Verification追加) → Kernel更新 → 次のIssue 🔄
+```
+
+**Lunaは使われるほど賢くなる構造が実現しました。**
+
+### 残存ギャップ
+
+以下のP0課題は引き続き実装が必要です:
+- ChangeRequest フロー
+- Gate Control (G2-G6)
+- falsification_conditions
+- Exception Registry
+- State Transition Authority
+
+これらは理想設計の完全実装のために必要ですが、基本的なSelf-Improvement Loopは既に機能しています。

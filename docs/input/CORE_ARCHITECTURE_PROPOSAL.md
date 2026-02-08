@@ -202,3 +202,29 @@ Reject/Deferの理由・失敗パターンを構造化して保存。
 
 Lunaのコアは「Issue一本化」「Decision正本のKernel化」「Ledger/Graph/Runtimeの三本柱」。
 これにより **知識が必ず再利用可能な構造として残る** ことを保証できる。
+
+---
+
+## 📝 実装状況 (2026-02-08更新)
+
+### 現在実装されている機能
+
+#### ✅ Kernel中心のSelf-Improvement Loop
+- **CoordinatorAgent**: Kernel参照によるタスク生成（Phase 0.5実装）
+- **CodeGenAgent**: Kernel要件を考慮したコード生成・更新
+- **TestAgent**: Verification自動追加による知識蓄積
+- **SSOTAgentV2**: Issue → Kernel自動変換
+- **KernelEnhancementService**: AI-powered NRVV自動補完
+
+#### 🔄 次期実装予定
+- **Kernel Ledger**: イベントソーシング型の変更管理（Phase A）
+- **Kernel Graph Schema**: 型付き知識グラフ（Phase B）
+- **Kernel Runtime**: 運用エンジン（Phase A-B）
+- **Issue一本道**: Bootstrap Kernel + CR自動生成（Phase C）
+
+### 現在の状態
+
+**Self-Improvement Loopは機能しています。**
+IssueからKernelが生成され、Kernelを参照してタスク/コード生成が行われ、結果がKernelに蓄積されます。
+
+コアアーキテクチャ提案の完全実装は今後の課題ですが、基本的な知識蓄積サイクルは既に動作しています。

@@ -255,6 +255,23 @@ export class KernelLedger {
 
       // 操作種別に応じて状態を更新
       switch (operation.op) {
+        case 'u.create_kernel':
+          // Issue #43: Replay u.create_kernel from payload
+          kernel.statement = payload.statement || '';
+          kernel.category = payload.category || 'requirement';
+          kernel.owner = payload.owner || operation.actor;
+          kernel.maturity = payload.maturity || 'draft';
+          kernel.sourceIssue = payload.sourceIssue || operation.issue;
+          kernel.needs = payload.needs || [];
+          kernel.requirements = payload.requirements || [];
+          kernel.verification = payload.verification || [];
+          kernel.validation = payload.validation || [];
+          kernel.tags = payload.tags || [];
+          kernel.relatedArtifacts = payload.relatedArtifacts || [];
+          kernel.createdAt = result.timestamp;
+          kernel.lastUpdatedAt = result.timestamp;
+          break;
+
         case 'u.record_decision':
           kernel.decision = {
             decision_id: payload.decision_id,
@@ -279,11 +296,35 @@ export class KernelLedger {
             collected_at: result.timestamp,
             verification_status: payload.verification_status,
           });
+
+          // Issue #43: If evidence_type is 'artifact', also add to relatedArtifacts
+          if (payload.evidence_type === 'artifact') {
+            if (!kernel.relatedArtifacts) {
+              kernel.relatedArtifacts = [];
+            }
+            kernel.relatedArtifacts.push({
+              type: 'code',
+              path: payload.evidence_source,
+              description: `Generated artifact: ${payload.evidence_id}`,
+            });
+          }
+
+          kernel.lastUpdatedAt = result.timestamp;
           break;
 
         case 'u.set_state':
           kernel.maturity = payload.to;
           kernel.lastUpdatedAt = result.timestamp;
+
+          // Issue #43: Set additional metadata based on target maturity
+          if (payload.to === 'agreed') {
+            kernel.approvedAt = result.timestamp;
+            kernel.approvedBy = operation.actor;
+          }
+
+          if (payload.to === 'frozen') {
+            kernel.frozenAt = result.timestamp;
+          }
           break;
 
         case 'u.raise_exception':

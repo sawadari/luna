@@ -185,7 +185,7 @@ export class SSOTAgentV2 {
         const createOp: CreateKernelOperation = {
           op: 'u.create_kernel',
           actor: 'SSOTAgentV2',
-          issue: issueNumber.toString(),
+          issue: `#${issueNumber}`,
           payload: {
             kernel_id: kernelFromIssue.id,
             statement: kernelFromIssue.statement,
@@ -201,12 +201,15 @@ export class SSOTAgentV2 {
             relatedArtifacts: kernelFromIssue.relatedArtifacts,
           },
         };
-        await this.kernelRuntime.apply(createOp);
+        const createResult = await this.kernelRuntime.apply(createOp);
 
-        result.suggestedKernels.push(kernelFromIssue.id);
-
-        const method = this.anthropic ? 'AI-extracted' : 'template-based';
-        this.log(`  Kernel ${kernelFromIssue.id} created from Issue (${method})`);
+        if (createResult.success) {
+          result.suggestedKernels.push(kernelFromIssue.id);
+          const method = this.anthropic ? 'AI-extracted' : 'template-based';
+          this.log(`  Kernel ${kernelFromIssue.id} created from Issue (${method})`);
+        } else {
+          this.log(`  ⚠️  Failed to create Kernel ${kernelFromIssue.id}: ${createResult.error}`);
+        }
       }
 
       if (result.suggestedKernels.length > 0) {
@@ -254,7 +257,7 @@ export class SSOTAgentV2 {
         const setStateOp: SetStateOperation = {
           op: 'u.set_state',
           actor: transition.approvedBy || (transition as any).freezedBy || 'SSOTAgentV2',
-          issue: issueNumber.toString(),
+          issue: `#${issueNumber}`,
           payload: {
             kernel_id: kernel.id,
             from: transition.from,
@@ -262,16 +265,20 @@ export class SSOTAgentV2 {
             reason: `Maturity transition via Issue #${issueNumber}`,
           },
         };
-        await this.kernelRuntime.apply(setStateOp);
+        const setStateResult = await this.kernelRuntime.apply(setStateOp);
 
-        result.comments.push(
-          this.buildMaturityTransitionComment(
-            kernel,
-            transition.from,
-            transition.to
-          )
-        );
-        result.labels.push(`Maturity:${this.capitalizeFirst(transition.to)}`);
+        if (setStateResult.success) {
+          result.comments.push(
+            this.buildMaturityTransitionComment(
+              kernel,
+              transition.from,
+              transition.to
+            )
+          );
+          result.labels.push(`Maturity:${this.capitalizeFirst(transition.to)}`);
+        } else {
+          this.log(`  ⚠️  Failed to transition Kernel ${kernel.id}: ${setStateResult.error}`);
+        }
       }
     }
 
@@ -473,7 +480,7 @@ export class SSOTAgentV2 {
             const createOp: CreateKernelOperation = {
               op: 'u.create_kernel',
               actor: decision.decided_by || decision.owner || 'SSOTAgentV2',
-              issue: issue.number.toString(),
+              issue: `#${issue.number}`,
               payload: {
                 kernel_id: kernel.id,
                 statement: kernel.statement,
@@ -489,10 +496,14 @@ export class SSOTAgentV2 {
                 relatedArtifacts: kernel.relatedArtifacts,
               },
             };
-            await this.kernelRuntime.apply(createOp);
-            kernelIds.push(kernel.id);
+            const createResult = await this.kernelRuntime.apply(createOp);
 
-            this.log(`Kernel ${kernel.id} suggested and saved to registry`);
+            if (createResult.success) {
+              kernelIds.push(kernel.id);
+              this.log(`Kernel ${kernel.id} suggested and saved to registry`);
+            } else {
+              this.log(`  ⚠️  Failed to create Kernel ${kernel.id}: ${createResult.error}`);
+            }
           }
         }
       }
@@ -859,7 +870,7 @@ ${violationList}
     const createOp: CreateKernelOperation = {
       op: 'u.create_kernel',
       actor: decision.decided_by || 'SSOTAgentV2',
-      issue: issue.number.toString(),
+      issue: `#${issue.number}`,
       payload: {
         kernel_id: kernel.id,
         statement: kernel.statement,
@@ -875,7 +886,12 @@ ${violationList}
         relatedArtifacts: kernel.relatedArtifacts,
       },
     };
-    await this.kernelRuntime.apply(createOp);
+    const createResult = await this.kernelRuntime.apply(createOp);
+
+    if (!createResult.success) {
+      throw new Error(`Failed to create Kernel ${kernelId}: ${createResult.error}`);
+    }
+
     this.log(`  Kernel ${kernelId} created from DecisionRecord ${decision.id}`);
 
     return kernel;

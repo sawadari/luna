@@ -98,6 +98,18 @@ export class KernelRegistryService {
    * This method should only be called internally by KernelRuntime.
    */
   async saveKernel(kernel: KernelWithNRVV): Promise<void> {
+    // Issue #43: Runtime warning for direct saveKernel() calls
+    const stack = new Error().stack || '';
+    const isCalledFromRuntime = stack.includes('kernel-runtime.ts') || stack.includes('kernel-runtime.js');
+
+    if (!isCalledFromRuntime) {
+      console.warn(
+        `⚠️  [KernelRegistry] DEPRECATED: Direct saveKernel() call detected for Kernel ${kernel.id}.\n` +
+        `   This bypasses the Ledger (Issue #43). Use KernelRuntime.apply() instead.\n` +
+        `   Call stack: ${stack.split('\n').slice(1, 4).join('\n')}`
+      );
+    }
+
     if (!this.registry) {
       await this.load();
     }

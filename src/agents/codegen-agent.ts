@@ -794,11 +794,12 @@ Generate all necessary files to implement this feature while satisfying the Kern
 
     for (const kernel of kernels) {
       // Issue #43: Use KernelRuntime.apply() to link generated code as evidence
+      let linkedCount = 0;
       for (const file of generatedCode) {
         const linkEvidenceOp: LinkEvidenceOperation = {
           op: 'u.link_evidence',
           actor: 'CodeGenAgent',
-          issue: issue.number.toString(),
+          issue: `#${issue.number}`,
           payload: {
             kernel_id: kernel.id,
             evidence_type: 'artifact',
@@ -807,10 +808,16 @@ Generate all necessary files to implement this feature while satisfying the Kern
             verification_status: 'pending',
           },
         };
-        await this.kernelRuntime.apply(linkEvidenceOp);
+        const linkResult = await this.kernelRuntime.apply(linkEvidenceOp);
+
+        if (linkResult.success) {
+          linkedCount++;
+        } else {
+          this.log(`  ⚠️  Failed to link ${file.filename} to Kernel ${kernel.id}: ${linkResult.error}`);
+        }
       }
 
-      this.log(`Linked ${generatedCode.length} generated files to Kernel ${kernel.id}`);
+      this.log(`Linked ${linkedCount}/${generatedCode.length} generated files to Kernel ${kernel.id}`);
     }
   }
 }

@@ -199,6 +199,16 @@ core_architecture:
     enabled: true
     rationale: "AL0（Not Assured）はstate transitionをブロック（安全性制約）"
 
+  # Issue #49: Evidence Governance昇格ルール
+  evidence_governance:
+    enforce_ai_verification: true
+    rationale: "AI生成物の未検証昇格を防止（品質保証）"
+    allowed_unverified_sources:
+      - "human"     # 人間生成物は検証なしでも昇格可能
+    blocked_unverified_sources:
+      - "ai"        # AI生成物は検証必須
+      - "hybrid"    # ハイブリッド生成物も検証必須
+
 # ============================================================================
 # Rule Change History
 # ============================================================================

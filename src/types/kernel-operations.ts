@@ -144,7 +144,8 @@ export interface LinkEvidenceOperation extends BaseOperation {
     evidence_type: 'test_result' | 'observation' | 'document' | 'artifact';
     evidence_id: string;
     evidence_source: string;
-    verification_status?: 'passed' | 'failed' | 'pending';
+    verification_status?: 'passed' | 'failed' | 'pending' | 'verified'; // Issue #49: added 'verified'
+    source_origin?: 'human' | 'ai' | 'hybrid'; // Issue #49: Evidence Governance - who/what created the evidence
   };
 }
 

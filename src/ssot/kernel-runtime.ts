@@ -335,6 +335,48 @@ export class KernelRuntime {
       };
     }
 
+    // Issue #49: Evidence Governance - AI生成物の未検証昇格を防止
+    const rulesConfig = getRulesConfig();
+    const enforceAIVerification = rulesConfig.isLoaded()
+      ? rulesConfig.get<boolean>('core_architecture.evidence_governance.enforce_ai_verification') ?? true
+      : true; // Default: enforce
+
+    if (enforceAIVerification) {
+      const blockedSources = rulesConfig.isLoaded()
+        ? rulesConfig.get<string[]>('core_architecture.evidence_governance.blocked_unverified_sources') ?? ['ai', 'hybrid']
+        : ['ai', 'hybrid'];
+
+      const evidences = (kernel as any).evidence || [];
+      const unverifiedAIContent = evidences.filter((ev: any) => {
+        const isBlockedSource = blockedSources.includes(ev.source_origin || 'human');
+        const isUnverified = ev.verification_status !== 'verified';
+        return isBlockedSource && isUnverified;
+      });
+
+      checks.evidence_governance = {
+        passed: unverifiedAIContent.length === 0,
+        message: unverifiedAIContent.length === 0
+          ? `All AI-generated content is verified (${evidences.length} evidence(s) checked)`
+          : `Found ${unverifiedAIContent.length} unverified AI-generated evidence(s) - state transition blocked for quality assurance. ` +
+            `Evidence IDs: ${unverifiedAIContent.map((ev: any) => ev.id).join(', ')}`,
+      };
+
+      // AI生成物が未検証の場合は即座に拒否
+      if (unverifiedAIContent.length > 0) {
+        return {
+          allowed: false,
+          checks,
+          message: `Evidence Governance: Unverified AI-generated content blocks state transition (Issue #49)`,
+        };
+      }
+    } else {
+      // Evidence Governance無効: 未検証でも遷移を許可（開発・テスト用）
+      checks.evidence_governance = {
+        passed: true,
+        message: `Evidence Governance disabled - unverified AI content allowed (development mode)`,
+      };
+    }
+
     if (gate_checks) {
       checks.nrvv_complete = {
         passed: gate_checks.nrvv_complete,
@@ -517,6 +559,7 @@ export class KernelRuntime {
       type: evidence_type,
       source: evidence_source,
       source_type: 'external', // Phase A1では固定値
+      source_origin: operation.payload.source_origin || 'human', // Issue #49: Default to 'human'
       collected_at: new Date().toISOString(),
       verification_status: operation.payload.verification_status || 'pending',
     } as any);
@@ -790,6 +833,7 @@ export class KernelRuntime {
         kernel_id,
         from,
         to,
+        gate_checks: gateResult.checks, // Issue #49: Include gate checks in success result
       },
     };
   }

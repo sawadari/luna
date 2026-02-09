@@ -90,296 +90,310 @@ export class SSOTAgentV2 {
   ): Promise<AgentResult<SSOTResult>> {
     const startTime = Date.now(); // Issue #42: Record start time for accurate duration
     this.log(`✅ SSOT Agent V2 starting for issue #${issueNumber}`);
-    if (context?.destJudgment) {
-      this.log(`  DEST Judgment: AL=${context.destJudgment.al}`);
-    }
-    if (context?.planningData) {
-      this.log(`  Planning Data available: ${context.planningData.opportunity ? 'with opportunity' : 'no opportunity'}`);
-    }
 
-    // For backward compatibility
-    const planningData = context?.planningData;
-
-    const [owner, repo] = this.config.repository.split('/');
-
-    // 1. Issue取得
-    const { data: issue } = await this.octokit.issues.get({
-      owner,
-      repo,
-      issue_number: issueNumber,
-    });
-
-    const githubIssue: GitHubIssue = {
-      number: issue.number,
-      title: issue.title,
-      body: issue.body || '',
-      labels: issue.labels.map((l) =>
-        typeof l === 'string' ? { name: l, color: '' } : { name: l.name!, color: l.color! }
-      ),
-      state: issue.state as 'open' | 'closed',
-      created_at: issue.created_at,
-      updated_at: issue.updated_at,
-    };
-
-    const result: SSOTResult = {
-      issueNumber,
-      suggestedKernels: [],
-      violations: [],
-      detectedViolations: [],
-      maturityTransitions: [],
-      isConverged: false,
-      convergenceStatus: {},
-      nrvvValidation: [],
-      comments: [],
-      labels: [],
-    };
-
-    // 2. Load Kernel Registry
-    await this.kernelRegistry.load();
-    this.log('Kernel Registry loaded');
-
-    // 3. Check for Kernel references in Issue
-    const kernelRefs = this.extractKernelReferences(githubIssue.body || '');
-    this.log(`Found ${kernelRefs.length} kernel references in Issue`);
-
-    // 4. Kernel提案（参照がない場合）
-    if (kernelRefs.length === 0) {
-      this.log('No kernel references found, suggesting...');
-
-      // Planning LayerからKernel提案
-      // First try to use planningData passed as argument
-      let planningDataToUse = planningData;
-
-      // If not provided, try to parse from Issue body
-      if (!planningDataToUse) {
-        planningDataToUse = this.parsePlanningData(githubIssue.body || '');
+    try {
+      if (context?.destJudgment) {
+        this.log(`  DEST Judgment: AL=${context.destJudgment.al}`);
+      }
+      if (context?.planningData) {
+        this.log(`  Planning Data available: ${context.planningData.opportunity ? 'with opportunity' : 'no opportunity'}`);
       }
 
-      if (planningDataToUse) {
-        const kernelsFromPlanning = await this.suggestKernelsFromDecisions(
-          planningDataToUse,
-          githubIssue
-        );
-        result.suggestedKernels.push(...kernelsFromPlanning);
+      // For backward compatibility
+      const planningData = context?.planningData;
 
-        // If DecisionRecord exists, automatically convert it to Kernel
-        if (planningDataToUse.decisionRecord) {
-          this.log('  DecisionRecord found - converting to Kernel');
-          const kernelFromDecision = await this.convertDecisionToKernel(
-            planningDataToUse.decisionRecord,
-            planningDataToUse.opportunity,
-            githubIssue,
-            context?.destJudgment
-          );
-          result.suggestedKernels.push(kernelFromDecision.id);
-        }
-      }
+      const [owner, repo] = this.config.repository.split('/');
 
-      // ✨ NEW (Issue #32): Planning Dataがない場合のフォールバック
-      // Phase 2: AI-powered extraction with template fallback
-      if (!planningDataToUse || result.suggestedKernels.length === 0) {
-        this.log('  No Planning Data found - extracting NRVV from Issue directly');
-
-        const kernelFromIssue = await this.extractNRVVFromIssueAI(githubIssue);
-
-        // Issue #43: Use KernelRuntime.apply() instead of direct saveKernel()
-        const createOp: CreateKernelOperation = {
-          op: 'u.create_kernel',
-          actor: 'SSOTAgentV2',
-          issue: `#${issueNumber}`,
-          payload: {
-            kernel_id: kernelFromIssue.id,
-            statement: kernelFromIssue.statement,
-            category: kernelFromIssue.category,
-            owner: kernelFromIssue.owner,
-            maturity: kernelFromIssue.maturity,
-            sourceIssue: kernelFromIssue.sourceIssue,
-            needs: kernelFromIssue.needs as any,
-            requirements: kernelFromIssue.requirements as any,
-            verification: kernelFromIssue.verification as any,
-            validation: kernelFromIssue.validation as any,
-            tags: kernelFromIssue.tags,
-            relatedArtifacts: kernelFromIssue.relatedArtifacts,
-          },
-        };
-        const createResult = await this.kernelRuntime.apply(createOp);
-
-        if (createResult.success) {
-          result.suggestedKernels.push(kernelFromIssue.id);
-          const method = this.anthropic ? 'AI-extracted' : 'template-based';
-          this.log(`  Kernel ${kernelFromIssue.id} created from Issue (${method})`);
-        } else {
-          this.log(`  ⚠️  Failed to create Kernel ${kernelFromIssue.id}: ${createResult.error}`);
-        }
-      }
-
-      if (result.suggestedKernels.length > 0) {
-        result.comments.push(
-          this.buildKernelSuggestionComment(result.suggestedKernels)
-        );
-        result.labels.push('Maturity:Draft');
-
-        // Issue bodyにKernel参照を埋め込む
-        const updatedBody = this.embedKernelReferences(
-          githubIssue.body || '',
-          result.suggestedKernels
-        );
-
-        if (!this.config.dryRun) {
-          await this.octokit.issues.update({
-            owner,
-            repo,
-            issue_number: issueNumber,
-            body: updatedBody,
-          });
-          this.log('Issue body updated with Kernel references');
-        }
-      }
-    }
-
-    // 5. Load referenced Kernels from Registry
-    const referencedKernels: KernelWithNRVV[] = [];
-    for (const kernelId of kernelRefs) {
-      const kernel = await this.kernelRegistry.getKernel(kernelId);
-      if (kernel) {
-        referencedKernels.push(kernel);
-      } else {
-        this.log(`Warning: Kernel ${kernelId} not found in registry`);
-      }
-    }
-
-    // 6. Maturity遷移チェック
-    for (const kernel of referencedKernels) {
-      const transition = this.checkMaturityTransition(kernel, githubIssue);
-      if (transition) {
-        result.maturityTransitions.push(transition);
-
-        // Issue #43: Use KernelRuntime.apply() for state transitions
-        const setStateOp: SetStateOperation = {
-          op: 'u.set_state',
-          actor: transition.approvedBy || (transition as any).freezedBy || 'SSOTAgentV2',
-          issue: `#${issueNumber}`,
-          payload: {
-            kernel_id: kernel.id,
-            from: transition.from,
-            to: transition.to,
-            reason: `Maturity transition via Issue #${issueNumber}`,
-          },
-        };
-        const setStateResult = await this.kernelRuntime.apply(setStateOp);
-
-        if (setStateResult.success) {
-          result.comments.push(
-            this.buildMaturityTransitionComment(
-              kernel,
-              transition.from,
-              transition.to
-            )
-          );
-          result.labels.push(`Maturity:${this.capitalizeFirst(transition.to)}`);
-        } else {
-          this.log(`  ⚠️  Failed to transition Kernel ${kernel.id}: ${setStateResult.error}`);
-        }
-      }
-    }
-
-    // 7. NRVV検証（Agreed/Frozenのみ）
-    const agreedOrFrozenKernels = referencedKernels.filter(
-      (k) => k.maturity === 'agreed' || k.maturity === 'frozen'
-    );
-
-    for (const kernel of agreedOrFrozenKernels) {
-      const validation = await this.kernelRegistry.validateNRVV(kernel.id);
-
-      result.nrvvValidation?.push({
-        kernelId: kernel.id,
-        isValid: validation.isValid,
-        traceabilityComplete: validation.traceabilityComplete,
-        errors: validation.errors,
-        warnings: validation.warnings,
-      });
-
-      if (!validation.isValid || !validation.traceabilityComplete) {
-        result.comments.push(
-          this.buildNRVVValidationComment(kernel, validation)
-        );
-
-        if (!validation.isValid) {
-          result.labels.push('NRVV:Invalid');
-        } else if (!validation.traceabilityComplete) {
-          result.labels.push('NRVV:Incomplete');
-        }
-      }
-    }
-
-    // 8. Kernel違反検出
-    for (const kernel of agreedOrFrozenKernels) {
-      const violations = this.detectViolations(kernel, githubIssue.body || '');
-      result.detectedViolations.push(...violations);
-      result.violations.push(...violations);
-    }
-
-    if (result.detectedViolations.length > 0) {
-      result.comments.push(this.buildViolationComment(result.detectedViolations));
-    }
-
-    // 9. 収束チェック
-    let allConverged = true;
-    for (const kernel of agreedOrFrozenKernels) {
-      const validation = await this.kernelRegistry.validateNRVV(kernel.id);
-      const isConverged =
-        validation.isValid &&
-        validation.traceabilityComplete &&
-        validation.missingLinks.length === 0;
-
-      result.convergenceStatus[kernel.id] = isConverged;
-
-      if (!isConverged) {
-        allConverged = false;
-      }
-
-      if (isConverged) {
-        result.comments.push(this.buildConvergenceComment(kernel));
-        result.labels.push('Convergent');
-      }
-    }
-
-    result.isConverged =
-      agreedOrFrozenKernels.length === 0 ||
-      (allConverged && result.violations.length === 0);
-
-    // 10. コメント投稿
-    for (const comment of result.comments) {
-      if (!this.config.dryRun) {
-        await this.octokit.issues.createComment({
-          owner,
-          repo,
-          issue_number: issueNumber,
-          body: comment,
-        });
-      }
-      this.log(`Comment posted`);
-    }
-
-    // 11. Label適用
-    if (result.labels.length > 0 && !this.config.dryRun) {
-      await this.octokit.issues.addLabels({
+      // 1. Issue取得
+      const { data: issue } = await this.octokit.issues.get({
         owner,
         repo,
         issue_number: issueNumber,
-        labels: result.labels,
       });
-      this.log(`Labels applied: ${result.labels.join(', ')}`);
-    }
 
-    return {
-      status: 'success',
-      data: result,
-      metrics: {
-        durationMs: Date.now() - startTime, // Issue #42: Fixed duration calculation
-        timestamp: new Date().toISOString(),
-      },
-    };
+      const githubIssue: GitHubIssue = {
+        number: issue.number,
+        title: issue.title,
+        body: issue.body || '',
+        labels: issue.labels.map((l) =>
+          typeof l === 'string' ? { name: l, color: '' } : { name: l.name!, color: l.color! }
+        ),
+        state: issue.state as 'open' | 'closed',
+        created_at: issue.created_at,
+        updated_at: issue.updated_at,
+      };
+
+      const result: SSOTResult = {
+        issueNumber,
+        suggestedKernels: [],
+        violations: [],
+        detectedViolations: [],
+        maturityTransitions: [],
+        isConverged: false,
+        convergenceStatus: {},
+        nrvvValidation: [],
+        comments: [],
+        labels: [],
+      };
+
+      // 2. Load Kernel Registry
+      await this.kernelRegistry.load();
+      this.log('Kernel Registry loaded');
+
+      // 3. Check for Kernel references in Issue
+      const kernelRefs = this.extractKernelReferences(githubIssue.body || '');
+      this.log(`Found ${kernelRefs.length} kernel references in Issue`);
+
+      // 4. Kernel提案（参照がない場合）
+      if (kernelRefs.length === 0) {
+        this.log('No kernel references found, suggesting...');
+
+        // Planning LayerからKernel提案
+        // First try to use planningData passed as argument
+        let planningDataToUse = planningData;
+
+        // If not provided, try to parse from Issue body
+        if (!planningDataToUse) {
+          planningDataToUse = this.parsePlanningData(githubIssue.body || '');
+        }
+
+        if (planningDataToUse) {
+          const kernelsFromPlanning = await this.suggestKernelsFromDecisions(
+            planningDataToUse,
+            githubIssue
+          );
+          result.suggestedKernels.push(...kernelsFromPlanning);
+
+          // If DecisionRecord exists, automatically convert it to Kernel
+          if (planningDataToUse.decisionRecord) {
+            this.log('  DecisionRecord found - converting to Kernel');
+            const kernelFromDecision = await this.convertDecisionToKernel(
+              planningDataToUse.decisionRecord,
+              planningDataToUse.opportunity,
+              githubIssue,
+              context?.destJudgment
+            );
+            result.suggestedKernels.push(kernelFromDecision.id);
+          }
+        }
+
+        // ✨ NEW (Issue #32): Planning Dataがない場合のフォールバック
+        // Phase 2: AI-powered extraction with template fallback
+        if (!planningDataToUse || result.suggestedKernels.length === 0) {
+          this.log('  No Planning Data found - extracting NRVV from Issue directly');
+
+          const kernelFromIssue = await this.extractNRVVFromIssueAI(githubIssue);
+
+          // Issue #43: Use KernelRuntime.apply() instead of direct saveKernel()
+          const createOp: CreateKernelOperation = {
+            op: 'u.create_kernel',
+            actor: 'SSOTAgentV2',
+            issue: `#${issueNumber}`,
+            payload: {
+              kernel_id: kernelFromIssue.id,
+              statement: kernelFromIssue.statement,
+              category: kernelFromIssue.category,
+              owner: kernelFromIssue.owner,
+              maturity: kernelFromIssue.maturity,
+              sourceIssue: kernelFromIssue.sourceIssue,
+              needs: kernelFromIssue.needs as any,
+              requirements: kernelFromIssue.requirements as any,
+              verification: kernelFromIssue.verification as any,
+              validation: kernelFromIssue.validation as any,
+              tags: kernelFromIssue.tags,
+              relatedArtifacts: kernelFromIssue.relatedArtifacts,
+            },
+          };
+          const createResult = await this.kernelRuntime.apply(createOp);
+
+          if (createResult.success) {
+            result.suggestedKernels.push(kernelFromIssue.id);
+            const method = this.anthropic ? 'AI-extracted' : 'template-based';
+            this.log(`  Kernel ${kernelFromIssue.id} created from Issue (${method})`);
+          } else {
+            this.log(`  ⚠️  Failed to create Kernel ${kernelFromIssue.id}: ${createResult.error}`);
+          }
+        }
+
+        if (result.suggestedKernels.length > 0) {
+          result.comments.push(
+            this.buildKernelSuggestionComment(result.suggestedKernels)
+          );
+          result.labels.push('Maturity:Draft');
+
+          // Issue bodyにKernel参照を埋め込む
+          const updatedBody = this.embedKernelReferences(
+            githubIssue.body || '',
+            result.suggestedKernels
+          );
+
+          if (!this.config.dryRun) {
+            await this.octokit.issues.update({
+              owner,
+              repo,
+              issue_number: issueNumber,
+              body: updatedBody,
+            });
+            this.log('Issue body updated with Kernel references');
+          }
+        }
+      }
+
+      // 5. Load referenced Kernels from Registry
+      const referencedKernels: KernelWithNRVV[] = [];
+      for (const kernelId of kernelRefs) {
+        const kernel = await this.kernelRegistry.getKernel(kernelId);
+        if (kernel) {
+          referencedKernels.push(kernel);
+        } else {
+          this.log(`Warning: Kernel ${kernelId} not found in registry`);
+        }
+      }
+
+      // 6. Maturity遷移チェック
+      for (const kernel of referencedKernels) {
+        const transition = this.checkMaturityTransition(kernel, githubIssue);
+        if (transition) {
+          result.maturityTransitions.push(transition);
+
+          // Issue #43: Use KernelRuntime.apply() for state transitions
+          const setStateOp: SetStateOperation = {
+            op: 'u.set_state',
+            actor: transition.approvedBy || (transition as any).freezedBy || 'SSOTAgentV2',
+            issue: `#${issueNumber}`,
+            payload: {
+              kernel_id: kernel.id,
+              from: transition.from,
+              to: transition.to,
+              reason: `Maturity transition via Issue #${issueNumber}`,
+            },
+          };
+          const setStateResult = await this.kernelRuntime.apply(setStateOp);
+
+          if (setStateResult.success) {
+            result.comments.push(
+              this.buildMaturityTransitionComment(
+                kernel,
+                transition.from,
+                transition.to
+              )
+            );
+            result.labels.push(`Maturity:${this.capitalizeFirst(transition.to)}`);
+          } else {
+            this.log(`  ⚠️  Failed to transition Kernel ${kernel.id}: ${setStateResult.error}`);
+          }
+        }
+      }
+
+      // 7. NRVV検証（Agreed/Frozenのみ）
+      const agreedOrFrozenKernels = referencedKernels.filter(
+        (k) => k.maturity === 'agreed' || k.maturity === 'frozen'
+      );
+
+      for (const kernel of agreedOrFrozenKernels) {
+        const validation = await this.kernelRegistry.validateNRVV(kernel.id);
+
+        result.nrvvValidation?.push({
+          kernelId: kernel.id,
+          isValid: validation.isValid,
+          traceabilityComplete: validation.traceabilityComplete,
+          errors: validation.errors,
+          warnings: validation.warnings,
+        });
+
+        if (!validation.isValid || !validation.traceabilityComplete) {
+          result.comments.push(
+            this.buildNRVVValidationComment(kernel, validation)
+          );
+
+          if (!validation.isValid) {
+            result.labels.push('NRVV:Invalid');
+          } else if (!validation.traceabilityComplete) {
+            result.labels.push('NRVV:Incomplete');
+          }
+        }
+      }
+
+      // 8. Kernel違反検出
+      for (const kernel of agreedOrFrozenKernels) {
+        const violations = this.detectViolations(kernel, githubIssue.body || '');
+        result.detectedViolations.push(...violations);
+        result.violations.push(...violations);
+      }
+
+      if (result.detectedViolations.length > 0) {
+        result.comments.push(this.buildViolationComment(result.detectedViolations));
+      }
+
+      // 9. 収束チェック
+      let allConverged = true;
+      for (const kernel of agreedOrFrozenKernels) {
+        const validation = await this.kernelRegistry.validateNRVV(kernel.id);
+        const isConverged =
+          validation.isValid &&
+          validation.traceabilityComplete &&
+          validation.missingLinks.length === 0;
+
+        result.convergenceStatus[kernel.id] = isConverged;
+
+        if (!isConverged) {
+          allConverged = false;
+        }
+
+        if (isConverged) {
+          result.comments.push(this.buildConvergenceComment(kernel));
+          result.labels.push('Convergent');
+        }
+      }
+
+      result.isConverged =
+        agreedOrFrozenKernels.length === 0 ||
+        (allConverged && result.violations.length === 0);
+
+      // 10. コメント投稿
+      for (const comment of result.comments) {
+        if (!this.config.dryRun) {
+          await this.octokit.issues.createComment({
+            owner,
+            repo,
+            issue_number: issueNumber,
+            body: comment,
+          });
+        }
+        this.log(`Comment posted`);
+      }
+
+        // 11. Label適用
+        if (result.labels.length > 0 && !this.config.dryRun) {
+          await this.octokit.issues.addLabels({
+            owner,
+            repo,
+            issue_number: issueNumber,
+            labels: result.labels,
+          });
+          this.log(`Labels applied: ${result.labels.join(', ')}`);
+        }
+
+      return {
+        status: 'success',
+        data: result,
+        metrics: {
+          durationMs: Date.now() - startTime, // Issue #42: Fixed duration calculation
+          timestamp: new Date().toISOString(),
+        },
+      };
+    } catch (error) {
+      // Issue #42: Ensure durationMs is recorded even on error
+      this.log(`❌ SSOT Agent V2 failed: ${(error as Error).message}`);
+      return {
+        status: 'error',
+        error: error as Error,
+        metrics: {
+          durationMs: Date.now() - startTime,
+          timestamp: new Date().toISOString(),
+        },
+      };
+    }
   }
 
   // ========================================================================

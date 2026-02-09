@@ -491,19 +491,25 @@ describe('SSOTAgentV2 - NRVV Extraction', () => {
     });
 
     it('should record durationMs even on error', async () => {
-      // Arrange: Mock GitHub API to throw error
-      (agent as any).octokit.issues.get = vi.fn().mockRejectedValue(new Error('API Error'));
+      // Arrange: Mock GitHub API to throw error with delay
+      (agent as any).octokit.issues.get = vi.fn().mockImplementation(async () => {
+        // Add small delay to ensure time passes
+        await new Promise(resolve => setTimeout(resolve, 10));
+        throw new Error('API Error');
+      });
 
-      // Act: Execute agent (should catch error)
-      try {
-        await agent.execute(100);
-      } catch (error) {
-        // Expected to throw
-      }
+      // Act: Execute agent (should catch error and return AgentResult)
+      const result = await agent.execute(100);
 
-      // Note: In current implementation, execute() catches errors and returns AgentResult
-      // So we test the happy path above to verify durationMs > 0
-      // This test documents expected behavior even on errors
+      // Assert: Error result should have metrics with durationMs > 0
+      expect(result.status).toBe('error');
+      expect(result.error).toBeDefined();
+      expect((result.error as Error).message).toBe('API Error');
+      expect(result.metrics).toBeDefined();
+      expect(result.metrics.durationMs).toBeGreaterThan(0);
+      expect(result.metrics.durationMs).toBeGreaterThanOrEqual(10); // At least 10ms delay
+      expect(result.metrics.durationMs).toBeLessThan(10000); // Should fail quickly
+      expect(result.metrics.timestamp).toBeDefined();
     });
   });
 });

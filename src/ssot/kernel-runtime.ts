@@ -18,6 +18,8 @@ import {
   SetStateOperation,
   RecordDecisionOperation,
   LinkEvidenceOperation,
+  RecordVerificationOperation,
+  RecordValidationOperation,
   RaiseExceptionOperation,
   CloseExceptionOperation,
 } from '../types/kernel-operations.js';
@@ -197,6 +199,12 @@ export class KernelRuntime {
           break;
         case 'u.link_evidence':
           result = await this.executeLinkEvidence(operation as LinkEvidenceOperation);
+          break;
+        case 'u.record_verification':
+          result = await this.executeRecordVerification(operation as RecordVerificationOperation);
+          break;
+        case 'u.record_validation':
+          result = await this.executeRecordValidation(operation as RecordValidationOperation);
           break;
         case 'u.set_state':
           result = await this.executeSetState(operation as SetStateOperation);
@@ -553,6 +561,158 @@ export class KernelRuntime {
       details: {
         kernel_id,
         evidence_id,
+      },
+    };
+  }
+
+  /**
+   * Execute: u.record_verification (Issue #48)
+   */
+  private async executeRecordVerification(operation: RecordVerificationOperation): Promise<OperationResult> {
+    const { kernel_id, verification } = operation.payload;
+
+    this.log(`Recording verification: ${verification.id} to kernel: ${kernel_id}`);
+
+    const kernel = await this.registry.getKernel(kernel_id);
+    if (!kernel) {
+      return {
+        success: false,
+        op_id: '',
+        timestamp: '',
+        error: `Kernel ${kernel_id} not found`,
+      };
+    }
+
+    // Verificationを追加
+    if (!kernel.verification) {
+      kernel.verification = [];
+    }
+    kernel.verification.push(verification);
+
+    // Update traceability: link verification to requirements
+    for (const upstreamId of verification.traceability?.upstream || []) {
+      const req = kernel.requirements.find((r) => r.id === upstreamId);
+      if (req) {
+        if (!req.traceability.downstream) {
+          req.traceability.downstream = [];
+        }
+        if (!req.traceability.downstream.includes(verification.id)) {
+          req.traceability.downstream.push(verification.id);
+        }
+      }
+    }
+
+    // Update lastUpdatedAt
+    kernel.lastUpdatedAt = new Date().toISOString();
+
+    // Historyに記録
+    if (!kernel.history) {
+      kernel.history = [];
+    }
+    kernel.history.push({
+      action: 'record_verification',
+      by: operation.actor,
+      timestamp: new Date().toISOString(),
+      op: 'u.record_verification',
+      actor: operation.actor,
+      issue: operation.issue,
+      summary: `Verification ${verification.id} recorded (${verification.status})`,
+    });
+
+    if (!this.config.dryRun) {
+      await this.registry.saveKernel(kernel);
+    }
+
+    return {
+      success: true,
+      op_id: '',
+      timestamp: '',
+      details: {
+        kernel_id,
+        verification_id: verification.id,
+        status: verification.status,
+      },
+    };
+  }
+
+  /**
+   * Execute: u.record_validation (Issue #48)
+   */
+  private async executeRecordValidation(operation: RecordValidationOperation): Promise<OperationResult> {
+    const { kernel_id, validation } = operation.payload;
+
+    this.log(`Recording validation: ${validation.id} to kernel: ${kernel_id}`);
+
+    const kernel = await this.registry.getKernel(kernel_id);
+    if (!kernel) {
+      return {
+        success: false,
+        op_id: '',
+        timestamp: '',
+        error: `Kernel ${kernel_id} not found`,
+      };
+    }
+
+    // Validationを追加
+    if (!kernel.validation) {
+      kernel.validation = [];
+    }
+    kernel.validation.push(validation);
+
+    // Update traceability: link validation to requirements and needs
+    for (const upstreamId of validation.traceability?.upstream || []) {
+      // Link to requirement
+      const req = kernel.requirements.find((r) => r.id === upstreamId);
+      if (req) {
+        if (!req.traceability.downstream) {
+          req.traceability.downstream = [];
+        }
+        if (!req.traceability.downstream.includes(validation.id)) {
+          req.traceability.downstream.push(validation.id);
+        }
+      }
+
+      // Link to need
+      const need = kernel.needs.find((n) => n.id === upstreamId);
+      if (need) {
+        if (!need.traceability.downstream) {
+          need.traceability.downstream = [];
+        }
+        if (!need.traceability.downstream.includes(validation.id)) {
+          need.traceability.downstream.push(validation.id);
+        }
+      }
+    }
+
+    // Update lastUpdatedAt
+    kernel.lastUpdatedAt = new Date().toISOString();
+
+    // Historyに記録
+    if (!kernel.history) {
+      kernel.history = [];
+    }
+    kernel.history.push({
+      action: 'record_validation',
+      by: operation.actor,
+      timestamp: new Date().toISOString(),
+      op: 'u.record_validation',
+      actor: operation.actor,
+      issue: operation.issue,
+      summary: `Validation ${validation.id} recorded (${validation.status})`,
+    });
+
+    if (!this.config.dryRun) {
+      await this.registry.saveKernel(kernel);
+    }
+
+    return {
+      success: true,
+      op_id: '',
+      timestamp: '',
+      details: {
+        kernel_id,
+        validation_id: validation.id,
+        status: validation.status,
       },
     };
   }

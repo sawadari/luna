@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MonitoringAgent } from '../../src/agents/monitoring-agent';
+import { ensureRulesConfigLoaded } from '../../src/services/rules-config-service';
 import type {
   AgentConfig,
   GitHubIssue,
@@ -18,7 +19,10 @@ describe('MonitoringAgent', () => {
   let mockConfig: AgentConfig;
   let mockDeploymentContext: DeploymentContext;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Issue #48: Ensure rules configuration is loaded before creating agents
+    await ensureRulesConfigLoaded();
+
     mockConfig = {
       githubToken: 'test-token',
       repository: 'test-owner/test-repo',

@@ -3,6 +3,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TestAgent } from '../../src/agents/test-agent';
+import { ensureRulesConfigLoaded } from '../../src/services/rules-config-service';
 import type {
   AgentConfig,
   GitHubIssue,
@@ -19,7 +20,10 @@ describe('TestAgent', () => {
   let mockCodeGenContext: CodeGenContext;
   let mockReviewContext: ReviewContext;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Issue #48: Ensure rules configuration is loaded before creating agents
+    await ensureRulesConfigLoaded();
+
     mockConfig = {
       githubToken: 'test-token',
       repository: 'test-owner/test-repo',

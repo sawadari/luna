@@ -405,6 +405,9 @@ export class KernelRegistryService {
 
   /**
    * Add Verification to a Kernel
+   *
+   * @deprecated Use KernelRuntime.apply() with u.record_verification instead (Issue #48)
+   * This method bypasses the Ledger and should only be used in legacy contexts.
    */
   async addVerificationToKernel(
     kernelId: string,
@@ -441,6 +444,9 @@ export class KernelRegistryService {
 
   /**
    * Add Validation to a Kernel
+   *
+   * @deprecated Use KernelRuntime.apply() with u.record_validation instead (Issue #48)
+   * This method bypasses the Ledger and should only be used in legacy contexts.
    */
   async addValidationToKernel(
     kernelId: string,

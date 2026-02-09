@@ -17,6 +17,7 @@ import {
   HealthCheck,
 } from '../types';
 import { KernelRegistryService } from '../ssot/kernel-registry';
+import { KernelRuntime } from '../ssot/kernel-runtime';
 import type { Validation } from '../types/nrvv';
 import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
 
@@ -24,6 +25,7 @@ export class MonitoringAgent {
   private octokit: Octokit;
   private config: AgentConfig;
   private kernelRegistry: KernelRegistryService;
+  private kernelRuntime: KernelRuntime;
   private rulesConfig: RulesConfigService;
   private metrics: Metric[] = [];
   private alerts: Alert[] = [];
@@ -32,6 +34,11 @@ export class MonitoringAgent {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService();
+    this.kernelRuntime = new KernelRuntime({
+      dryRun: config.dryRun,
+      verbose: config.verbose,
+      enableLedger: true, // Issue #48: Enable Ledger for V&V operations
+    });
     this.rulesConfig = getRulesConfig();
   }
 
@@ -680,8 +687,21 @@ export class MonitoringAgent {
       notes: `Issue #${issueNumber}: ${context.issue.title}`,
     };
 
-    // Kernel Registryに記録
-    await this.kernelRegistry.addValidationToKernel(kernel.id, validation);
+    // Issue #48: KernelRuntime経由でValidationを記録（Ledger統合）
+    const result = await this.kernelRuntime.apply({
+      op: 'u.record_validation',
+      actor: 'MonitoringAgent',
+      issue: `#${issueNumber}`,
+      payload: {
+        kernel_id: kernel.id,
+        validation,
+      },
+    });
+
+    if (!result.success) {
+      this.log(`⚠️  Failed to record validation: ${result.error}`);
+      return;
+    }
 
     this.log(`✅ Validation ${validationId} recorded for Kernel ${kernel.id}`);
   }

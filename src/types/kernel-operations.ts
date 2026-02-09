@@ -5,7 +5,7 @@
  * すべてのKernel変更は u.* 操作として標準化される
  */
 
-import { MaturityLevel } from './nrvv';
+import { MaturityLevel, Verification, Validation } from './nrvv';
 import { Role } from './authority';
 
 /**
@@ -15,6 +15,8 @@ export type OperationType =
   | 'u.create_kernel'
   | 'u.record_decision'
   | 'u.link_evidence'
+  | 'u.record_verification'
+  | 'u.record_validation'
   | 'u.set_state'
   | 'u.raise_exception'
   | 'u.close_exception';
@@ -147,6 +149,30 @@ export interface LinkEvidenceOperation extends BaseOperation {
 }
 
 /**
+ * Record Verification Operation
+ * Verificationを記録する操作（Issue #48）
+ */
+export interface RecordVerificationOperation extends BaseOperation {
+  op: 'u.record_verification';
+  payload: {
+    kernel_id: string;
+    verification: Verification;
+  };
+}
+
+/**
+ * Record Validation Operation
+ * Validationを記録する操作（Issue #48）
+ */
+export interface RecordValidationOperation extends BaseOperation {
+  op: 'u.record_validation';
+  payload: {
+    kernel_id: string;
+    validation: Validation;
+  };
+}
+
+/**
  * Set State Operation
  * Kernel状態を遷移させる操作（Authority + Gate統合）
  */
@@ -201,6 +227,8 @@ export type KernelOperation =
   | CreateKernelOperation
   | RecordDecisionOperation
   | LinkEvidenceOperation
+  | RecordVerificationOperation
+  | RecordValidationOperation
   | SetStateOperation
   | RaiseExceptionOperation
   | CloseExceptionOperation;

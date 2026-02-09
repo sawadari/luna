@@ -669,6 +669,9 @@ export class KernelRegistryService {
 
     // Issue #48: Use KernelRuntime if available (Event Sourcing), otherwise fallback to direct method
     if (this.runtime) {
+      // Runtime path: All operations go through Ledger with automatic history tracking
+      // No manual saveKernel() needed - runtime.apply() handles persistence via its own Registry
+
       // Add verification via Runtime (Ledger-integrated)
       if (suggestions.verification.length > 0) {
         for (const ver of suggestions.verification) {
@@ -709,23 +712,13 @@ export class KernelRegistryService {
         }
       }
 
-      // Issue #48 Review: Reload kernel to get latest state (avoids stale data overwrite)
-      const updatedKernel = await this.getKernel(kernelId);
-      if (!updatedKernel) {
-        throw new Error(`Kernel ${kernelId} not found after V&V updates`);
-      }
+      // Issue #48 Critical Review: NO manual saveKernel() in Runtime path
+      // - runtime.apply() already saved to its own Registry instance
+      // - History was already added by executeRecordVerification/Validation
+      // - Manual saveKernel() would use stale cached data and overwrite Runtime changes
+      // - Event Sourcing requires all mutations go through Ledger (no side channels)
 
-      // Add history entry to the fresh kernel
-      updatedKernel.history.push({
-        timestamp: new Date().toISOString(),
-        action: 'updated',
-        by: 'KernelEnhancementService',
-        maturity: updatedKernel.maturity,
-        notes: `Auto-completed NRVV: ${suggestions.verification.length} verification, ${suggestions.validation.length} validation`,
-      });
-
-      // Save the updated kernel
-      await this.saveKernel(updatedKernel);
+      // Runtime path complete - all changes persisted via Ledger
     } else {
       // Fallback to direct methods (bypasses Ledger - legacy behavior)
       // Add verification

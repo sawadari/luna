@@ -12,6 +12,7 @@ import { Role } from './authority';
  * Operation Type - 操作種別
  */
 export type OperationType =
+  | 'u.create_kernel'
   | 'u.record_decision'
   | 'u.link_evidence'
   | 'u.set_state'
@@ -39,6 +40,78 @@ export interface BaseOperation {
 
   /** タイムスタンプ（自動生成） */
   timestamp?: string;
+}
+
+/**
+ * Create Kernel Operation
+ * 新しいKernelを作成する操作
+ */
+export interface CreateKernelOperation extends BaseOperation {
+  op: 'u.create_kernel';
+  payload: {
+    kernel_id: string;
+    statement: string;
+    category: string;
+    owner: string;
+    maturity?: MaturityLevel;
+    sourceIssue?: string;
+    needs?: Array<{
+      id: string;
+      statement: string;
+      stakeholder: string;
+      sourceType: string;
+      priority: string;
+      rationale: string;
+      traceability?: {
+        upstream: string[];
+        downstream: string[];
+      };
+    }>;
+    requirements?: Array<{
+      id: string;
+      statement: string;
+      type: string;
+      priority: string;
+      rationale?: string;
+      acceptanceCriteria?: string[];
+      traceability?: {
+        upstream: string[];
+        downstream: string[];
+      };
+    }>;
+    verification?: Array<{
+      id: string;
+      statement: string;
+      method: string;
+      testCase?: string;
+      criteria?: string[];
+      traceability?: {
+        upstream: string[];
+        downstream: string[];
+      };
+      status?: string;
+      verifiedAt?: string | null;
+      verifiedBy?: string | null;
+    }>;
+    validation?: Array<{
+      id: string;
+      statement: string;
+      method: string;
+      criteria?: string[];
+      traceability?: {
+        upstream: string[];
+        downstream: string[];
+      };
+      status?: string;
+      validatedAt?: string | null;
+      validatedBy?: string | null;
+    }>;
+    tags?: string[];
+    relatedArtifacts?: Array<{
+      type: string;
+      path: string;
+    }>;
+  };
 }
 
 /**
@@ -125,6 +198,7 @@ export interface CloseExceptionOperation extends BaseOperation {
  * Union type for all operations
  */
 export type KernelOperation =
+  | CreateKernelOperation
   | RecordDecisionOperation
   | LinkEvidenceOperation
   | SetStateOperation

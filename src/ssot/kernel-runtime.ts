@@ -9,10 +9,12 @@
 import { KernelRegistryService } from './kernel-registry.js';
 import { KernelLedger } from './kernel-ledger.js';
 import { AuthorityService } from '../services/authority-service.js';
+import { KernelWithNRVV } from '../types/nrvv.js';
 import {
   KernelOperation,
   OperationResult,
   GateCheckResult,
+  CreateKernelOperation,
   SetStateOperation,
   RecordDecisionOperation,
   LinkEvidenceOperation,
@@ -185,6 +187,9 @@ export class KernelRuntime {
       // 操作種別に応じて実行
       let result: OperationResult;
       switch (operation.op) {
+        case 'u.create_kernel':
+          result = await this.executeCreateKernel(operation as CreateKernelOperation);
+          break;
         case 'u.record_decision':
           result = await this.executeRecordDecision(operation as RecordDecisionOperation);
           break;
@@ -351,6 +356,71 @@ export class KernelRuntime {
   }
 
   /**
+   * Execute: u.create_kernel
+   */
+  private async executeCreateKernel(
+    operation: CreateKernelOperation
+  ): Promise<OperationResult> {
+    const { kernel_id, statement, category, owner } = operation.payload;
+
+    this.log(`Creating kernel: ${kernel_id}`);
+
+    // Check if kernel already exists
+    const existingKernel = await this.registry.getKernel(kernel_id);
+    if (existingKernel) {
+      return {
+        success: false,
+        op_id: '',
+        timestamp: '',
+        error: `Kernel ${kernel_id} already exists`,
+      };
+    }
+
+    // Create new kernel
+    const newKernel: KernelWithNRVV = {
+      id: kernel_id,
+      statement,
+      category: category as any,
+      owner,
+      maturity: operation.payload.maturity || 'draft',
+      createdAt: new Date().toISOString(),
+      lastUpdatedAt: new Date().toISOString(),
+      sourceIssue: operation.payload.sourceIssue || operation.issue,
+      needs: (operation.payload.needs || []) as any,
+      requirements: (operation.payload.requirements || []) as any,
+      verification: (operation.payload.verification || []) as any,
+      validation: (operation.payload.validation || []) as any,
+      tags: operation.payload.tags || [],
+      relatedArtifacts: (operation.payload.relatedArtifacts || []) as any,
+      history: [
+        {
+          action: 'create_kernel',
+          by: operation.actor,
+          timestamp: new Date().toISOString(),
+          op: 'u.create_kernel',
+          actor: operation.actor,
+          issue: operation.issue,
+          summary: `Kernel ${kernel_id} created`,
+        },
+      ],
+    };
+
+    if (!this.config.dryRun) {
+      await this.registry.saveKernel(newKernel);
+    }
+
+    return {
+      success: true,
+      op_id: '',
+      timestamp: '',
+      details: {
+        kernel_id,
+        statement,
+      },
+    };
+  }
+
+  /**
    * Execute: u.record_decision
    */
   private async executeRecordDecision(
@@ -441,6 +511,21 @@ export class KernelRuntime {
       verification_status: operation.payload.verification_status || 'pending',
     } as any);
 
+    // If evidence_type is 'artifact', also add to relatedArtifacts (Issue #43)
+    if (evidence_type === 'artifact') {
+      if (!kernel.relatedArtifacts) {
+        kernel.relatedArtifacts = [];
+      }
+      kernel.relatedArtifacts.push({
+        type: 'code',
+        path: evidence_source,
+        description: `Generated artifact: ${evidence_id}`,
+      });
+    }
+
+    // Update lastUpdatedAt
+    kernel.lastUpdatedAt = new Date().toISOString();
+
     // Historyに記録
     if (!kernel.history) {
       kernel.history = [];
@@ -504,6 +589,17 @@ export class KernelRuntime {
 
     // 状態遷移を実行
     kernel.maturity = to;
+    kernel.lastUpdatedAt = new Date().toISOString();
+
+    // Set additional metadata based on target maturity
+    if (to === 'agreed') {
+      kernel.approvedAt = new Date().toISOString();
+      kernel.approvedBy = operation.actor;
+    }
+
+    if (to === 'frozen') {
+      kernel.frozenAt = new Date().toISOString();
+    }
 
     // Historyに記録
     if (!kernel.history) {

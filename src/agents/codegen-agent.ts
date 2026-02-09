@@ -14,6 +14,8 @@ import {
 } from '../types';
 import { KernelWithNRVV } from '../types/nrvv';
 import { KernelRegistryService } from '../ssot/kernel-registry';
+import { KernelRuntime } from '../ssot/kernel-runtime';
+import { LinkEvidenceOperation } from '../types/kernel-operations';
 import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
 
 export class CodeGenAgent {
@@ -21,6 +23,7 @@ export class CodeGenAgent {
   private config: AgentConfig;
   private anthropic?: Anthropic;
   private kernelRegistry: KernelRegistryService;
+  private kernelRuntime: KernelRuntime;
   private rulesConfig: RulesConfigService;
 
   constructor(config: AgentConfig, kernelRegistryPath?: string) {
@@ -28,6 +31,16 @@ export class CodeGenAgent {
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService(kernelRegistryPath);
     this.rulesConfig = getRulesConfig();
+
+    // Initialize KernelRuntime (Issue #43: Phase A1 compliance)
+    this.kernelRuntime = new KernelRuntime({
+      registryPath: kernelRegistryPath,
+      enableLedger: true,
+      soloMode: true,
+      defaultActor: 'CodeGenAgent',
+      dryRun: config.dryRun,
+      verbose: config.verbose,
+    });
 
     if (config.anthropicApiKey) {
       this.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
@@ -780,37 +793,24 @@ Generate all necessary files to implement this feature while satisfying the Kern
     }
 
     for (const kernel of kernels) {
-      // Add generated code as related artifacts
-      if (!kernel.relatedArtifacts) {
-        kernel.relatedArtifacts = [];
-      }
-
+      // Issue #43: Use KernelRuntime.apply() to link generated code as evidence
       for (const file of generatedCode) {
-        kernel.relatedArtifacts.push({
-          type: 'code',
-          path: file.filename,
-          description: `Generated code for Issue #${issue.number}: ${issue.title}`,
-        });
+        const linkEvidenceOp: LinkEvidenceOperation = {
+          op: 'u.link_evidence',
+          actor: 'CodeGenAgent',
+          issue: issue.number.toString(),
+          payload: {
+            kernel_id: kernel.id,
+            evidence_type: 'artifact',
+            evidence_id: `CODE-${issue.number}-${file.filename.replace(/[^a-zA-Z0-9]/g, '-')}`,
+            evidence_source: file.filename,
+            verification_status: 'pending',
+          },
+        };
+        await this.kernelRuntime.apply(linkEvidenceOp);
       }
 
-      // Add history entry
-      if (!kernel.history) {
-        kernel.history = [];
-      }
-
-      kernel.history.push({
-        timestamp: new Date().toISOString(),
-        action: 'code_generated',
-        by: 'CodeGenAgent',
-        maturity: kernel.maturity,
-        notes: `Generated ${generatedCode.length} files for Issue #${issue.number}`,
-      });
-
-      // Update lastUpdatedAt
-      kernel.lastUpdatedAt = new Date().toISOString();
-
-      // Save Kernel
-      await this.kernelRegistry.saveKernel(kernel);
+      this.log(`Linked ${generatedCode.length} generated files to Kernel ${kernel.id}`);
     }
   }
 }

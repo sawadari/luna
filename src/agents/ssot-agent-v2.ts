@@ -14,6 +14,8 @@ import {
 } from '../types';
 import { KernelWithNRVV } from '../types/nrvv';
 import { KernelRegistryService } from '../ssot/kernel-registry';
+import { KernelRuntime } from '../ssot/kernel-runtime';
+import { CreateKernelOperation, SetStateOperation } from '../types/kernel-operations';
 
 interface SSOTResult {
   issueNumber: number;
@@ -44,12 +46,23 @@ export class SSOTAgentV2 {
   private octokit: Octokit;
   private config: AgentConfig;
   private kernelRegistry: KernelRegistryService;
+  private kernelRuntime: KernelRuntime;
   private anthropic?: Anthropic;
 
   constructor(config: AgentConfig, registryPath?: string) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService(registryPath);
+
+    // Initialize KernelRuntime (Issue #43: Phase A1 compliance)
+    this.kernelRuntime = new KernelRuntime({
+      registryPath,
+      enableLedger: true,
+      soloMode: true,
+      defaultActor: 'SSOTAgentV2',
+      dryRun: config.dryRun,
+      verbose: config.verbose,
+    });
 
     // ✨ Phase 2: Optional Anthropic initialization (Issue #32)
     if (config.anthropicApiKey) {
@@ -167,7 +180,29 @@ export class SSOTAgentV2 {
         this.log('  No Planning Data found - extracting NRVV from Issue directly');
 
         const kernelFromIssue = await this.extractNRVVFromIssueAI(githubIssue);
-        await this.kernelRegistry.saveKernel(kernelFromIssue);
+
+        // Issue #43: Use KernelRuntime.apply() instead of direct saveKernel()
+        const createOp: CreateKernelOperation = {
+          op: 'u.create_kernel',
+          actor: 'SSOTAgentV2',
+          issue: issueNumber.toString(),
+          payload: {
+            kernel_id: kernelFromIssue.id,
+            statement: kernelFromIssue.statement,
+            category: kernelFromIssue.category,
+            owner: kernelFromIssue.owner,
+            maturity: kernelFromIssue.maturity,
+            sourceIssue: kernelFromIssue.sourceIssue,
+            needs: kernelFromIssue.needs as any,
+            requirements: kernelFromIssue.requirements as any,
+            verification: kernelFromIssue.verification as any,
+            validation: kernelFromIssue.validation as any,
+            tags: kernelFromIssue.tags,
+            relatedArtifacts: kernelFromIssue.relatedArtifacts,
+          },
+        };
+        await this.kernelRuntime.apply(createOp);
+
         result.suggestedKernels.push(kernelFromIssue.id);
 
         const method = this.anthropic ? 'AI-extracted' : 'template-based';
@@ -215,20 +250,19 @@ export class SSOTAgentV2 {
       if (transition) {
         result.maturityTransitions.push(transition);
 
-        // Update Kernel in registry
-        kernel.maturity = transition.to;
-        kernel.lastUpdatedAt = new Date().toISOString();
-
-        if (transition.to === 'agreed' && transition.approvedBy) {
-          kernel.approvedAt = new Date().toISOString();
-          kernel.approvedBy = transition.approvedBy;
-        }
-
-        if (transition.to === 'frozen') {
-          kernel.frozenAt = new Date().toISOString();
-        }
-
-        await this.kernelRegistry.saveKernel(kernel);
+        // Issue #43: Use KernelRuntime.apply() for state transitions
+        const setStateOp: SetStateOperation = {
+          op: 'u.set_state',
+          actor: transition.approvedBy || (transition as any).freezedBy || 'SSOTAgentV2',
+          issue: issueNumber.toString(),
+          payload: {
+            kernel_id: kernel.id,
+            from: transition.from,
+            to: transition.to,
+            reason: `Maturity transition via Issue #${issueNumber}`,
+          },
+        };
+        await this.kernelRuntime.apply(setStateOp);
 
         result.comments.push(
           this.buildMaturityTransitionComment(
@@ -435,8 +469,27 @@ export class SSOTAgentV2 {
               ],
             };
 
-            // Kernel Registry に保存
-            await this.kernelRegistry.saveKernel(kernel);
+            // Issue #43: Use KernelRuntime.apply() instead of direct saveKernel()
+            const createOp: CreateKernelOperation = {
+              op: 'u.create_kernel',
+              actor: decision.decided_by || decision.owner || 'SSOTAgentV2',
+              issue: issue.number.toString(),
+              payload: {
+                kernel_id: kernel.id,
+                statement: kernel.statement,
+                category: kernel.category,
+                owner: kernel.owner,
+                maturity: kernel.maturity,
+                sourceIssue: kernel.sourceIssue,
+                needs: kernel.needs as any,
+                requirements: kernel.requirements as any,
+                verification: kernel.verification as any,
+                validation: kernel.validation as any,
+                tags: kernel.tags,
+                relatedArtifacts: kernel.relatedArtifacts,
+              },
+            };
+            await this.kernelRuntime.apply(createOp);
             kernelIds.push(kernel.id);
 
             this.log(`Kernel ${kernel.id} suggested and saved to registry`);
@@ -802,8 +855,27 @@ ${violationList}
       tags: ['planning-layer', 'decision'],
     };
 
-    // Save to registry
-    await this.kernelRegistry.saveKernel(kernel);
+    // Issue #43: Use KernelRuntime.apply() instead of direct saveKernel()
+    const createOp: CreateKernelOperation = {
+      op: 'u.create_kernel',
+      actor: decision.decided_by || 'SSOTAgentV2',
+      issue: issue.number.toString(),
+      payload: {
+        kernel_id: kernel.id,
+        statement: kernel.statement,
+        category: kernel.category,
+        owner: kernel.owner,
+        maturity: kernel.maturity,
+        sourceIssue: kernel.sourceIssue,
+        needs: kernel.needs as any,
+        requirements: kernel.requirements as any,
+        verification: kernel.verification as any,
+        validation: kernel.validation as any,
+        tags: kernel.tags,
+        relatedArtifacts: kernel.relatedArtifacts,
+      },
+    };
+    await this.kernelRuntime.apply(createOp);
     this.log(`  Kernel ${kernelId} created from DecisionRecord ${decision.id}`);
 
     return kernel;

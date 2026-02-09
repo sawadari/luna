@@ -92,6 +92,10 @@ export class KernelRegistryService {
 
   /**
    * Add or update a Kernel
+   *
+   * ⚠️ DEPRECATED: Direct calls to saveKernel() bypass the Ledger (Issue #43).
+   * Use KernelRuntime.apply() with u.create_kernel or u.set_state operations instead.
+   * This method should only be called internally by KernelRuntime.
    */
   async saveKernel(kernel: KernelWithNRVV): Promise<void> {
     if (!this.registry) {

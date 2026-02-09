@@ -369,4 +369,103 @@ kernels: {}
       expect(setStateResult.details?.gate_checks?.evidence_governance.message).toContain('EVI-AI-UNVERIFIED');
     });
   });
+
+  describe('Allowed/Blocked sources configuration', () => {
+    it('should respect allowed_unverified_sources (human is allowed)', async () => {
+      // Create kernel
+      await runtime.apply({
+        op: 'u.create_kernel',
+        actor: 'test_actor',
+        issue: 'TEST-007',
+        payload: {
+          kernel_id: 'KRN-EVI-007',
+          statement: 'Test kernel for allowed sources',
+          category: 'requirement',
+          owner: 'test_owner',
+          maturity: 'draft',
+        },
+      });
+
+      // Link human evidence (unverified, but should be allowed per config)
+      await runtime.apply({
+        op: 'u.link_evidence',
+        actor: 'test_actor',
+        issue: 'TEST-007',
+        payload: {
+          kernel_id: 'KRN-EVI-007',
+          evidence_type: 'artifact',
+          evidence_id: 'EVI-HUMAN-UNVERIFIED',
+          evidence_source: 'src/human.ts',
+          source_origin: 'human', // Human-generated
+          verification_status: 'pending', // Not verified
+        },
+      });
+
+      // Attempt state transition
+      const setStateResult = await runtime.apply({
+        op: 'u.set_state',
+        actor: 'test_actor',
+        issue: 'TEST-007',
+        payload: {
+          kernel_id: 'KRN-EVI-007',
+          from: 'draft',
+          to: 'under_review',
+          reason: 'Ready for review',
+        },
+      });
+
+      // Should succeed because 'human' is in allowed_unverified_sources
+      expect(setStateResult.success).toBe(true);
+      expect(setStateResult.details?.gate_checks?.evidence_governance.passed).toBe(true);
+    });
+
+    it('should block sources in blocked_unverified_sources (hybrid)', async () => {
+      // Create kernel
+      await runtime.apply({
+        op: 'u.create_kernel',
+        actor: 'test_actor',
+        issue: 'TEST-008',
+        payload: {
+          kernel_id: 'KRN-EVI-008',
+          statement: 'Test kernel for blocked sources',
+          category: 'requirement',
+          owner: 'test_owner',
+          maturity: 'draft',
+        },
+      });
+
+      // Link hybrid evidence (unverified, should be blocked per config)
+      await runtime.apply({
+        op: 'u.link_evidence',
+        actor: 'test_actor',
+        issue: 'TEST-008',
+        payload: {
+          kernel_id: 'KRN-EVI-008',
+          evidence_type: 'artifact',
+          evidence_id: 'EVI-HYBRID-UNVERIFIED',
+          evidence_source: 'src/hybrid.ts',
+          source_origin: 'hybrid', // Hybrid-generated
+          verification_status: 'pending', // Not verified
+        },
+      });
+
+      // Attempt state transition
+      const setStateResult = await runtime.apply({
+        op: 'u.set_state',
+        actor: 'test_actor',
+        issue: 'TEST-008',
+        payload: {
+          kernel_id: 'KRN-EVI-008',
+          from: 'draft',
+          to: 'under_review',
+          reason: 'Ready for review',
+        },
+      });
+
+      // Should fail because 'hybrid' is in blocked_unverified_sources
+      expect(setStateResult.success).toBe(false);
+      expect(setStateResult.error).toContain('Evidence Governance');
+      expect(setStateResult.details?.gate_checks?.evidence_governance.message).toContain('EVI-HYBRID-UNVERIFIED');
+    });
+  });
 });

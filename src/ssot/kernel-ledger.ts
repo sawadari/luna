@@ -293,6 +293,7 @@ export class KernelLedger {
             type: payload.evidence_type,
             source: payload.evidence_source,
             source_type: 'external',
+            source_origin: payload.source_origin || 'human', // Issue #49: Preserve source_origin
             collected_at: result.timestamp,
             verification_status: payload.verification_status,
           });

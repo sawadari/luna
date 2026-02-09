@@ -265,8 +265,9 @@ export interface KernelWithNRVV {
     type: 'test_result' | 'observation' | 'document' | 'artifact';
     source: string;
     source_type: string;
+    source_origin?: 'human' | 'ai' | 'hybrid'; // Issue #49: Evidence Governance
     collected_at: string;
-    verification_status?: 'passed' | 'failed' | 'pending';
+    verification_status?: 'passed' | 'failed' | 'pending' | 'verified'; // Issue #49: Added 'verified'
   }>;
   exceptions?: Array<{
     id: string;

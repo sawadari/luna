@@ -808,6 +808,7 @@ Generate all necessary files to implement this feature while satisfying the Kern
             evidence_type: 'artifact',
             evidence_id: `CODE-${issue.number}-${file.filename.replace(/[^a-zA-Z0-9]/g, '-')}`,
             evidence_source: file.filename,
+            source_origin: 'ai', // Issue #49: Mark as AI-generated
             verification_status: 'pending',
           },
         };

@@ -342,13 +342,25 @@ export class KernelRuntime {
       : true; // Default: enforce
 
     if (enforceAIVerification) {
+      const allowedSources = rulesConfig.isLoaded()
+        ? rulesConfig.get<string[]>('core_architecture.evidence_governance.allowed_unverified_sources') ?? ['human']
+        : ['human'];
+
       const blockedSources = rulesConfig.isLoaded()
         ? rulesConfig.get<string[]>('core_architecture.evidence_governance.blocked_unverified_sources') ?? ['ai', 'hybrid']
         : ['ai', 'hybrid'];
 
       const evidences = (kernel as any).evidence || [];
       const unverifiedAIContent = evidences.filter((ev: any) => {
-        const isBlockedSource = blockedSources.includes(ev.source_origin || 'human');
+        const sourceOrigin = ev.source_origin || 'human';
+
+        // Issue #49: Check allowed sources first (whitelist takes precedence)
+        if (allowedSources.includes(sourceOrigin)) {
+          return false; // Allowed sources can proceed without verification
+        }
+
+        // Then check blocked sources
+        const isBlockedSource = blockedSources.includes(sourceOrigin);
         const isUnverified = ev.verification_status !== 'verified';
         return isBlockedSource && isUnverified;
       });

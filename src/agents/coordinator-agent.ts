@@ -425,6 +425,19 @@ export class CoordinatorAgent {
       }
 
       // Resolve dependencies (second pass)
+      // Issue #46: Document dependency resolution algorithm for maintainability
+      /**
+       * Dependency Resolution Algorithm:
+       *
+       * 1. If task has explicit dependencies → use them as-is
+       * 2. If Review task has no dependencies → auto-wire to all preceding CodeGen tasks
+       * 3. If Test task has no dependencies:
+       *    a. If Review exists → depend on Review
+       *    b. If no Review → depend on all preceding CodeGen tasks
+       *
+       * This ensures correct execution order: CodeGen → Review → Test
+       * even when Kernel-driven task generation omits dependency information.
+       */
       for (const [index, taskDef] of taskDefinitions.entries()) {
         const taskId = `TASK-${String(index + 1).padStart(3, '0')}`;
         const node = nodes.get(taskId)!;
@@ -432,6 +445,7 @@ export class CoordinatorAgent {
 
         // Auto-wire review/test dependencies for kernel-driven tasks that omit deps.
         if (dependencies.length === 0 && taskDef.agent === 'review') {
+          // Review depends on all preceding CodeGen tasks
           dependencies = taskDefinitions
             .slice(0, index)
             .map((t, i) => ({ task: t, id: `TASK-${String(i + 1).padStart(3, '0')}` }))
@@ -440,6 +454,7 @@ export class CoordinatorAgent {
         }
 
         if (dependencies.length === 0 && taskDef.agent === 'test') {
+          // Check if Review exists in preceding tasks
           const reviewDeps = taskDefinitions
             .slice(0, index)
             .map((t, i) => ({ task: t, id: `TASK-${String(i + 1).padStart(3, '0')}` }))
@@ -447,8 +462,10 @@ export class CoordinatorAgent {
             .map((x) => x.id);
 
           if (reviewDeps.length > 0) {
+            // Test depends on Review (preferred path)
             dependencies = reviewDeps;
           } else {
+            // Fallback: Test depends on all preceding CodeGen tasks
             dependencies = taskDefinitions
               .slice(0, index)
               .map((t, i) => ({ task: t, id: `TASK-${String(i + 1).padStart(3, '0')}` }))

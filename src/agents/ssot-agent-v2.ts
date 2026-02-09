@@ -547,12 +547,14 @@ export class SSOTAgentV2 {
 
   /**
    * Generate Kernel ID
+   * Issue #45: Use timestamp + random to avoid collisions
    */
   private generateKernelId(): string {
-    const random = Math.floor(Math.random() * 10000)
+    const timestamp = Date.now();
+    const random = Math.floor(Math.random() * 1000000)
       .toString()
-      .padStart(4, '0');
-    return `KRN-${random}`;
+      .padStart(6, '0');
+    return `KRN-${timestamp}-${random}`;
   }
 
   // ========================================================================

@@ -53,7 +53,8 @@ describe('SSOTAgentV2 - NRVV Extraction', () => {
 
       const kernel = (agent as any).extractNRVVFromIssueTemplate(issue);
 
-      expect(kernel.id).toMatch(/^KRN-\d{4}$/);
+      // Issue #45: Updated Kernel ID format (timestamp + 6-digit random)
+      expect(kernel.id).toMatch(/^KRN-\d{13}-\d{6}$/);
       expect(kernel.statement).toBe('Implement JWT Authentication');
       expect(kernel.category).toBe('security');
       expect(kernel.owner).toBe('CISO');

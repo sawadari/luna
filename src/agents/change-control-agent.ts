@@ -293,6 +293,7 @@ export class ChangeControlAgent {
             evidence_type: payload.evidence_type || 'document',
             evidence_id: payload.evidence_id,
             evidence_source: payload.evidence_source,
+            source_origin: payload.source_origin, // Issue #49: Preserve source_origin
             verification_status: payload.verification_status,
           },
         };

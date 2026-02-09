@@ -419,7 +419,7 @@ kernels: {}
       expect(setStateResult.details?.gate_checks?.evidence_governance.passed).toBe(true);
     });
 
-    it('should block sources in blocked_unverified_sources (hybrid)', async () => {
+    it('should block sources not in allowed_unverified_sources (hybrid)', async () => {
       // Create kernel
       await runtime.apply({
         op: 'u.create_kernel',
@@ -427,14 +427,14 @@ kernels: {}
         issue: 'TEST-008',
         payload: {
           kernel_id: 'KRN-EVI-008',
-          statement: 'Test kernel for blocked sources',
+          statement: 'Test kernel for non-allowed sources',
           category: 'requirement',
           owner: 'test_owner',
           maturity: 'draft',
         },
       });
 
-      // Link hybrid evidence (unverified, should be blocked per config)
+      // Link hybrid evidence (unverified, should be blocked by strict whitelist mode)
       await runtime.apply({
         op: 'u.link_evidence',
         actor: 'test_actor',
@@ -444,7 +444,7 @@ kernels: {}
           evidence_type: 'artifact',
           evidence_id: 'EVI-HYBRID-UNVERIFIED',
           evidence_source: 'src/hybrid.ts',
-          source_origin: 'hybrid', // Hybrid-generated
+          source_origin: 'hybrid', // Hybrid-generated (not in allowed_unverified_sources)
           verification_status: 'pending', // Not verified
         },
       });
@@ -462,7 +462,7 @@ kernels: {}
         },
       });
 
-      // Should fail because 'hybrid' is in blocked_unverified_sources
+      // Should fail because 'hybrid' is not in allowed_unverified_sources (strict whitelist mode)
       expect(setStateResult.success).toBe(false);
       expect(setStateResult.error).toContain('Evidence Governance');
       expect(setStateResult.details?.gate_checks?.evidence_governance.message).toContain('EVI-HYBRID-UNVERIFIED');

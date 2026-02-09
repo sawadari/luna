@@ -133,7 +133,7 @@ describe('Issue #45: Kernel ID Generator', () => {
     it('should have near-zero collision probability', () => {
       // Birthday paradox calculation:
       // Old: 4-digit (10000 possibilities) → 50% at ~118 IDs
-      // New: timestamp + 3-digit (virtually infinite) → near-zero
+      // New: timestamp + 6-digit (1M possibilities per ms) → near-zero
 
       // Test with 500 IDs (way more than old 50% threshold)
       const ids = new Set<string>();

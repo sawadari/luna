@@ -16,6 +16,7 @@ import { KernelWithNRVV } from '../types/nrvv';
 import { KernelRegistryService } from '../ssot/kernel-registry';
 import { KernelRuntime } from '../ssot/kernel-runtime';
 import { CreateKernelOperation, SetStateOperation } from '../types/kernel-operations';
+import { generateKernelId } from '../utils/kernel-id-generator.js';
 
 interface SSOTResult {
   issueNumber: number;
@@ -466,7 +467,7 @@ export class SSOTAgentV2 {
 
           if (statement) {
             const kernel: KernelWithNRVV = {
-              id: this.generateKernelId(),
+              id: generateKernelId(),
               statement,
               category: 'requirement',
               owner: decision.decided_by || decision.owner || 'TechLead',
@@ -545,17 +546,6 @@ export class SSOTAgentV2 {
     }
   }
 
-  /**
-   * Generate Kernel ID
-   * Issue #45: Use timestamp + random to avoid collisions
-   */
-  private generateKernelId(): string {
-    const timestamp = Date.now();
-    const random = Math.floor(Math.random() * 1000000)
-      .toString()
-      .padStart(6, '0');
-    return `KRN-${timestamp}-${random}`;
-  }
 
   // ========================================================================
   // Maturity Transition
@@ -823,7 +813,7 @@ ${violationList}
     issue: GitHubIssue,
     destJudgment?: import('../types').DESTJudgmentResult
   ): Promise<KernelWithNRVV> {
-    const kernelId = this.generateKernelId();
+    const kernelId = generateKernelId();
 
     // Extract statement from decision
     const statement = decision.rationale || opportunity?.title || issue.title;
@@ -928,7 +918,7 @@ ${violationList}
    * @returns Basic Kernel with minimal NRVV
    */
   private extractNRVVFromIssueTemplate(issue: GitHubIssue): KernelWithNRVV {
-    const kernelId = this.generateKernelId();
+    const kernelId = generateKernelId();
 
     // Extract basic info from Issue
     const statement = issue.title;
@@ -1189,7 +1179,7 @@ Generate the JSON now:`;
         throw new Error('Invalid NRVV structure');
       }
 
-      const kernelId = this.generateKernelId();
+      const kernelId = generateKernelId();
 
       // Generate IDs and build traceability
       const needIds: string[] = [];

@@ -14,6 +14,7 @@ import {
   KernelViolation,
   MaturityLevel,
 } from '../types';
+import { generateKernelId } from '../utils/kernel-id-generator.js';
 
 interface SSOTResult {
   issueNumber: number;
@@ -372,7 +373,7 @@ export class SSOTAgent {
 
           if (statement) {
             suggestions.push({
-              id: this.generateKernelId(),
+              id: generateKernelId(),
               statement: statement,
               category: 'requirement',
               owner: decision.decided_by || decision.owner || 'TechLead',
@@ -397,7 +398,7 @@ export class SSOTAgent {
           const statement = constraint.statement || constraint.description;
           if (statement) {
             suggestions.push({
-              id: this.generateKernelId(),
+              id: generateKernelId(),
               statement: statement,
               category: 'constraint',
               owner: 'ProductOwner',
@@ -425,7 +426,7 @@ export class SSOTAgent {
       const statement = this.extractDecisionStatement(issue.body);
       if (statement) {
         suggestions.push({
-          id: this.generateKernelId(),
+          id: generateKernelId(),
           statement,
           category: 'architecture',
           owner: 'TechLead',
@@ -442,7 +443,7 @@ export class SSOTAgent {
       const constraints = this.extractConstraints(issue.body);
       for (const constraint of constraints) {
         suggestions.push({
-          id: this.generateKernelId(),
+          id: generateKernelId(),
           statement: constraint,
           category: 'constraint',
           owner: 'ProductOwner',
@@ -480,15 +481,6 @@ export class SSOTAgent {
     return constraints;
   }
 
-  /**
-   * Kernel ID生成
-   */
-  private generateKernelId(): string {
-    const random = Math.floor(Math.random() * 1000)
-      .toString()
-      .padStart(3, '0');
-    return `KRN-${random}`;
-  }
 
   // ========================================================================
   // Maturity遷移

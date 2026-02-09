@@ -169,18 +169,22 @@ export class CoordinatorAgent {
             };
           }
 
-          // Issue #47: Check AL1 approval requirement
-          if (destResult.data.al === 'AL1') {
-            this.log('  ⚠️  AL1 detected - Human approval required');
+          // Issue #47: Check approval requirement (from rules-config.yaml)
+          const requireApprovalLevel = this.rulesConfig.get<string>(
+            'human_ai_boundary.dest_judgment.al_threshold.require_approval'
+          ) || 'AL1'; // Default to AL1 if not configured
+
+          if (destResult.data.al === requireApprovalLevel) {
+            this.log(`  ⚠️  ${requireApprovalLevel} detected - Human approval required`);
 
             const isApproved = await this.checkAL1Approval(githubIssue.number);
 
             if (!isApproved) {
-              this.log('  ❌ AL1 approval not found - Issue blocked until approved');
+              this.log(`  ❌ ${requireApprovalLevel} approval not found - Issue blocked until approved`);
               return {
                 status: 'error',
                 error: new Error(
-                  `AL1 approval required: ${destResult.data.rationale}. ` +
+                  `${requireApprovalLevel} approval required: ${destResult.data.rationale}. ` +
                   `Please add 'approved' label or '/approve' comment to proceed.`
                 ),
                 metrics: {
@@ -190,7 +194,7 @@ export class CoordinatorAgent {
               };
             }
 
-            this.log('  ✅ AL1 approval confirmed - Proceeding with implementation');
+            this.log(`  ✅ ${requireApprovalLevel} approval confirmed - Proceeding with implementation`);
           }
         }
       }
@@ -1165,9 +1169,9 @@ export class CoordinatorAgent {
         issue_number: issueNumber,
       });
 
-      // Check for /approve command in comments
+      // Check for /approve command in comments (case-insensitive)
       const hasApprovalComment = comments.some((comment) =>
-        comment.body?.includes('/approve')
+        comment.body?.toLowerCase().includes('/approve')
       );
 
       if (hasApprovalComment) {

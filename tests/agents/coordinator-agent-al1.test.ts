@@ -91,6 +91,70 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       expect(isApproved).toBe(true);
     });
 
+    it('should detect approval via /APPROVE command (case-insensitive)', async () => {
+      const mockIssue: GitHubIssue = {
+        number: 108,
+        title: 'AL1 Issue with /APPROVE command',
+        body: 'Test',
+        labels: [{ name: 'type:feature', color: '' }],
+        state: 'open',
+        created_at: '2026-02-09T00:00:00Z',
+        updated_at: '2026-02-09T00:00:00Z',
+      };
+
+      const mockComments = [
+        {
+          id: 1,
+          body: '/APPROVE - Approved in uppercase',
+          user: { login: 'reviewer1' },
+        },
+      ];
+
+      // Mock octokit
+      const mockOctokit = {
+        issues: {
+          get: vi.fn().mockResolvedValue({ data: mockIssue }),
+          listComments: vi.fn().mockResolvedValue({ data: mockComments }),
+        },
+      };
+      (coordinator as any).octokit = mockOctokit;
+
+      const isApproved = await (coordinator as any).checkAL1Approval(108);
+      expect(isApproved).toBe(true);
+    });
+
+    it('should detect approval via /Approve command (mixed case)', async () => {
+      const mockIssue: GitHubIssue = {
+        number: 109,
+        title: 'AL1 Issue with /Approve command',
+        body: 'Test',
+        labels: [{ name: 'type:feature', color: '' }],
+        state: 'open',
+        created_at: '2026-02-09T00:00:00Z',
+        updated_at: '2026-02-09T00:00:00Z',
+      };
+
+      const mockComments = [
+        {
+          id: 1,
+          body: '/Approve - Mixed case',
+          user: { login: 'reviewer1' },
+        },
+      ];
+
+      // Mock octokit
+      const mockOctokit = {
+        issues: {
+          get: vi.fn().mockResolvedValue({ data: mockIssue }),
+          listComments: vi.fn().mockResolvedValue({ data: mockComments }),
+        },
+      };
+      (coordinator as any).octokit = mockOctokit;
+
+      const isApproved = await (coordinator as any).checkAL1Approval(109);
+      expect(isApproved).toBe(true);
+    });
+
     it('should detect AL1:approved label variant', async () => {
       const mockIssue: GitHubIssue = {
         number: 102,
@@ -269,7 +333,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(108);
+      const isApproved = await (coordinator as any).checkAL1Approval(110);
       expect(isApproved).toBe(false);
     });
   });

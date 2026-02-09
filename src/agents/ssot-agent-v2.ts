@@ -65,6 +65,9 @@ export class SSOTAgentV2 {
       verbose: config.verbose,
     });
 
+    // Issue #48: Inject KernelRuntime into KernelRegistry for Ledger-integrated operations
+    this.kernelRegistry.setRuntime(this.kernelRuntime);
+
     // ✨ Phase 2: Optional Anthropic initialization (Issue #32)
     if (config.anthropicApiKey) {
       this.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });

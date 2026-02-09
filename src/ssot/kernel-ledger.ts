@@ -356,6 +356,64 @@ export class KernelLedger {
             }
           }
           break;
+
+        case 'u.record_verification':
+          // Issue #48: Replay Verification recording
+          if (!kernel.verification) {
+            kernel.verification = [];
+          }
+          kernel.verification.push(payload.verification);
+
+          // Update traceability: link verification to requirements
+          for (const upstreamId of payload.verification.traceability?.upstream || []) {
+            const req = kernel.requirements.find((r) => r.id === upstreamId);
+            if (req) {
+              if (!req.traceability.downstream) {
+                req.traceability.downstream = [];
+              }
+              if (!req.traceability.downstream.includes(payload.verification.id)) {
+                req.traceability.downstream.push(payload.verification.id);
+              }
+            }
+          }
+
+          kernel.lastUpdatedAt = result.timestamp;
+          break;
+
+        case 'u.record_validation':
+          // Issue #48: Replay Validation recording
+          if (!kernel.validation) {
+            kernel.validation = [];
+          }
+          kernel.validation.push(payload.validation);
+
+          // Update traceability: link validation to requirements and needs
+          for (const upstreamId of payload.validation.traceability?.upstream || []) {
+            // Link to requirement
+            const req = kernel.requirements.find((r) => r.id === upstreamId);
+            if (req) {
+              if (!req.traceability.downstream) {
+                req.traceability.downstream = [];
+              }
+              if (!req.traceability.downstream.includes(payload.validation.id)) {
+                req.traceability.downstream.push(payload.validation.id);
+              }
+            }
+
+            // Link to need
+            const need = kernel.needs.find((n) => n.id === upstreamId);
+            if (need) {
+              if (!need.traceability.downstream) {
+                need.traceability.downstream = [];
+              }
+              if (!need.traceability.downstream.includes(payload.validation.id)) {
+                need.traceability.downstream.push(payload.validation.id);
+              }
+            }
+          }
+
+          kernel.lastUpdatedAt = result.timestamp;
+          break;
       }
 
       // Historyに記録

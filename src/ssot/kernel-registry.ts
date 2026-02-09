@@ -20,6 +20,7 @@ export class KernelRegistryService {
   private registryPath: string;
   private registry: KernelRegistry | null = null;
   private enhancementService?: KernelEnhancementService;
+  private runtime?: any; // Issue #48: Optional KernelRuntime reference (injected via setRuntime)
 
   constructor(registryPath?: string, anthropicApiKey?: string) {
     // Priority: explicit parameter > env variable > default (kernels-luna-base.yaml for Luna development)
@@ -29,6 +30,14 @@ export class KernelRegistryService {
     if (anthropicApiKey) {
       this.enhancementService = new KernelEnhancementService(anthropicApiKey);
     }
+  }
+
+  /**
+   * Set KernelRuntime reference (Issue #48)
+   * Used to ensure V&V operations go through Ledger
+   */
+  setRuntime(runtime: any): void {
+    this.runtime = runtime;
   }
 
   /**
@@ -657,17 +666,51 @@ export class KernelRegistryService {
     // Get suggestions
     const suggestions = await this.enhancementService.suggestVerificationValidation(kernel);
 
-    // Add verification
-    if (suggestions.verification.length > 0) {
-      for (const ver of suggestions.verification) {
-        await this.addVerificationToKernel(kernelId, ver);
+    // Issue #48: Use KernelRuntime if available (Event Sourcing), otherwise fallback to direct method
+    if (this.runtime) {
+      // Add verification via Runtime (Ledger-integrated)
+      if (suggestions.verification.length > 0) {
+        for (const ver of suggestions.verification) {
+          await this.runtime.apply({
+            op: 'u.record_verification',
+            actor: 'KernelEnhancementService',
+            issue: kernel.sourceIssue || '#auto-complete',
+            payload: {
+              kernel_id: kernelId,
+              verification: ver,
+            },
+          });
+        }
       }
-    }
 
-    // Add validation
-    if (suggestions.validation.length > 0) {
-      for (const val of suggestions.validation) {
-        await this.addValidationToKernel(kernelId, val);
+      // Add validation via Runtime (Ledger-integrated)
+      if (suggestions.validation.length > 0) {
+        for (const val of suggestions.validation) {
+          await this.runtime.apply({
+            op: 'u.record_validation',
+            actor: 'KernelEnhancementService',
+            issue: kernel.sourceIssue || '#auto-complete',
+            payload: {
+              kernel_id: kernelId,
+              validation: val,
+            },
+          });
+        }
+      }
+    } else {
+      // Fallback to direct methods (bypasses Ledger - legacy behavior)
+      // Add verification
+      if (suggestions.verification.length > 0) {
+        for (const ver of suggestions.verification) {
+          await this.addVerificationToKernel(kernelId, ver);
+        }
+      }
+
+      // Add validation
+      if (suggestions.validation.length > 0) {
+        for (const val of suggestions.validation) {
+          await this.addValidationToKernel(kernelId, val);
+        }
       }
     }
 

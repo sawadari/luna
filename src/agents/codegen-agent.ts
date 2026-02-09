@@ -42,6 +42,9 @@ export class CodeGenAgent {
       verbose: config.verbose,
     });
 
+    // Issue #48: Inject KernelRuntime into KernelRegistry for Ledger-integrated operations
+    this.kernelRegistry.setRuntime(this.kernelRuntime);
+
     if (config.anthropicApiKey) {
       this.anthropic = new Anthropic({ apiKey: config.anthropicApiKey });
     }

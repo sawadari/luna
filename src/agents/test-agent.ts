@@ -39,6 +39,8 @@ export class TestAgent {
       verbose: config.verbose,
       enableLedger: true, // Issue #48: Enable Ledger for V&V operations
     });
+    // Issue #48: Inject KernelRuntime into KernelRegistry for Ledger-integrated operations
+    this.kernelRegistry.setRuntime(this.kernelRuntime);
     this.rulesConfig = getRulesConfig();
   }
 

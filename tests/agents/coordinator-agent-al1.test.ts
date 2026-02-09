@@ -50,7 +50,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(100);
+      const isApproved = await (coordinator as any).checkApprovalRequired(100);
       expect(isApproved).toBe(true);
     });
 
@@ -87,7 +87,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(101);
+      const isApproved = await (coordinator as any).checkApprovalRequired(101);
       expect(isApproved).toBe(true);
     });
 
@@ -119,7 +119,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(108);
+      const isApproved = await (coordinator as any).checkApprovalRequired(108);
       expect(isApproved).toBe(true);
     });
 
@@ -151,7 +151,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(109);
+      const isApproved = await (coordinator as any).checkApprovalRequired(109);
       expect(isApproved).toBe(true);
     });
 
@@ -178,7 +178,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(102);
+      const isApproved = await (coordinator as any).checkApprovalRequired(102);
       expect(isApproved).toBe(true);
     });
 
@@ -205,7 +205,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(103);
+      const isApproved = await (coordinator as any).checkApprovalRequired(103);
       expect(isApproved).toBe(true);
     });
 
@@ -237,7 +237,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(104);
+      const isApproved = await (coordinator as any).checkApprovalRequired(104);
       expect(isApproved).toBe(false);
     });
 
@@ -264,7 +264,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(105);
+      const isApproved = await (coordinator as any).checkApprovalRequired(105);
       expect(isApproved).toBe(true);
     });
   });
@@ -291,7 +291,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(106);
+      const isApproved = await (coordinator as any).checkApprovalRequired(106);
       expect(isApproved).toBe(false);
     });
 
@@ -317,7 +317,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(107);
+      const isApproved = await (coordinator as any).checkApprovalRequired(107);
       expect(isApproved).toBe(true);
     });
   });
@@ -333,7 +333,7 @@ describe('Issue #47: CoordinatorAgent AL1 Approval Gate', () => {
       };
       (coordinator as any).octokit = mockOctokit;
 
-      const isApproved = await (coordinator as any).checkAL1Approval(110);
+      const isApproved = await (coordinator as any).checkApprovalRequired(110);
       expect(isApproved).toBe(false);
     });
   });

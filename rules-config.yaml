@@ -23,6 +23,13 @@ human_ai_boundary:
       require_approval: "AL1"   # AL1: 人間承認必要（条件付き）
       auto_proceed: "AL2"       # AL2以上: 自動進行可能（保証あり）
     auto_label: true            # AL判定結果を自動的にIssueラベルに反映
+    approval_detection:         # Issue #47: 承認検出設定
+      labels:                   # 承認を示すラベル
+        - "approved"
+        - "AL1:approved"
+        - "approval:granted"
+      commands:                 # 承認を示すコメントコマンド
+        - "/approve"
 
   # Phase 1: Planning Layer
   # 解決策探索（Solution Space分析）

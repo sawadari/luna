@@ -177,7 +177,7 @@ export class CoordinatorAgent {
           if (destResult.data.al === requireApprovalLevel) {
             this.log(`  ⚠️  ${requireApprovalLevel} detected - Human approval required`);
 
-            const isApproved = await this.checkAL1Approval(githubIssue.number);
+            const isApproved = await this.checkApprovalRequired(githubIssue.number);
 
             if (!isApproved) {
               this.log(`  ❌ ${requireApprovalLevel} approval not found - Issue blocked until approved`);
@@ -1131,13 +1131,23 @@ export class CoordinatorAgent {
   }
 
   /**
-   * Check if AL1 (Approval Required) issue has been approved
-   * Issue #47: Human approval gate for AL1 issues
+   * Check if approval-required issue has been approved
+   * Issue #47: Human approval gate for approval-required issues
+   * Reads approval labels and commands from rules-config.yaml
    */
-  private async checkAL1Approval(issueNumber: number): Promise<boolean> {
+  private async checkApprovalRequired(issueNumber: number): Promise<boolean> {
     const [owner, repo] = this.config.repository.split('/');
 
     try {
+      // Get approval detection config from rules-config.yaml
+      const approvalLabels = this.rulesConfig.get<string[]>(
+        'human_ai_boundary.dest_judgment.approval_detection.labels'
+      ) || ['approved']; // Fallback to minimal default
+
+      const approvalCommands = this.rulesConfig.get<string[]>(
+        'human_ai_boundary.dest_judgment.approval_detection.commands'
+      ) || ['/approve']; // Fallback to minimal default
+
       // 1. Check issue labels for approval
       const { data: issue } = await this.octokit.issues.get({
         owner,
@@ -1149,8 +1159,7 @@ export class CoordinatorAgent {
         typeof label === 'string' ? label : label.name || ''
       );
 
-      // Check for approval labels
-      const approvalLabels = ['approved', 'AL1:approved', 'approval:granted'];
+      // Check for approval labels (case-insensitive)
       const hasApprovalLabel = labels.some((label) =>
         approvalLabels.some((approvalLabel) =>
           label.toLowerCase().includes(approvalLabel.toLowerCase())
@@ -1162,27 +1171,33 @@ export class CoordinatorAgent {
         return true;
       }
 
-      // 2. Check issue comments for approval command
+      // 2. Check issue comments for approval commands
       const { data: comments } = await this.octokit.issues.listComments({
         owner,
         repo,
         issue_number: issueNumber,
       });
 
-      // Check for /approve command in comments (case-insensitive)
-      const hasApprovalComment = comments.some((comment) =>
-        comment.body?.toLowerCase().includes('/approve')
-      );
+      // Check for approval commands in comments (case-insensitive)
+      const hasApprovalComment = comments.some((comment) => {
+        const commentBody = comment.body?.toLowerCase() || '';
+        return approvalCommands.some((cmd) =>
+          commentBody.includes(cmd.toLowerCase())
+        );
+      });
 
       if (hasApprovalComment) {
-        this.log(`  Found /approve command in comments`);
+        const foundCommand = approvalCommands.find((cmd) =>
+          comments.some((c) => c.body?.toLowerCase().includes(cmd.toLowerCase()))
+        );
+        this.log(`  Found approval command: ${foundCommand}`);
         return true;
       }
 
       // No approval found
       return false;
     } catch (error) {
-      this.log(`  ⚠️  Failed to check AL1 approval: ${(error as Error).message}`);
+      this.log(`  ⚠️  Failed to check approval: ${(error as Error).message}`);
       // Fail-safe: Block if we can't verify approval
       return false;
     }

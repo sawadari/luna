@@ -88,6 +88,7 @@ export class SSOTAgentV2 {
       planningData?: any;
     }
   ): Promise<AgentResult<SSOTResult>> {
+    const startTime = Date.now(); // Issue #42: Record start time for accurate duration
     this.log(`✅ SSOT Agent V2 starting for issue #${issueNumber}`);
     if (context?.destJudgment) {
       this.log(`  DEST Judgment: AL=${context.destJudgment.al}`);
@@ -375,7 +376,7 @@ export class SSOTAgentV2 {
       status: 'success',
       data: result,
       metrics: {
-        durationMs: Date.now() - Date.now(),
+        durationMs: Date.now() - startTime, // Issue #42: Fixed duration calculation
         timestamp: new Date().toISOString(),
       },
     };

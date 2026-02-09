@@ -15,12 +15,13 @@ import {
 } from '../types/nrvv';
 import { KernelEnhancementService } from '../services/kernel-enhancement-service';
 import { env } from '../config/env';
+import type { KernelRuntime } from './kernel-runtime'; // Issue #48: Type-safe runtime reference
 
 export class KernelRegistryService {
   private registryPath: string;
   private registry: KernelRegistry | null = null;
   private enhancementService?: KernelEnhancementService;
-  private runtime?: any; // Issue #48: Optional KernelRuntime reference (injected via setRuntime)
+  private runtime?: KernelRuntime; // Issue #48: Optional KernelRuntime reference (injected via setRuntime)
 
   constructor(registryPath?: string, anthropicApiKey?: string) {
     // Priority: explicit parameter > env variable > default (kernels-luna-base.yaml for Luna development)
@@ -36,7 +37,7 @@ export class KernelRegistryService {
    * Set KernelRuntime reference (Issue #48)
    * Used to ensure V&V operations go through Ledger
    */
-  setRuntime(runtime: any): void {
+  setRuntime(runtime: KernelRuntime): void {
     this.runtime = runtime;
   }
 
@@ -671,32 +672,60 @@ export class KernelRegistryService {
       // Add verification via Runtime (Ledger-integrated)
       if (suggestions.verification.length > 0) {
         for (const ver of suggestions.verification) {
-          await this.runtime.apply({
+          const result = await this.runtime.apply({
             op: 'u.record_verification',
             actor: 'KernelEnhancementService',
             issue: kernel.sourceIssue || '#auto-complete',
             payload: {
               kernel_id: kernelId,
-              verification: ver,
+              verification: ver as any, // Type conversion from VerificationSuggestion
             },
           });
+
+          // Issue #48 Review: Check operation success
+          if (!result.success) {
+            throw new Error(`Failed to record verification ${ver.id}: ${result.error}`);
+          }
         }
       }
 
       // Add validation via Runtime (Ledger-integrated)
       if (suggestions.validation.length > 0) {
         for (const val of suggestions.validation) {
-          await this.runtime.apply({
+          const result = await this.runtime.apply({
             op: 'u.record_validation',
             actor: 'KernelEnhancementService',
             issue: kernel.sourceIssue || '#auto-complete',
             payload: {
               kernel_id: kernelId,
-              validation: val,
+              validation: val as any, // Type conversion from ValidationSuggestion
             },
           });
+
+          // Issue #48 Review: Check operation success
+          if (!result.success) {
+            throw new Error(`Failed to record validation ${val.id}: ${result.error}`);
+          }
         }
       }
+
+      // Issue #48 Review: Reload kernel to get latest state (avoids stale data overwrite)
+      const updatedKernel = await this.getKernel(kernelId);
+      if (!updatedKernel) {
+        throw new Error(`Kernel ${kernelId} not found after V&V updates`);
+      }
+
+      // Add history entry to the fresh kernel
+      updatedKernel.history.push({
+        timestamp: new Date().toISOString(),
+        action: 'updated',
+        by: 'KernelEnhancementService',
+        maturity: updatedKernel.maturity,
+        notes: `Auto-completed NRVV: ${suggestions.verification.length} verification, ${suggestions.validation.length} validation`,
+      });
+
+      // Save the updated kernel
+      await this.saveKernel(updatedKernel);
     } else {
       // Fallback to direct methods (bypasses Ledger - legacy behavior)
       // Add verification
@@ -712,18 +741,18 @@ export class KernelRegistryService {
           await this.addValidationToKernel(kernelId, val);
         }
       }
+
+      // Add history entry
+      kernel.history.push({
+        timestamp: new Date().toISOString(),
+        action: 'updated',
+        by: 'KernelEnhancementService',
+        maturity: kernel.maturity,
+        notes: `Auto-completed NRVV: ${suggestions.verification.length} verification, ${suggestions.validation.length} validation`,
+      });
+
+      await this.saveKernel(kernel);
     }
-
-    // Add history entry
-    kernel.history.push({
-      timestamp: new Date().toISOString(),
-      action: 'updated',
-      by: 'KernelEnhancementService',
-      maturity: kernel.maturity,
-      notes: `Auto-completed NRVV: ${suggestions.verification.length} verification, ${suggestions.validation.length} validation`,
-    });
-
-    await this.saveKernel(kernel);
   }
 
   /**

@@ -205,9 +205,12 @@ core_architecture:
     rationale: "AI生成物の未検証昇格を防止（品質保証）"
     allowed_unverified_sources:
       - "human"     # 人間生成物は検証なしでも昇格可能
+    # Note: blocked_unverified_sources is deprecated in favor of strict whitelist mode.
+    # Only sources in allowed_unverified_sources can proceed without verification.
+    # All other sources (including unknown/future values) require verification.
     blocked_unverified_sources:
-      - "ai"        # AI生成物は検証必須
-      - "hybrid"    # ハイブリッド生成物も検証必須
+      - "ai"        # Deprecated: AI生成物は検証必須（whitelist modeで自動的にブロック）
+      - "hybrid"    # Deprecated: ハイブリッド生成物も検証必須（whitelist modeで自動的にブロック）
 
 # ============================================================================
 # Rule Change History

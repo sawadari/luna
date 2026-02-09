@@ -467,5 +467,103 @@ kernels: {}
       expect(setStateResult.error).toContain('Evidence Governance');
       expect(setStateResult.details?.gate_checks?.evidence_governance.message).toContain('EVI-HYBRID-UNVERIFIED');
     });
+
+    it('should block unknown source_origin when unverified (strict whitelist)', async () => {
+      // Create kernel
+      await runtime.apply({
+        op: 'u.create_kernel',
+        actor: 'test_actor',
+        issue: 'TEST-009',
+        payload: {
+          kernel_id: 'KRN-EVI-009',
+          statement: 'Test kernel for unknown sources',
+          category: 'requirement',
+          owner: 'test_owner',
+          maturity: 'draft',
+        },
+      });
+
+      // Link evidence with unknown source_origin (not in allowed or blocked lists)
+      await runtime.apply({
+        op: 'u.link_evidence',
+        actor: 'test_actor',
+        issue: 'TEST-009',
+        payload: {
+          kernel_id: 'KRN-EVI-009',
+          evidence_type: 'artifact',
+          evidence_id: 'EVI-UNKNOWN-UNVERIFIED',
+          evidence_source: 'src/unknown.ts',
+          source_origin: 'unknown' as any, // Unknown source_origin
+          verification_status: 'pending', // Not verified
+        },
+      });
+
+      // Attempt state transition
+      const setStateResult = await runtime.apply({
+        op: 'u.set_state',
+        actor: 'test_actor',
+        issue: 'TEST-009',
+        payload: {
+          kernel_id: 'KRN-EVI-009',
+          from: 'draft',
+          to: 'under_review',
+          reason: 'Ready for review',
+        },
+      });
+
+      // Should fail because unknown sources require verification (strict whitelist mode)
+      expect(setStateResult.success).toBe(false);
+      expect(setStateResult.error).toContain('Evidence Governance');
+      expect(setStateResult.details?.gate_checks?.evidence_governance.message).toContain('EVI-UNKNOWN-UNVERIFIED');
+      expect(setStateResult.details?.gate_checks?.evidence_governance.message).toContain('non-allowed sources');
+    });
+
+    it('should allow unknown source_origin when verified', async () => {
+      // Create kernel
+      await runtime.apply({
+        op: 'u.create_kernel',
+        actor: 'test_actor',
+        issue: 'TEST-010',
+        payload: {
+          kernel_id: 'KRN-EVI-010',
+          statement: 'Test kernel for verified unknown sources',
+          category: 'requirement',
+          owner: 'test_owner',
+          maturity: 'draft',
+        },
+      });
+
+      // Link evidence with unknown source_origin but verified
+      await runtime.apply({
+        op: 'u.link_evidence',
+        actor: 'test_actor',
+        issue: 'TEST-010',
+        payload: {
+          kernel_id: 'KRN-EVI-010',
+          evidence_type: 'artifact',
+          evidence_id: 'EVI-UNKNOWN-VERIFIED',
+          evidence_source: 'src/unknown-verified.ts',
+          source_origin: 'unknown' as any, // Unknown source_origin
+          verification_status: 'verified', // But verified
+        },
+      });
+
+      // Attempt state transition
+      const setStateResult = await runtime.apply({
+        op: 'u.set_state',
+        actor: 'test_actor',
+        issue: 'TEST-010',
+        payload: {
+          kernel_id: 'KRN-EVI-010',
+          from: 'draft',
+          to: 'under_review',
+          reason: 'Ready for review',
+        },
+      });
+
+      // Should succeed because verification status is 'verified'
+      expect(setStateResult.success).toBe(true);
+      expect(setStateResult.details?.to).toBe('under_review');
+    });
   });
 });

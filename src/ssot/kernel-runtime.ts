@@ -346,30 +346,44 @@ export class KernelRuntime {
         ? rulesConfig.get<string[]>('core_architecture.evidence_governance.allowed_unverified_sources') ?? ['human']
         : ['human'];
 
-      const blockedSources = rulesConfig.isLoaded()
-        ? rulesConfig.get<string[]>('core_architecture.evidence_governance.blocked_unverified_sources') ?? ['ai', 'hybrid']
-        : ['ai', 'hybrid'];
+      // Note: blocked_unverified_sources is kept in config for documentation purposes,
+      // but the implementation now uses strict whitelist mode (only allowed_unverified_sources matters)
 
       const evidences = (kernel as any).evidence || [];
+
+      // Issue #49 (Medium fix): Strict whitelist mode - only explicitly allowed sources can proceed without verification
       const unverifiedAIContent = evidences.filter((ev: any) => {
         const sourceOrigin = ev.source_origin || 'human';
+        const isUnverified = ev.verification_status !== 'verified';
 
-        // Issue #49: Check allowed sources first (whitelist takes precedence)
-        if (allowedSources.includes(sourceOrigin)) {
-          return false; // Allowed sources can proceed without verification
+        // If not verified, check if source is explicitly allowed
+        if (isUnverified) {
+          // Whitelist: only explicitly allowed sources can proceed without verification
+          if (allowedSources.includes(sourceOrigin)) {
+            return false; // Allowed sources can proceed
+          }
+          // Everything else requires verification (strict whitelist mode)
+          // This prevents unknown/future source_origin values from bypassing verification
+          return true; // Block unverified content from non-allowed sources
         }
 
-        // Then check blocked sources
-        const isBlockedSource = blockedSources.includes(sourceOrigin);
-        const isUnverified = ev.verification_status !== 'verified';
-        return isBlockedSource && isUnverified;
+        // If verified, always allow
+        return false;
+      });
+
+      // Issue #49 (Low fix): Accurate reporting for audit logs
+      const nonAllowedEvidences = evidences.filter((ev: any) => {
+        const sourceOrigin = ev.source_origin || 'human';
+        return !allowedSources.includes(sourceOrigin);
       });
 
       checks.evidence_governance = {
         passed: unverifiedAIContent.length === 0,
         message: unverifiedAIContent.length === 0
-          ? `All AI-generated content is verified (${evidences.length} evidence(s) checked)`
-          : `Found ${unverifiedAIContent.length} unverified AI-generated evidence(s) - state transition blocked for quality assurance. ` +
+          ? nonAllowedEvidences.length > 0
+            ? `All non-allowed-source content is verified (${nonAllowedEvidences.length}/${evidences.length} evidence(s) checked)`
+            : `No verification required - all evidence from allowed sources (${evidences.length} evidence(s))`
+          : `Found ${unverifiedAIContent.length} unverified evidence(s) from non-allowed sources - state transition blocked for quality assurance. ` +
             `Evidence IDs: ${unverifiedAIContent.map((ev: any) => ev.id).join(', ')}`,
       };
 

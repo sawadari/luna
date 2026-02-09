@@ -74,10 +74,12 @@ export class KernelRuntime {
     // Get default values from rules-config.yaml
     const rulesConfig = getRulesConfig();
 
-    // ⚠️ WARNING: Rules must be loaded before using KernelRuntime
-    // Call await ensureRulesConfigLoaded() before creating KernelRuntime
+    // Issue #44: Enforce rules loading before instantiation
     if (!rulesConfig.isLoaded()) {
-      console.warn('⚠️  [KernelRuntime] Rules config not loaded! Using default values. Call ensureRulesConfigLoaded() first.');
+      throw new Error(
+        '[KernelRuntime] Rules config not loaded! ' +
+        'Call ensureRulesConfigLoaded() before creating KernelRuntime.'
+      );
     }
 
     const soloModeDefault = rulesConfig.isLoaded() ?

@@ -40,10 +40,12 @@ export class ChangeControlAgent {
     // Phase A3: KernelRuntime統合（rules-config.yaml から設定取得）
     const rulesConfig = getRulesConfig();
 
-    // ⚠️ WARNING: Rules must be loaded before using this agent
-    // Call await ensureRulesConfigLoaded() before creating this agent
+    // Issue #44: Enforce rules loading before instantiation
     if (!rulesConfig.isLoaded()) {
-      console.warn('⚠️  [ChangeControlAgent] Rules config not loaded! Using default values. Call ensureRulesConfigLoaded() first.');
+      throw new Error(
+        '[ChangeControlAgent] Rules config not loaded! ' +
+        'Call ensureRulesConfigLoaded() before creating ChangeControlAgent.'
+      );
     }
 
     // Get values from rules-config.yaml (single source of truth)

@@ -15,6 +15,7 @@ import {
   LinkEvidenceOperation,
   RecordDecisionOperation,
 } from '../../src/types/kernel-operations';
+import { ensureRulesConfigLoaded } from '../../src/services/rules-config-service';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -27,6 +28,9 @@ describe('KernelLedger', () => {
   let runtime: KernelRuntime;
 
   beforeEach(async () => {
+    // Issue #44: Ensure rules configuration is loaded before creating KernelRuntime
+    await ensureRulesConfigLoaded();
+
     // Clean up previous test files
     try {
       await fs.unlink(TEST_LEDGER_PATH);

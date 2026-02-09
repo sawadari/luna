@@ -4,12 +4,16 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { SSOTAgentV2 } from '../../src/agents/ssot-agent-v2';
 import type { AgentConfig, GitHubIssue } from '../../src/types';
+import { ensureRulesConfigLoaded } from '../../src/services/rules-config-service';
 
 describe('SSOTAgentV2 - NRVV Extraction', () => {
   let agent: SSOTAgentV2;
   let mockConfig: AgentConfig;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    // Issue #44: Ensure rules configuration is loaded before creating agents
+    await ensureRulesConfigLoaded();
+
     mockConfig = {
       githubToken: 'test-token',
       repository: 'test-owner/test-repo',

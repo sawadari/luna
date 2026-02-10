@@ -15,7 +15,7 @@ import {
 import { KernelWithNRVV } from '../types/nrvv';
 import { KernelRegistryService } from '../ssot/kernel-registry';
 import { KernelRuntime } from '../ssot/kernel-runtime';
-import { CreateKernelOperation, SetStateOperation } from '../types/kernel-operations';
+import { CreateKernelOperation, SetStateOperation, RecordDecisionOperation } from '../types/kernel-operations';
 import { generateKernelId } from '../utils/kernel-id-generator.js';
 
 interface SSOTResult {
@@ -50,7 +50,11 @@ export class SSOTAgentV2 {
   private kernelRuntime: KernelRuntime;
   private anthropic?: Anthropic;
 
-  constructor(config: AgentConfig, registryPath?: string) {
+  constructor(
+    config: AgentConfig,
+    registryPath?: string,
+    ledgerPath?: string
+  ) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService(registryPath);
@@ -58,6 +62,7 @@ export class SSOTAgentV2 {
     // Initialize KernelRuntime (Issue #43: Phase A1 compliance)
     this.kernelRuntime = new KernelRuntime({
       registryPath,
+      ledgerPath, // Issue #50: Accept ledgerPath parameter
       enableLedger: true,
       soloMode: true,
       defaultActor: 'SSOTAgentV2',
@@ -127,6 +132,26 @@ export class SSOTAgentV2 {
         updated_at: issue.updated_at,
       };
 
+      // Issue #50: Parse dest_judgment from issue body if not provided in context
+      let destJudgment = context?.destJudgment;
+      if (!destJudgment) {
+        const parsedData = this.parseYAMLFrontmatter(githubIssue.body || '');
+        if (parsedData?.dest_judgment) {
+          // Create minimal DESTJudgmentResult for AL propagation
+          destJudgment = {
+            judgmentId: parsedData.dest_judgment.judgmentId || 'PARSED',
+            al: parsedData.dest_judgment.al || 'AL0',
+            issueNumber: githubIssue.number,
+            judgedAt: new Date().toISOString(),
+            judgedBy: 'system',
+            outcomeOk: true,
+            issueLabel: [],
+            safetyAnalysis: parsedData.dest_judgment.safetyAnalysis || {},
+          } as any as import('../types').DESTJudgmentResult;
+          this.log(`  DEST Judgment parsed from issue body: AL=${destJudgment.al}`);
+        }
+      }
+
       const result: SSOTResult = {
         issueNumber,
         suggestedKernels: [],
@@ -164,26 +189,33 @@ export class SSOTAgentV2 {
         if (planningDataToUse) {
           const kernelsFromPlanning = await this.suggestKernelsFromDecisions(
             planningDataToUse,
-            githubIssue
+            githubIssue,
+            destJudgment // Issue #50: Pass destJudgment for AL propagation
           );
           result.suggestedKernels.push(...kernelsFromPlanning);
 
           // If DecisionRecord exists, automatically convert it to Kernel
           if (planningDataToUse.decisionRecord) {
             this.log('  DecisionRecord found - converting to Kernel');
-            const kernelFromDecision = await this.convertDecisionToKernel(
-              planningDataToUse.decisionRecord,
-              planningDataToUse.opportunity,
-              githubIssue,
-              context?.destJudgment
-            );
-            result.suggestedKernels.push(kernelFromDecision.id);
+            try {
+              const kernelFromDecision = await this.convertDecisionToKernel(
+                planningDataToUse.decisionRecord,
+                planningDataToUse.opportunity,
+                githubIssue,
+                destJudgment // Issue #50: Use parsed destJudgment
+              );
+              result.suggestedKernels.push(kernelFromDecision.id);
+            } catch (error) {
+              // Issue #50 (High fix): u.record_decision が必須 - 失敗時はKernelを採用しない
+              this.log(`  ❌ Failed to convert DecisionRecord to Kernel: ${(error as Error).message}`);
+            }
           }
         }
 
         // ✨ NEW (Issue #32): Planning Dataがない場合のフォールバック
         // Phase 2: AI-powered extraction with template fallback
-        if (!planningDataToUse || result.suggestedKernels.length === 0) {
+        // Issue #50 (High fix): Planning Dataがあれば、u.record_decision失敗時もフォールバックしない
+        if (!planningDataToUse) {
           this.log('  No Planning Data found - extracting NRVV from Issue directly');
 
           const kernelFromIssue = await this.extractNRVVFromIssueAI(githubIssue);
@@ -442,10 +474,12 @@ export class SSOTAgentV2 {
 
   /**
    * Planning Layerの決定レコードからKernel提案
+   * Issue #50: Added destJudgment parameter for AL propagation
    */
   private async suggestKernelsFromDecisions(
     planningData: any,
-    issue: GitHubIssue
+    issue: GitHubIssue,
+    destJudgment?: import('../types').DESTJudgmentResult
   ): Promise<string[]> {
     const kernelIds: string[] = [];
 
@@ -454,10 +488,12 @@ export class SSOTAgentV2 {
     }
 
     // DecisionRecordからKernel提案
-    if (planningData.decision_record) {
-      const decisionRecords = Array.isArray(planningData.decision_record)
-        ? planningData.decision_record
-        : [planningData.decision_record];
+    // Issue #50: Support both singular (decision_record) and plural (decision_records) forms
+    const decisionsSource = planningData.decision_records || planningData.decision_record;
+    if (decisionsSource) {
+      const decisionRecords = Array.isArray(decisionsSource)
+        ? decisionsSource
+        : [decisionsSource];
 
       for (const decision of decisionRecords) {
         if (decision.decision_type === 'adopt') {
@@ -518,8 +554,45 @@ export class SSOTAgentV2 {
             const createResult = await this.kernelRuntime.apply(createOp);
 
             if (createResult.success) {
-              kernelIds.push(kernel.id);
-              this.log(`Kernel ${kernel.id} suggested and saved to registry`);
+              this.log(`Kernel ${kernel.id} created`);
+
+              // Issue #50: DecisionRecord第一級要素化 - u.record_decision を必須実行
+              const recordDecisionOp: RecordDecisionOperation = {
+                op: 'u.record_decision',
+                actor: decision.decided_by || decision.owner || 'SSOTAgentV2',
+                issue: `#${issue.number}`,
+                payload: {
+                  kernel_id: kernel.id,
+                  decision_id: decision.id || `DR-${kernel.id}`,
+                  decision_type: decision.decision_type || 'adopt',
+                  decided_by: decision.decided_by || decision.owner || 'SSOTAgentV2',
+                  rationale: decision.rationale || decision.decision_statement || 'No rationale provided',
+                  falsification_conditions: decision.falsification_conditions || [],
+                  assurance_level: decision.assurance_level || destJudgment?.al || 'AL0', // Issue #50: Use DEST Judgment AL
+                },
+              };
+              const decisionResult = await this.kernelRuntime.apply(recordDecisionOp);
+
+              // Issue #50 (High fix): u.record_decision が必須 - 失敗時はKernelを採用しない
+              if (decisionResult.success) {
+                kernelIds.push(kernel.id);
+                this.log(`✅ Kernel ${kernel.id} with Decision ${decision.id} successfully recorded`);
+              } else {
+                this.log(`  ❌ Failed to record decision for Kernel ${kernel.id}: ${decisionResult.error}`);
+                this.log(`  ❌ Kernel ${kernel.id} NOT added to suggested kernels (u.record_decision is mandatory)`);
+
+                // Issue #50 (High fix): ロールバック - 孤児Kernelを削除
+                // KernelRuntimeとKernelRegistryが別インスタンスなので、load()で最新状態を取得
+                if (!this.config.dryRun) {
+                  await this.kernelRegistry.load(); // Refresh cache before deletion
+                  const deleted = await this.kernelRegistry.deleteKernel(kernel.id);
+                  if (deleted) {
+                    this.log(`  🔄 Rollback: Kernel ${kernel.id} deleted from registry (orphan prevention)`);
+                  } else {
+                    this.log(`  ⚠️  Rollback failed: Could not delete Kernel ${kernel.id}`);
+                  }
+                }
+              }
             } else {
               this.log(`  ⚠️  Failed to create Kernel ${kernel.id}: ${createResult.error}`);
             }
@@ -534,19 +607,31 @@ export class SSOTAgentV2 {
   /**
    * Parse Planning Data from Issue body
    */
-  private parsePlanningData(issueBody: string): any | null {
+  /**
+   * Parse YAML frontmatter from issue body
+   * Issue #50: Returns full parsed YAML (including dest_judgment)
+   */
+  private parseYAMLFrontmatter(issueBody: string): any | null {
     const yamlMatch = issueBody.match(/^---\n([\s\S]*?)\n---/);
     if (!yamlMatch) {
       return null;
     }
 
     try {
-      const data = yaml.parse(yamlMatch[1]);
-      return data.planning_layer || null;
+      return yaml.parse(yamlMatch[1]);
     } catch (error) {
       this.log(`YAML parse error: ${error}`);
       return null;
     }
+  }
+
+  /**
+   * Parse planning_layer from issue body
+   * (Backward compatibility wrapper)
+   */
+  private parsePlanningData(issueBody: string): any | null {
+    const data = this.parseYAMLFrontmatter(issueBody);
+    return data?.planning_layer || null;
   }
 
 
@@ -904,6 +989,44 @@ ${violationList}
 
     this.log(`  Kernel ${kernelId} created from DecisionRecord ${decision.id}`);
 
+    // Issue #50: DecisionRecord第一級要素化 - u.record_decision を必須実行
+    const recordDecisionOp: RecordDecisionOperation = {
+      op: 'u.record_decision',
+      actor: decision.decided_by || 'SSOTAgentV2',
+      issue: `#${issue.number}`,
+      payload: {
+        kernel_id: kernelId,
+        decision_id: decision.id,
+        decision_type: decision.decision_type || 'adopt',
+        decided_by: decision.decided_by || 'SSOTAgentV2',
+        rationale: decision.rationale || 'No rationale provided',
+        falsification_conditions: decision.falsification_conditions || [],
+        assurance_level: decision.assurance_level || destJudgment?.al || 'AL0',
+      },
+    };
+    const decisionResult = await this.kernelRuntime.apply(recordDecisionOp);
+
+    // Issue #50 (High fix): u.record_decision が必須 - 失敗時はエラーを投げる
+    if (!decisionResult.success) {
+      const errorMsg = `Failed to record decision for Kernel ${kernelId}: ${decisionResult.error}`;
+      this.log(`  ❌ ${errorMsg}`);
+
+      // Issue #50 (High fix): ロールバック - 孤児Kernelを削除
+      // KernelRuntimeとKernelRegistryが別インスタンスなので、load()で最新状態を取得
+      if (!this.config.dryRun) {
+        await this.kernelRegistry.load(); // Refresh cache before deletion
+        const deleted = await this.kernelRegistry.deleteKernel(kernelId);
+        if (deleted) {
+          this.log(`  🔄 Rollback: Kernel ${kernelId} deleted from registry (orphan prevention)`);
+        } else {
+          this.log(`  ⚠️  Rollback failed: Could not delete Kernel ${kernelId}`);
+        }
+      }
+
+      throw new Error(errorMsg);
+    }
+
+    this.log(`  ✅ Decision ${decision.id} recorded for Kernel ${kernelId}`);
     return kernel;
   }
 

@@ -13,6 +13,8 @@ import {
   AssumptionStatus,
   DecisionRecord,
 } from '../types';
+import { KernelReevaluationService } from '../services/kernel-reevaluation-service';
+import { KernelRegistryService } from '../ssot/kernel-registry';
 
 interface AssumptionTrackingResult {
   issueNumber: number;
@@ -22,15 +24,26 @@ interface AssumptionTrackingResult {
   affectedDecisions: DecisionRecord[];
   comments: string[];
   labels: string[];
+  // Issue #51: Reevaluation tracking
+  reevaluationTriggered: number;
+  reevaluationIds: string[];
 }
 
 export class AssumptionTrackerAgent {
   private octokit: Octokit;
   private config: AgentConfig;
+  private reevaluationService?: KernelReevaluationService;
+  private kernelRegistry?: KernelRegistryService;
 
-  constructor(config: AgentConfig) {
+  constructor(
+    config: AgentConfig,
+    reevaluationService?: KernelReevaluationService,
+    kernelRegistry?: KernelRegistryService
+  ) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.reevaluationService = reevaluationService;
+    this.kernelRegistry = kernelRegistry;
   }
 
   private log(message: string): void {
@@ -78,6 +91,9 @@ export class AssumptionTrackerAgent {
       affectedDecisions: [],
       comments: [],
       labels: [],
+      // Issue #51: Reevaluation tracking
+      reevaluationTriggered: 0,
+      reevaluationIds: [],
     };
 
     // 3. Assumption自動検出
@@ -124,6 +140,14 @@ export class AssumptionTrackerAgent {
       if (result.overdueAssumptions.length > 0) {
         this.log(`Found ${result.overdueAssumptions.length} overdue assumptions`);
         result.comments.push(this.buildOverdueComment(result.overdueAssumptions));
+
+        // Issue #51: Trigger reevaluation for overdue assumptions
+        await this.triggerReevaluationForAssumptions(
+          result.overdueAssumptions,
+          'assumption_overdue',
+          issueNumber,
+          result
+        );
       }
     }
 
@@ -159,6 +183,14 @@ export class AssumptionTrackerAgent {
             this.buildEscalationComment(criticalInvalidated, result.affectedDecisions)
           );
         }
+
+        // Issue #51: Trigger reevaluation for invalidated assumptions
+        await this.triggerReevaluationForAssumptions(
+          result.invalidatedAssumptions,
+          'assumption_invalidated',
+          issueNumber,
+          result
+        );
       }
     }
 
@@ -515,5 +547,123 @@ ${decisionList}
 
 ---
 *Automated by AssumptionTrackerAgent*`;
+  }
+
+  // ========================================================================
+  // Issue #51: Kernel Reevaluation Integration
+  // ========================================================================
+
+  /**
+   * Trigger reevaluation for assumptions
+   *
+   * @param assumptions - Assumptions to trigger reevaluation for
+   * @param triggerType - Type of trigger (assumption_invalidated | assumption_overdue)
+   * @param issueNumber - Current issue number
+   * @param result - Tracking result to update
+   */
+  private async triggerReevaluationForAssumptions(
+    assumptions: Assumption[],
+    triggerType: 'assumption_invalidated' | 'assumption_overdue',
+    issueNumber: number,
+    result: AssumptionTrackingResult
+  ): Promise<void> {
+    // Skip if services not configured
+    if (!this.reevaluationService || !this.kernelRegistry) {
+      this.log('Reevaluation service or kernel registry not configured, skipping');
+      return;
+    }
+
+    for (const assumption of assumptions) {
+      try {
+        // Find kernels related to this assumption's decisions
+        const relatedKernels = await this.findKernelsForAssumption(assumption);
+
+        if (relatedKernels.length === 0) {
+          this.log(`No related kernels found for Assumption ${assumption.id}`);
+          continue;
+        }
+
+        this.log(
+          `Found ${relatedKernels.length} kernels related to Assumption ${assumption.id}`
+        );
+
+        // Trigger reevaluation for each related kernel
+        for (const kernel of relatedKernels) {
+          const reevaluationResult = await this.reevaluationService.startReevaluation({
+            triggerType,
+            kernel_id: kernel.id,
+            existing_issue_id: issueNumber,
+            triggeredBy: 'AssumptionTrackerAgent',
+            trigger_details:
+              triggerType === 'assumption_invalidated'
+                ? {
+                    assumption_id: assumption.id,
+                    assumption_statement: assumption.statement,
+                    invalidation_reason: assumption.invalidatedReason || 'Not specified',
+                  }
+                : {
+                    assumption_id: assumption.id,
+                    assumption_statement: assumption.statement,
+                    validation_due_date: assumption.validationDate || '',
+                    days_overdue: assumption.validationDate
+                      ? Math.floor(
+                          (Date.now() - new Date(assumption.validationDate).getTime()) /
+                            (1000 * 60 * 60 * 24)
+                        )
+                      : 0,
+                  },
+            severity:
+              triggerType === 'assumption_invalidated' &&
+              result.affectedDecisions.some((d) => d.decisionType === 'adopt')
+                ? 'high'
+                : 'medium',
+            manual_followup_required:
+              triggerType === 'assumption_invalidated' &&
+              result.affectedDecisions.some((d) => d.decisionType === 'adopt'),
+          });
+
+          if (reevaluationResult.success) {
+            result.reevaluationTriggered++;
+            result.reevaluationIds.push(reevaluationResult.reevaluation_id);
+            this.log(
+              `Reevaluation triggered for Kernel ${kernel.id}: ${reevaluationResult.reevaluation_id}${reevaluationResult.issue_id ? ` (Issue #${reevaluationResult.issue_id})` : ''}`
+            );
+          } else {
+            this.log(
+              `Failed to trigger reevaluation for Kernel ${kernel.id}: ${reevaluationResult.error}`
+            );
+          }
+        }
+      } catch (error) {
+        this.log(
+          `Error triggering reevaluation for Assumption ${assumption.id}: ${(error as Error).message}`
+        );
+      }
+    }
+  }
+
+  /**
+   * Find kernels related to an assumption
+   *
+   * @param assumption - Assumption to find kernels for
+   * @returns Array of related kernels
+   */
+  private async findKernelsForAssumption(assumption: Assumption): Promise<any[]> {
+    if (!this.kernelRegistry) {
+      return [];
+    }
+
+    // Get all kernels
+    const allKernels = await this.kernelRegistry.getAllKernels();
+
+    // Filter kernels whose decision_id matches any of the assumption's related decisions
+    const relatedKernels = allKernels.filter((kernel) => {
+      if (!kernel.decision || !kernel.decision.decision_id) {
+        return false;
+      }
+      return assumption.relatedDecisions.includes(kernel.decision.decision_id);
+    });
+
+    return relatedKernels;
   }
 }

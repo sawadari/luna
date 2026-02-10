@@ -40,6 +40,10 @@ import { MonitoringAgent } from './monitoring-agent';
 import { KernelRegistryService } from '../ssot/kernel-registry';
 import type { KernelWithNRVV } from '../types/nrvv';
 import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
+import {
+  ContinuousImprovementService,
+  type ContinuousImprovementInput,
+} from '../services/continuous-improvement-service';
 
 export class CoordinatorAgent {
   private octokit: Octokit;
@@ -52,6 +56,7 @@ export class CoordinatorAgent {
   private testAgent: TestAgent;
   private deploymentAgent: DeploymentAgent;
   private monitoringAgent: MonitoringAgent;
+  private continuousImprovementService: ContinuousImprovementService;
   private kernelRegistry: KernelRegistryService;
   private rulesConfig: RulesConfigService;
 
@@ -66,6 +71,12 @@ export class CoordinatorAgent {
     this.testAgent = new TestAgent(config);
     this.deploymentAgent = new DeploymentAgent(config);
     this.monitoringAgent = new MonitoringAgent(config);
+    this.continuousImprovementService = new ContinuousImprovementService({
+      githubToken: config.githubToken,
+      repository: config.repository,
+      dryRun: config.dryRun,
+      verbose: config.verbose,
+    });
     this.kernelRegistry = new KernelRegistryService();
     this.rulesConfig = getRulesConfig();
   }
@@ -298,6 +309,36 @@ export class CoordinatorAgent {
           efficiencyRatio: actualDuration / executionPlan.totalEstimatedDuration,
         },
       };
+
+      // Phase 9: Continuous Improvement
+      this.log('Phase 9: Continuous Improvement');
+      try {
+        const phase9Input: ContinuousImprovementInput = {
+          issueNumber: githubIssue.number,
+          coordinationResult: result,
+          monitoringContext: executionContext.monitoringContext,
+        };
+        const phase9Result = await this.continuousImprovementService.execute(phase9Input);
+        result.continuousImprovement = phase9Result;
+        this.log(
+          `  Improvement suggestions: ${phase9Result.metrics.generatedSuggestions}, ` +
+            `created issues: ${phase9Result.metrics.createdIssues}`
+        );
+      } catch (error) {
+        const warning = `Phase 9 failed: ${(error as Error).message}`;
+        this.log(`  ⚠️  ${warning}`);
+        result.continuousImprovement = {
+          status: 'error',
+          suggestions: [],
+          createdIssues: [],
+          warnings: [warning],
+          metrics: {
+            generatedSuggestions: 0,
+            createdIssues: 0,
+            timestamp: new Date().toISOString(),
+          },
+        };
+      }
 
       // 6. Post summary comment
       if (!this.config.dryRun) {
@@ -1113,6 +1154,20 @@ export class CoordinatorAgent {
     comment += `- Critical Path: ${result.executionPlan.criticalPath.length} tasks\n`;
     comment += `- Critical Path Duration: ${result.executionPlan.criticalPathDuration.toFixed(1)}min\n`;
     comment += `- Parallelization Factor: ${result.executionPlan.parallelizationFactor.toFixed(2)}x\n\n`;
+
+    if (result.continuousImprovement) {
+      comment += `**Phase 9 (Continuous Improvement)**:\n`;
+      comment += `- Status: ${result.continuousImprovement.status}\n`;
+      comment += `- Suggestions: ${result.continuousImprovement.metrics.generatedSuggestions}\n`;
+      comment += `- Created Issues: ${result.continuousImprovement.metrics.createdIssues}\n`;
+      if (result.continuousImprovement.warnings.length > 0) {
+        comment += `- Warnings:\n`;
+        for (const warning of result.continuousImprovement.warnings) {
+          comment += `  - ${warning}\n`;
+        }
+      }
+      comment += `\n`;
+    }
 
     if (result.failedTasks.length > 0) {
       comment += `**Failed Tasks**:\n`;

@@ -19,7 +19,9 @@ export type OperationType =
   | 'u.record_validation'
   | 'u.set_state'
   | 'u.raise_exception'
-  | 'u.close_exception';
+  | 'u.close_exception'
+  | 'u.start_reevaluation' // Issue #51: Kernel再評価開始
+  | 'u.complete_reevaluation'; // Issue #51: Kernel再評価完了
 
 /**
  * Base Operation - 基本操作インターフェース
@@ -222,6 +224,40 @@ export interface CloseExceptionOperation extends BaseOperation {
 }
 
 /**
+ * Start Reevaluation Operation
+ * Kernel再評価を開始する操作（Issue #51）
+ */
+export interface StartReevaluationOperation extends BaseOperation {
+  op: 'u.start_reevaluation';
+  payload: {
+    kernel_id: string;
+    reevaluation_id: string;
+    trigger_type: string;
+    severity: 'critical' | 'high' | 'medium' | 'low';
+    trigger_details: Record<string, unknown>;
+  };
+}
+
+/**
+ * Complete Reevaluation Operation
+ * Kernel再評価を完了する操作（Issue #51）
+ */
+export interface CompleteReevaluationOperation extends BaseOperation {
+  op: 'u.complete_reevaluation';
+  payload: {
+    kernel_id: string;
+    reevaluation_id: string;
+    status: 'resolved' | 'dismissed';
+    resolution: string;
+    cr_candidate?: {
+      proposed_change: string;
+      rationale: string;
+      impact: 'breaking' | 'major' | 'minor' | 'patch';
+    };
+  };
+}
+
+/**
  * Union type for all operations
  */
 export type KernelOperation =
@@ -232,7 +268,9 @@ export type KernelOperation =
   | RecordValidationOperation
   | SetStateOperation
   | RaiseExceptionOperation
-  | CloseExceptionOperation;
+  | CloseExceptionOperation
+  | StartReevaluationOperation
+  | CompleteReevaluationOperation;
 
 /**
  * Operation Result - 操作実行結果

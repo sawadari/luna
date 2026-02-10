@@ -22,6 +22,8 @@ import {
   RecordValidationOperation,
   RaiseExceptionOperation,
   CloseExceptionOperation,
+  StartReevaluationOperation,
+  CompleteReevaluationOperation,
 } from '../types/kernel-operations.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getRulesConfig } from '../services/rules-config-service.js';
@@ -214,6 +216,12 @@ export class KernelRuntime {
           break;
         case 'u.close_exception':
           result = await this.executeCloseException(operation as CloseExceptionOperation);
+          break;
+        case 'u.start_reevaluation':
+          result = await this.executeStartReevaluation(operation as StartReevaluationOperation);
+          break;
+        case 'u.complete_reevaluation':
+          result = await this.executeCompleteReevaluation(operation as CompleteReevaluationOperation);
           break;
         default:
           return {
@@ -990,6 +998,122 @@ export class KernelRuntime {
       details: {
         kernel_id,
         exception_id,
+      },
+    };
+  }
+
+  /**
+   * Execute: u.start_reevaluation (Issue #51)
+   */
+  private async executeStartReevaluation(
+    operation: StartReevaluationOperation
+  ): Promise<OperationResult> {
+    const { kernel_id, reevaluation_id, trigger_type, severity } = operation.payload;
+
+    this.log(`Starting reevaluation: ${reevaluation_id} for kernel: ${kernel_id}`);
+
+    const kernel = await this.registry.getKernel(kernel_id);
+    if (!kernel) {
+      return {
+        success: false,
+        op_id: '',
+        timestamp: '',
+        error: `Kernel ${kernel_id} not found`,
+      };
+    }
+
+    // Update lastUpdatedAt
+    kernel.lastUpdatedAt = new Date().toISOString();
+
+    // Historyに記録
+    if (!kernel.history) {
+      kernel.history = [];
+    }
+    kernel.history.push({
+      action: 'start_reevaluation',
+      by: operation.actor,
+      timestamp: new Date().toISOString(),
+      op: 'u.start_reevaluation',
+      actor: operation.actor,
+      issue: operation.issue,
+      summary: `Reevaluation started: ${reevaluation_id} (trigger: ${trigger_type}, severity: ${severity})`,
+    });
+
+    if (!this.config.dryRun) {
+      await this.registry.saveKernel(kernel);
+    }
+
+    return {
+      success: true,
+      op_id: '',
+      timestamp: '',
+      details: {
+        kernel_id,
+        reevaluation_id,
+        trigger_type,
+        severity,
+      },
+    };
+  }
+
+  /**
+   * Execute: u.complete_reevaluation (Issue #51)
+   */
+  private async executeCompleteReevaluation(
+    operation: CompleteReevaluationOperation
+  ): Promise<OperationResult> {
+    const { kernel_id, reevaluation_id, status, resolution, cr_candidate } =
+      operation.payload;
+
+    this.log(`Completing reevaluation: ${reevaluation_id} for kernel: ${kernel_id}`);
+
+    const kernel = await this.registry.getKernel(kernel_id);
+    if (!kernel) {
+      return {
+        success: false,
+        op_id: '',
+        timestamp: '',
+        error: `Kernel ${kernel_id} not found`,
+      };
+    }
+
+    // Update lastUpdatedAt
+    kernel.lastUpdatedAt = new Date().toISOString();
+
+    // Historyに記録
+    if (!kernel.history) {
+      kernel.history = [];
+    }
+
+    let summary = `Reevaluation completed: ${reevaluation_id} (status: ${status})`;
+    if (cr_candidate) {
+      summary += ` - CR candidate: ${cr_candidate.proposed_change} (impact: ${cr_candidate.impact})`;
+    }
+
+    kernel.history.push({
+      action: 'complete_reevaluation',
+      by: operation.actor,
+      timestamp: new Date().toISOString(),
+      op: 'u.complete_reevaluation',
+      actor: operation.actor,
+      issue: operation.issue,
+      summary,
+    });
+
+    if (!this.config.dryRun) {
+      await this.registry.saveKernel(kernel);
+    }
+
+    return {
+      success: true,
+      op_id: '',
+      timestamp: '',
+      details: {
+        kernel_id,
+        reevaluation_id,
+        status,
+        resolution,
+        cr_candidate,
       },
     };
   }

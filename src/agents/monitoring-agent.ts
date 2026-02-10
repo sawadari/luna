@@ -20,6 +20,7 @@ import { KernelRegistryService } from '../ssot/kernel-registry';
 import { KernelRuntime } from '../ssot/kernel-runtime';
 import type { Validation } from '../types/nrvv';
 import { getRulesConfig, ensureRulesConfigLoaded, RulesConfigService } from '../services/rules-config-service';
+import { KernelReevaluationService } from '../services/kernel-reevaluation-service';
 
 export class MonitoringAgent {
   private octokit: Octokit;
@@ -29,8 +30,9 @@ export class MonitoringAgent {
   private rulesConfig: RulesConfigService;
   private metrics: Metric[] = [];
   private alerts: Alert[] = [];
+  private reevaluationService?: KernelReevaluationService;
 
-  constructor(config: AgentConfig) {
+  constructor(config: AgentConfig, reevaluationService?: KernelReevaluationService) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
     this.kernelRegistry = new KernelRegistryService();
@@ -42,6 +44,7 @@ export class MonitoringAgent {
     // Issue #48: Inject KernelRuntime into KernelRegistry for Ledger-integrated operations
     this.kernelRegistry.setRuntime(this.kernelRuntime);
     this.rulesConfig = getRulesConfig();
+    this.reevaluationService = reevaluationService;
   }
 
   private log(message: string): void {
@@ -123,6 +126,9 @@ export class MonitoringAgent {
       // 4. アラート生成
       this.generateAlerts(healthStatus);
       this.log(`🚨 Generated ${this.alerts.length} alerts`);
+
+      // 4.3. Issue #51: Trigger kernel reevaluation for quality/health issues
+      await this.triggerReevaluationForIssues(issueNumber, healthStatus);
 
       // 4.5. Alert to Human (from rules-config.yaml)
       const alertToHuman = this.rulesConfig.get<boolean>(
@@ -717,5 +723,202 @@ export class MonitoringAgent {
       .toString()
       .padStart(3, '0');
     return `VAL-${kernelId}-${timestamp}-${random}`;
+  }
+
+  // ========================================================================
+  // Issue #51: Kernel Reevaluation Integration
+  // ========================================================================
+
+  /**
+   * Trigger kernel reevaluation for quality/health issues
+   *
+   * @param issueNumber - Current issue number
+   * @param healthStatus - Health status result
+   */
+  private async triggerReevaluationForIssues(
+    issueNumber: number,
+    healthStatus: HealthStatus
+  ): Promise<void> {
+    // Skip if service not configured
+    if (!this.reevaluationService) {
+      this.log('Reevaluation service not configured, skipping');
+      return;
+    }
+
+    // Get all kernels
+    const allKernels = await this.kernelRegistry.getAllKernels();
+    if (allKernels.length === 0) {
+      this.log('No kernels found, skipping reevaluation');
+      return;
+    }
+
+    this.log(`Checking ${allKernels.length} kernels for reevaluation triggers`);
+
+    // Trigger reevaluation for each kernel based on alerts and health status
+    for (const kernel of allKernels) {
+      try {
+        // Check for quality degradation (metrics below threshold)
+        const qualityDegradationAlerts = this.alerts.filter(
+          (a) =>
+            a.severity === 'warning' &&
+            (a.metric?.includes('coverage') ||
+              a.metric?.includes('quality') ||
+              a.metric?.includes('pass_rate'))
+        );
+
+        if (qualityDegradationAlerts.length > 0) {
+          for (const alert of qualityDegradationAlerts) {
+            await this.triggerQualityDegradationReevaluation(
+              kernel.id,
+              issueNumber,
+              alert
+            );
+          }
+        }
+
+        // Check for quality regression (metrics dropped significantly)
+        const qualityRegressionAlerts = this.alerts.filter(
+          (a) =>
+            (a.severity === 'error' || a.severity === 'critical') &&
+            (a.metric?.includes('coverage') ||
+              a.metric?.includes('quality') ||
+              a.metric?.includes('pass_rate'))
+        );
+
+        if (qualityRegressionAlerts.length > 0) {
+          for (const alert of qualityRegressionAlerts) {
+            await this.triggerQualityRegressionReevaluation(
+              kernel.id,
+              issueNumber,
+              alert
+            );
+          }
+        }
+
+        // Check for health incidents (system degraded/unhealthy)
+        if (healthStatus.status === 'degraded' || healthStatus.status === 'unhealthy') {
+          const failedChecks = healthStatus.checks.filter((c) => c.status === 'fail');
+          if (failedChecks.length > 0) {
+            await this.triggerHealthIncidentReevaluation(
+              kernel.id,
+              issueNumber,
+              healthStatus,
+              failedChecks
+            );
+          }
+        }
+      } catch (error) {
+        this.log(
+          `Error checking reevaluation triggers for Kernel ${kernel.id}: ${(error as Error).message}`
+        );
+      }
+    }
+  }
+
+  /**
+   * Trigger quality degradation reevaluation
+   */
+  private async triggerQualityDegradationReevaluation(
+    kernel_id: string,
+    issueNumber: number,
+    alert: Alert
+  ): Promise<void> {
+    if (!this.reevaluationService) return;
+
+    const degradation_rate =
+      alert.threshold && alert.currentValue
+        ? (alert.currentValue - alert.threshold) / alert.threshold
+        : undefined;
+
+    const result = await this.reevaluationService.startReevaluation({
+      triggerType: 'quality_degradation',
+      kernel_id,
+      existing_issue_id: issueNumber,
+      triggeredBy: 'MonitoringAgent',
+      trigger_details: {
+        metric_name: alert.metric || 'unknown_metric',
+        metric_value: alert.currentValue || 0,
+        threshold: alert.threshold || 0,
+        degradation_rate,
+      },
+      severity: alert.severity === 'critical' ? 'high' : 'medium',
+      manual_followup_required: alert.severity === 'critical',
+    });
+
+    if (result.success) {
+      this.log(
+        `Quality degradation reevaluation triggered for Kernel ${kernel_id}: ${result.reevaluation_id}${result.issue_id ? ` (Issue #${result.issue_id})` : ''}`
+      );
+    }
+  }
+
+  /**
+   * Trigger quality regression reevaluation
+   */
+  private async triggerQualityRegressionReevaluation(
+    kernel_id: string,
+    issueNumber: number,
+    alert: Alert
+  ): Promise<void> {
+    if (!this.reevaluationService) return;
+
+    const degradation_rate =
+      alert.threshold && alert.currentValue
+        ? (alert.currentValue - alert.threshold) / alert.threshold
+        : undefined;
+
+    const result = await this.reevaluationService.startReevaluation({
+      triggerType: 'quality_regression',
+      kernel_id,
+      existing_issue_id: issueNumber,
+      triggeredBy: 'MonitoringAgent',
+      trigger_details: {
+        metric_name: alert.metric || 'unknown_metric',
+        metric_value: alert.currentValue || 0,
+        threshold: alert.threshold || 0,
+        degradation_rate,
+      },
+      severity: 'high',
+      manual_followup_required: true,
+    });
+
+    if (result.success) {
+      this.log(
+        `Quality regression reevaluation triggered for Kernel ${kernel_id}: ${result.reevaluation_id}${result.issue_id ? ` (Issue #${result.issue_id})` : ''}`
+      );
+    }
+  }
+
+  /**
+   * Trigger health incident reevaluation
+   */
+  private async triggerHealthIncidentReevaluation(
+    kernel_id: string,
+    issueNumber: number,
+    healthStatus: HealthStatus,
+    failedChecks: HealthCheck[]
+  ): Promise<void> {
+    if (!this.reevaluationService) return;
+
+    const result = await this.reevaluationService.startReevaluation({
+      triggerType: 'health_incident',
+      kernel_id,
+      existing_issue_id: issueNumber,
+      triggeredBy: 'MonitoringAgent',
+      trigger_details: {
+        incident_type: healthStatus.status,
+        incident_description: `${failedChecks.length} health checks failed`,
+        affected_components: failedChecks.map((c) => c.name),
+        error_count: failedChecks.length,
+      },
+      severity: healthStatus.status === 'unhealthy' ? 'critical' : 'high',
+      manual_followup_required: healthStatus.status === 'unhealthy',
+    });
+
+    if (result.success) {
+      this.log(
+        `Health incident reevaluation triggered for Kernel ${kernel_id}: ${result.reevaluation_id}${result.issue_id ? ` (Issue #${result.issue_id})` : ''}`
+      );
+    }
   }
 }

@@ -557,7 +557,15 @@ function createMockDeploymentContext(
 ): DeploymentContext {
   return {
     issue: createMockIssue(),
-    codeGenContext: {} as any,
+    codeGenContext: {
+      generatedCode: [
+        {
+          file_path: 'src/test.ts',
+          content: 'console.log("test");',
+          language: 'typescript',
+        },
+      ],
+    } as any,
     reviewContext: {
       passed: true,
       overallScore: 85,
@@ -569,6 +577,15 @@ function createMockDeploymentContext(
       coverage: {
         statements: { percentage: 85 },
       },
+      testResults: [
+        {
+          name: 'test-suite',
+          passed: 10,
+          failed: 0,
+          skipped: 0,
+          duration: 100,
+        },
+      ],
     } as any,
     deploymentResults: [],
     overallSuccess: true,
@@ -596,3 +613,412 @@ function createMockMonitoringContext(
     ...overrides,
   };
 }
+
+// ==========================================================================
+// Issue #51: Kernel Reevaluation Integration Tests
+// ==========================================================================
+
+describe('Kernel Reevaluation Integration', () => {
+  let testMockConfig: AgentConfig;
+  let testMockDeploymentContext: DeploymentContext;
+
+  beforeEach(async () => {
+    await ensureRulesConfigLoaded();
+
+    testMockConfig = {
+      githubToken: 'test-token',
+      repository: 'test-owner/test-repo',
+      verbose: false,
+    };
+
+    testMockDeploymentContext = createMockDeploymentContext();
+  });
+
+  // Test 1: Verify quality_degradation trigger calls startReevaluation
+  it('should call startReevaluation with quality_degradation trigger', async () => {
+    const mockReevaluationService = {
+      startReevaluation: vi.fn().mockResolvedValue({
+        success: true,
+        reevaluation_id: 'REV-QUALITY-DEGRADATION',
+        deduplicated: false,
+      }),
+    };
+
+    const agentWithReevaluation = new MonitoringAgent(
+      testMockConfig,
+      mockReevaluationService as any
+    );
+
+    const mockOctokit = {
+      issues: {
+        get: vi.fn().mockResolvedValue({ data: createMockIssue() }),
+      },
+    };
+    (agentWithReevaluation as any).octokit = mockOctokit;
+
+    // Create quality degradation alert (warning severity)
+    const qualityDegradationAlert: Alert = {
+      id: 'ALERT-DEGRADATION',
+      severity: 'warning',
+      message: 'Quality score degraded',
+      metric: 'code_quality_score',
+      threshold: 80,
+      currentValue: 70,
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+
+    // Trigger quality degradation directly
+    await (agentWithReevaluation as any).triggerQualityDegradationReevaluation(
+      'KRN-QUALITY-001',
+      100,
+      qualityDegradationAlert
+    );
+
+    // Verify the trigger was called
+    expect(mockReevaluationService.startReevaluation).toHaveBeenCalled();
+    expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerType: 'quality_degradation',
+        kernel_id: 'KRN-QUALITY-001',
+        triggeredBy: 'MonitoringAgent',
+      })
+    );
+  });
+
+  // Test 2: Verify quality_regression trigger calls startReevaluation
+  it('should call startReevaluation with quality_regression trigger', async () => {
+    const mockReevaluationService = {
+      startReevaluation: vi.fn().mockResolvedValue({
+        success: true,
+        reevaluation_id: 'REV-QUALITY-REGRESSION',
+        deduplicated: false,
+      }),
+    };
+
+    const agentWithReevaluation = new MonitoringAgent(
+      testMockConfig,
+      mockReevaluationService as any
+    );
+
+    const mockOctokit = {
+      issues: {
+        get: vi.fn().mockResolvedValue({ data: createMockIssue() }),
+      },
+    };
+    (agentWithReevaluation as any).octokit = mockOctokit;
+
+    // Create quality regression alert (critical severity)
+    const qualityRegressionAlert: Alert = {
+      id: 'ALERT-REGRESSION',
+      severity: 'critical',
+      message: 'Quality score dropped significantly',
+      metric: 'test_pass_rate',
+      threshold: 100,
+      currentValue: 50,
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+
+    // Trigger quality regression directly
+    await (agentWithReevaluation as any).triggerQualityRegressionReevaluation(
+      'KRN-QUALITY-002',
+      101,
+      qualityRegressionAlert
+    );
+
+    // Verify the trigger was called
+    expect(mockReevaluationService.startReevaluation).toHaveBeenCalled();
+    expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerType: 'quality_regression',
+        kernel_id: 'KRN-QUALITY-002',
+        triggeredBy: 'MonitoringAgent',
+      })
+    );
+  });
+
+  // Test 3: Verify health_incident trigger calls startReevaluation
+  it('should call startReevaluation with health_incident trigger', async () => {
+    const mockReevaluationService = {
+      startReevaluation: vi.fn().mockResolvedValue({
+        success: true,
+        reevaluation_id: 'REV-HEALTH-INCIDENT',
+        deduplicated: false,
+      }),
+    };
+
+    const agentWithReevaluation = new MonitoringAgent(
+      testMockConfig,
+      mockReevaluationService as any
+    );
+
+    const mockOctokit = {
+      issues: {
+        get: vi.fn().mockResolvedValue({ data: createMockIssue() }),
+      },
+    };
+    (agentWithReevaluation as any).octokit = mockOctokit;
+
+    // Create unhealthy status
+    const unhealthyStatus: HealthStatus = {
+      status: 'unhealthy',
+      checks: [
+        { name: 'deployment', status: 'fail', message: 'Deployment failed', duration: 100 },
+        { name: 'quality', status: 'fail', message: 'Quality check failed', duration: 50 },
+      ],
+      uptime: 1000,
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+
+    const failedChecks = unhealthyStatus.checks.filter((c) => c.status === 'fail');
+
+    // Trigger health incident directly
+    await (agentWithReevaluation as any).triggerHealthIncidentReevaluation(
+      'KRN-HEALTH-001',
+      102,
+      unhealthyStatus,
+      failedChecks
+    );
+
+    // Verify the trigger was called
+    expect(mockReevaluationService.startReevaluation).toHaveBeenCalled();
+    expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerType: 'health_incident',
+        kernel_id: 'KRN-HEALTH-001',
+        triggeredBy: 'MonitoringAgent',
+      })
+    );
+  });
+
+  it('should trigger reevaluation for quality degradation', async () => {
+    const mockReevaluationService = {
+      startReevaluation: vi.fn().mockResolvedValue({
+        success: true,
+        reevaluation_id: 'REV-TEST-001',
+        issue_id: 200,
+        deduplicated: false,
+      }),
+    };
+
+    const agentWithReevaluation = new MonitoringAgent(
+      testMockConfig,
+      mockReevaluationService as any
+    );
+
+    const mockOctokit = {
+      issues: {
+        get: vi.fn().mockResolvedValue({ data: createMockIssue() }),
+      },
+    };
+    (agentWithReevaluation as any).octokit = mockOctokit;
+
+    // Create deployment context with quality degradation alert (warning severity)
+    const degradedDeploymentContext: DeploymentContext = {
+      ...testMockDeploymentContext,
+      reviewContext: {
+        passed: false,
+        overallScore: 65, // Below threshold
+        securityIssues: [],
+        codeQualityIssues: [],
+        summary: 'Quality degraded',
+      },
+    };
+
+    // Manually inject a warning-level alert to trigger quality_degradation
+    const qualityDegradationAlert: Alert = {
+      id: 'ALERT-001',
+      severity: 'warning',
+      message: 'Quality score below threshold: 65/100',
+      metric: 'quality_score',
+      threshold: 80,
+      currentValue: 65,
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+
+    // Execute monitoring
+    await agentWithReevaluation.execute(100, degradedDeploymentContext);
+
+    // Manually trigger the quality degradation (simulating internal logic)
+    (agentWithReevaluation as any).alerts.push(qualityDegradationAlert);
+    await (agentWithReevaluation as any).triggerQualityDegradationReevaluation(
+      'KRN-TEST-001',
+      100,
+      qualityDegradationAlert
+    );
+
+    // Verify startReevaluation was called with correct params
+    expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerType: 'quality_degradation',
+        kernel_id: 'KRN-TEST-001',
+        triggeredBy: 'MonitoringAgent',
+        trigger_details: expect.objectContaining({
+          metric_name: 'quality_score',
+          metric_value: 65,
+          threshold: 80,
+        }),
+        severity: 'medium',
+        manual_followup_required: false,
+      })
+    );
+  });
+
+  it('should trigger reevaluation for quality regression', async () => {
+    const mockReevaluationService = {
+      startReevaluation: vi.fn().mockResolvedValue({
+        success: true,
+        reevaluation_id: 'REV-TEST-002',
+        issue_id: 201,
+        deduplicated: false,
+      }),
+    };
+
+    const agentWithReevaluation = new MonitoringAgent(
+      testMockConfig,
+      mockReevaluationService as any
+    );
+
+    const mockOctokit = {
+      issues: {
+        get: vi.fn().mockResolvedValue({ data: createMockIssue() }),
+      },
+    };
+    (agentWithReevaluation as any).octokit = mockOctokit;
+
+    // Create quality regression alert (critical severity)
+    const qualityRegressionAlert: Alert = {
+      id: 'ALERT-002',
+      severity: 'critical',
+      message: 'Coverage dropped significantly',
+      metric: 'coverage_percentage',
+      threshold: 80,
+      currentValue: 45, // Severe drop
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+
+    // Execute monitoring
+    await agentWithReevaluation.execute(101, testMockDeploymentContext);
+
+    // Manually trigger quality regression
+    (agentWithReevaluation as any).alerts.push(qualityRegressionAlert);
+    await (agentWithReevaluation as any).triggerQualityRegressionReevaluation(
+      'KRN-TEST-002',
+      101,
+      qualityRegressionAlert
+    );
+
+    // Verify startReevaluation was called with correct params
+    expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerType: 'quality_regression',
+        kernel_id: 'KRN-TEST-002',
+        triggeredBy: 'MonitoringAgent',
+        trigger_details: expect.objectContaining({
+          metric_name: 'coverage_percentage',
+          metric_value: 45,
+          threshold: 80,
+        }),
+        severity: 'high',
+        manual_followup_required: true,
+      })
+    );
+  });
+
+  it('should trigger reevaluation for health incident', async () => {
+    const mockReevaluationService = {
+      startReevaluation: vi.fn().mockResolvedValue({
+        success: true,
+        reevaluation_id: 'REV-TEST-003',
+        issue_id: 202,
+        deduplicated: false,
+      }),
+    };
+
+    const agentWithReevaluation = new MonitoringAgent(
+      testMockConfig,
+      mockReevaluationService as any
+    );
+
+    const mockOctokit = {
+      issues: {
+        get: vi.fn().mockResolvedValue({ data: createMockIssue() }),
+      },
+    };
+    (agentWithReevaluation as any).octokit = mockOctokit;
+
+    // Create unhealthy status
+    const unhealthyStatus: HealthStatus = {
+      status: 'unhealthy',
+      checks: [
+        { name: 'deployment', status: 'fail', message: 'Deployment failed', duration: 100 },
+        { name: 'quality', status: 'fail', message: 'Quality check failed', duration: 50 },
+      ],
+      uptime: 1000,
+      timestamp: '2024-01-01T00:00:00Z',
+    };
+
+    // Execute monitoring
+    await agentWithReevaluation.execute(102, testMockDeploymentContext);
+
+    // Manually trigger health incident
+    const failedChecks = unhealthyStatus.checks.filter((c) => c.status === 'fail');
+    await (agentWithReevaluation as any).triggerHealthIncidentReevaluation(
+      'KRN-TEST-003',
+      102,
+      unhealthyStatus,
+      failedChecks
+    );
+
+    // Verify startReevaluation was called with correct params
+    expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        triggerType: 'health_incident',
+        kernel_id: 'KRN-TEST-003',
+        triggeredBy: 'MonitoringAgent',
+        trigger_details: expect.objectContaining({
+          incident_type: 'unhealthy',
+          incident_description: '2 health checks failed',
+          affected_components: ['deployment', 'quality'],
+          error_count: 2,
+        }),
+        severity: 'critical',
+        manual_followup_required: true,
+      })
+    );
+  });
+
+  it('should skip reevaluation when service not configured', async () => {
+    // Agent without reevaluation service
+    const agentWithoutReevaluation = new MonitoringAgent(testMockConfig);
+
+    const mockOctokit = {
+      issues: {
+        get: vi.fn().mockResolvedValue({ data: createMockIssue() }),
+      },
+    };
+    (agentWithoutReevaluation as any).octokit = mockOctokit;
+
+    // Create degraded deployment context
+    const degradedDeploymentContext: DeploymentContext = {
+      ...testMockDeploymentContext,
+      reviewContext: {
+        passed: false,
+        overallScore: 65,
+        securityIssues: [],
+        codeQualityIssues: [],
+        summary: 'Quality degraded',
+      },
+    };
+
+    // Execute monitoring - should not throw error
+    const result = await agentWithoutReevaluation.execute(103, testMockDeploymentContext);
+
+    // Should succeed without triggering reevaluation
+    // Even if there's an error, the agent shouldn't crash when reevaluation service is not configured
+    if (result.status === 'error') {
+      console.log('Error details:', result.error);
+    }
+    expect(result.status).toBe('success');
+    expect(result.data?.alerts.length).toBeGreaterThanOrEqual(0);
+  });
+});

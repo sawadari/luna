@@ -630,4 +630,460 @@ that spans multiple lines.`;
       expect(assumptions[0]).not.toContain('\n');
     });
   });
+
+  // ==========================================================================
+  // Issue #51: Kernel Reevaluation Integration Tests
+  // ==========================================================================
+
+  describe('Kernel Reevaluation Integration', () => {
+    // Test 1: Verify assumption_invalidated trigger calls startReevaluation
+    it('should call startReevaluation with assumption_invalidated trigger', async () => {
+      const mockReevaluationService = {
+        startReevaluation: vi.fn().mockResolvedValue({
+          success: true,
+          reevaluation_id: 'REV-TEST-INVALIDATED',
+          issue_id: 200,
+          deduplicated: false,
+        }),
+      };
+
+      const mockKernelRegistry = {
+        getAllKernels: vi.fn().mockResolvedValue([
+          {
+            id: 'KRN-TEST-001',
+            statement: 'Test Kernel',
+            category: 'requirement',
+            owner: 'TestUser',
+            maturity: 'agreed',
+            decision: {
+              decision_id: 'DEC-TEST-001',
+              decision_type: 'adopt',
+              decided_by: 'ProductOwner',
+              rationale: 'Test rationale',
+            },
+            createdAt: new Date().toISOString(),
+            lastUpdatedAt: new Date().toISOString(),
+            needs: [],
+            requirements: [],
+            verification: [],
+            validation: [],
+            history: [],
+          },
+        ]),
+      };
+
+      const agentWithReevaluation = new AssumptionTrackerAgent(
+        mockConfig,
+        mockReevaluationService as any,
+        mockKernelRegistry as any
+      );
+
+      const mockOctokit = {
+        issues: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              number: 100,
+              title: 'Test Issue - Invalidated',
+              body: `---
+planning_layer:
+  assumptions:
+    - id: ASM-INVALIDATED-001
+      statement: Assumption that was invalidated
+      owner: TestUser
+      status: invalidated
+      invalidatedReason: Evidence showed otherwise
+      validationMethod: User survey
+      relatedDecisions:
+        - DEC-TEST-001
+      createdAt: "2026-02-10T00:00:00Z"
+  decisionRecord:
+    id: DEC-TEST-001
+    opportunityId: OPP-001
+    decisionType: adopt
+    chosenOptionId: OPT-A
+    decidedBy: ProductOwner
+    decidedAt: "2026-02-10T00:00:00Z"
+    rationale: Test rationale
+    tradeoffs: []
+    alternatives: []
+    falsificationConditions: []
+    linkedEvaluationIds: []
+    remainingRisks: []
+    impactScope: []
+    linkedEvidence: []
+---
+Test issue body`,
+              labels: [],
+              state: 'open',
+              created_at: '2026-02-10T00:00:00Z',
+              updated_at: '2026-02-10T00:00:00Z',
+            },
+          }),
+          createComment: vi.fn(),
+          addLabels: vi.fn(),
+        },
+      };
+
+      (agentWithReevaluation as any).octokit = mockOctokit;
+
+      const result = await agentWithReevaluation.execute(100);
+
+      // Verify the trigger was called
+      expect(result.status).toBe('success');
+      expect(mockReevaluationService.startReevaluation).toHaveBeenCalled();
+      expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          triggerType: 'assumption_invalidated',
+          kernel_id: 'KRN-TEST-001',
+          triggeredBy: 'AssumptionTrackerAgent',
+        })
+      );
+    });
+
+    // Test 2: Verify assumption_overdue trigger calls startReevaluation
+    it('should call startReevaluation with assumption_overdue trigger', async () => {
+      const mockReevaluationService = {
+        startReevaluation: vi.fn().mockResolvedValue({
+          success: true,
+          reevaluation_id: 'REV-TEST-OVERDUE',
+          deduplicated: false,
+        }),
+      };
+
+      const mockKernelRegistry = {
+        getAllKernels: vi.fn().mockResolvedValue([
+          {
+            id: 'KRN-TEST-002',
+            statement: 'Test Kernel 2',
+            category: 'requirement',
+            owner: 'TestUser',
+            maturity: 'agreed',
+            decision: {
+              decision_id: 'DEC-TEST-002',
+              decision_type: 'adopt',
+              decided_by: 'ProductOwner',
+              rationale: 'Test rationale',
+            },
+            createdAt: new Date().toISOString(),
+            lastUpdatedAt: new Date().toISOString(),
+            needs: [],
+            requirements: [],
+            verification: [],
+            validation: [],
+            history: [],
+          },
+        ]),
+      };
+
+      const agentWithReevaluation = new AssumptionTrackerAgent(
+        mockConfig,
+        mockReevaluationService as any,
+        mockKernelRegistry as any
+      );
+
+      // Create overdue assumption (30 days ago)
+      const overdueDate = new Date();
+      overdueDate.setDate(overdueDate.getDate() - 30);
+
+      const mockOctokit = {
+        issues: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              number: 101,
+              title: 'Test Issue - Overdue',
+              body: `---
+planning_layer:
+  assumptions:
+    - id: ASM-OVERDUE-001
+      statement: Overdue assumption needing validation
+      owner: TestUser
+      status: active
+      validationMethod: User survey
+      validationDate: "${overdueDate.toISOString()}"
+      relatedDecisions:
+        - DEC-TEST-002
+      createdAt: "2026-01-10T00:00:00Z"
+---
+Test issue body`,
+              labels: [],
+              state: 'open',
+              created_at: '2026-02-10T00:00:00Z',
+              updated_at: '2026-02-10T00:00:00Z',
+            },
+          }),
+          createComment: vi.fn(),
+          addLabels: vi.fn(),
+        },
+      };
+
+      (agentWithReevaluation as any).octokit = mockOctokit;
+
+      const result = await agentWithReevaluation.execute(101);
+
+      // Verify the trigger was called
+      expect(result.status).toBe('success');
+      expect(mockReevaluationService.startReevaluation).toHaveBeenCalled();
+      expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          triggerType: 'assumption_overdue',
+          kernel_id: 'KRN-TEST-002',
+          triggeredBy: 'AssumptionTrackerAgent',
+        })
+      );
+    });
+
+    it('should trigger reevaluation for invalidated assumptions', async () => {
+      const mockReevaluationService = {
+        startReevaluation: vi.fn().mockResolvedValue({
+          success: true,
+          reevaluation_id: 'REV-TEST-001',
+          issue_id: 200,
+          deduplicated: false,
+        }),
+      };
+
+      const mockKernelRegistry = {
+        getAllKernels: vi.fn().mockResolvedValue([
+          {
+            id: 'KRN-TEST-001',
+            statement: 'Test Kernel',
+            category: 'requirement',
+            owner: 'TestUser',
+            maturity: 'agreed',
+            decision: {
+              decision_id: 'DEC-TEST-001',
+              decision_type: 'adopt',
+              decided_by: 'ProductOwner',
+              rationale: 'Test rationale',
+            },
+            createdAt: new Date().toISOString(),
+            lastUpdatedAt: new Date().toISOString(),
+            needs: [],
+            requirements: [],
+            verification: [],
+            validation: [],
+            history: [],
+          },
+        ]),
+      };
+
+      const agentWithReevaluation = new AssumptionTrackerAgent(
+        mockConfig,
+        mockReevaluationService as any,
+        mockKernelRegistry as any
+      );
+
+      const mockOctokit = {
+        issues: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              number: 100,
+              title: 'Test Issue',
+              body: `---
+planning_layer:
+  assumptions:
+    - id: ASM-TEST-001
+      statement: Test assumption
+      owner: TestUser
+      status: invalidated
+      invalidatedReason: User feedback changed
+      validationMethod: User survey
+      relatedDecisions:
+        - DEC-TEST-001
+      createdAt: "2026-02-10T00:00:00Z"
+  decisionRecord:
+    id: DEC-TEST-001
+    opportunityId: OPP-001
+    decisionType: adopt
+    chosenOptionId: OPT-A
+    decidedBy: ProductOwner
+    decidedAt: "2026-02-10T00:00:00Z"
+    rationale: Test rationale
+    tradeoffs: []
+    alternatives: []
+    falsificationConditions: []
+    linkedEvaluationIds: []
+    remainingRisks: []
+    impactScope: []
+    linkedEvidence: []
+---
+Test issue body`,
+              labels: [],
+              state: 'open',
+              created_at: '2026-02-10T00:00:00Z',
+              updated_at: '2026-02-10T00:00:00Z',
+            },
+          }),
+          createComment: vi.fn(),
+          addLabels: vi.fn(),
+        },
+      };
+
+      (agentWithReevaluation as any).octokit = mockOctokit;
+
+      const result = await agentWithReevaluation.execute(100);
+
+      expect(result.status).toBe('success');
+      expect(result.data?.invalidatedAssumptions.length).toBeGreaterThan(0);
+      expect(result.data?.reevaluationTriggered).toBeGreaterThan(0);
+      expect(result.data?.reevaluationIds).toContain('REV-TEST-001');
+
+      // Verify startReevaluation was called with correct params
+      expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          triggerType: 'assumption_invalidated',
+          kernel_id: 'KRN-TEST-001',
+          triggeredBy: 'AssumptionTrackerAgent',
+          trigger_details: expect.objectContaining({
+            assumption_id: 'ASM-TEST-001',
+            assumption_statement: 'Test assumption',
+            invalidation_reason: 'User feedback changed',
+          }),
+        })
+      );
+    });
+
+    it('should trigger reevaluation for overdue assumptions', async () => {
+      const mockReevaluationService = {
+        startReevaluation: vi.fn().mockResolvedValue({
+          success: true,
+          reevaluation_id: 'REV-TEST-002',
+          deduplicated: false,
+        }),
+      };
+
+      const mockKernelRegistry = {
+        getAllKernels: vi.fn().mockResolvedValue([
+          {
+            id: 'KRN-TEST-002',
+            statement: 'Test Kernel 2',
+            category: 'requirement',
+            owner: 'TestUser',
+            maturity: 'agreed',
+            decision: {
+              decision_id: 'DEC-TEST-002',
+              decision_type: 'adopt',
+              decided_by: 'ProductOwner',
+              rationale: 'Test rationale',
+            },
+            createdAt: new Date().toISOString(),
+            lastUpdatedAt: new Date().toISOString(),
+            needs: [],
+            requirements: [],
+            verification: [],
+            validation: [],
+            history: [],
+          },
+        ]),
+      };
+
+      const agentWithReevaluation = new AssumptionTrackerAgent(
+        mockConfig,
+        mockReevaluationService as any,
+        mockKernelRegistry as any
+      );
+
+      // Create overdue assumption (30 days ago)
+      const overdueDate = new Date();
+      overdueDate.setDate(overdueDate.getDate() - 30);
+
+      const mockOctokit = {
+        issues: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              number: 101,
+              title: 'Test Issue 2',
+              body: `---
+planning_layer:
+  assumptions:
+    - id: ASM-TEST-002
+      statement: Test overdue assumption
+      owner: TestUser
+      status: active
+      validationMethod: User survey
+      validationDate: "${overdueDate.toISOString()}"
+      relatedDecisions:
+        - DEC-TEST-002
+      createdAt: "2026-01-10T00:00:00Z"
+---
+Test issue body`,
+              labels: [],
+              state: 'open',
+              created_at: '2026-02-10T00:00:00Z',
+              updated_at: '2026-02-10T00:00:00Z',
+            },
+          }),
+          createComment: vi.fn(),
+          addLabels: vi.fn(),
+        },
+      };
+
+      (agentWithReevaluation as any).octokit = mockOctokit;
+
+      const result = await agentWithReevaluation.execute(101);
+
+      expect(result.status).toBe('success');
+      expect(result.data?.overdueAssumptions.length).toBeGreaterThan(0);
+      expect(result.data?.reevaluationTriggered).toBeGreaterThan(0);
+
+      // Verify startReevaluation was called for overdue
+      expect(mockReevaluationService.startReevaluation).toHaveBeenCalledWith(
+        expect.objectContaining({
+          triggerType: 'assumption_overdue',
+          kernel_id: 'KRN-TEST-002',
+          triggeredBy: 'AssumptionTrackerAgent',
+          trigger_details: expect.objectContaining({
+            assumption_id: 'ASM-TEST-002',
+            assumption_statement: 'Test overdue assumption',
+            days_overdue: expect.any(Number),
+          }),
+        })
+      );
+    });
+
+    it('should skip reevaluation when service not configured', async () => {
+      // Agent without reevaluation service
+      const agentWithoutReevaluation = new AssumptionTrackerAgent(mockConfig);
+
+      const mockOctokit = {
+        issues: {
+          get: vi.fn().mockResolvedValue({
+            data: {
+              number: 102,
+              title: 'Test Issue 3',
+              body: `---
+planning_layer:
+  assumptions:
+    - id: ASM-TEST-003
+      statement: Test assumption
+      owner: TestUser
+      status: invalidated
+      invalidatedReason: Test
+      validationMethod: Test
+      relatedDecisions:
+        - DEC-TEST-003
+      createdAt: "2026-02-10T00:00:00Z"
+---
+Test issue body`,
+              labels: [],
+              state: 'open',
+              created_at: '2026-02-10T00:00:00Z',
+              updated_at: '2026-02-10T00:00:00Z',
+            },
+          }),
+          createComment: vi.fn(),
+          addLabels: vi.fn(),
+        },
+      };
+
+      (agentWithoutReevaluation as any).octokit = mockOctokit;
+
+      const result = await agentWithoutReevaluation.execute(102);
+
+      // Should succeed but not trigger reevaluation
+      expect(result.status).toBe('success');
+      expect(result.data?.reevaluationTriggered).toBe(0);
+      expect(result.data?.reevaluationIds.length).toBe(0);
+    });
+  });
 });

@@ -1,6 +1,7 @@
 /**
  * Coordinator Agent Type Definitions
  */
+import type { ContinuousImprovementResult } from './continuous-improvement';
 
 // =============================================================================
 // Task Graph Types
@@ -62,6 +63,7 @@ export interface CoordinationResult {
   executedTasks: TaskNode[];
   failedTasks: TaskNode[];
   overallStatus: 'success' | 'partial_success' | 'failure';
+  continuousImprovement?: ContinuousImprovementResult;
   metrics: {
     totalTasks: number;
     completedTasks: number;

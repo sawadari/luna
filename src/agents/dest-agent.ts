@@ -70,9 +70,10 @@ export class DESTAgent {
       }
 
       // 3. Perform AL judgment
-      const { al, outcome, safety } = ALJudge.judgeFromIssue(issue.body);
-      this.log(`   Outcome: ${outcome.progress} (outcome_ok=${outcome.outcomeOk})`);
-      this.log(`   Safety: ${safety.feedbackLoops}, violations=${safety.violations.length} (safety_ok=${safety.safetyOk})`);
+      const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issue.body);
+      this.log(`   Outcome: ${outcome.progress} (outcome_state=${outcome.outcomeState})`);
+      this.log(`   Safety: ${safety.feedbackLoops}, violations=${safety.violations.length} (safety_state=${safety.safetyState})`);
+      this.log(`   Trace: evidence=${trace.evidenceCompleteness}, falsification=${trace.falsificationLink} (trace_state=${trace.traceState})`);
       this.log(`   → AL: ${al}`);
 
       // 4. Detect AL0 Reasons (if AL0)
@@ -98,13 +99,16 @@ export class DESTAgent {
         judgedAt: new Date().toISOString(),
         judgedBy: 'DESTAgent',
         al,
+        outcomeState: outcome.outcomeState,
+        safetyState: safety.safetyState,
+        traceState: trace.traceState,
         outcomeOk: outcome.outcomeOk,
         safetyOk: safety.safetyOk,
         al0Reasons,
         protocol,
         safetyChecks: [], // TODO: Implement safety check detection
         leveragePoints: [], // TODO: Implement leverage point detection
-        rationale: protocol ? ProtocolRouter.getRationale(protocol, al0Reasons) : this.buildRationale(al, outcome, safety),
+        rationale: protocol ? ProtocolRouter.getRationale(protocol, al0Reasons) : this.buildRationale(al, outcome, safety, trace),
         nextActions: protocol ? ProtocolRouter.getNextActions(protocol) : [],
         escalation: this.determineEscalation(al, al0Reasons, protocol),
         labels: this.buildLabels(al, al0Reasons, protocol),
@@ -272,13 +276,13 @@ export class DESTAgent {
   /**
    * Build rationale text
    */
-  private buildRationale(al: AL, outcome: any, safety: any): string {
+  private buildRationale(al: AL, outcome: any, safety: any, trace: any): string {
     if (al === 'AL2') {
-      return 'System is progressing toward target state with stable safety. Both outcome and safety criteria are met.';
+      return 'System is progressing toward target state with stable safety and sufficient traceability.';
     }
 
     if (al === 'AL1') {
-      return `Conditional assurance: ${!outcome.outcomeOk ? 'Outcome not meeting target. ' : ''}${!safety.safetyOk ? 'Safety concerns detected. ' : ''}`;
+      return `Conditional assurance: ${outcome.outcomeState !== 'ok' ? 'Outcome not fully assured. ' : ''}${trace.traceState !== 'ok' ? 'Traceability not fully assured. ' : ''}`;
     }
 
     // AL0

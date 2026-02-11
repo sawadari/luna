@@ -108,11 +108,13 @@ export interface GitHubPullRequest extends GitHubIssue {
 
 export type ProgressStatus = 'improving' | 'stable' | 'degrading' | 'unknown';
 export type FeedbackStatus = 'stable' | 'oscillating' | 'amplifying' | 'unknown';
+export type AssessmentState = 'ok' | 'unknown' | 'ng';
 
 export interface OutcomeAssessment {
   currentState: string;
   targetState: string;
   progress: ProgressStatus;
+  outcomeState: AssessmentState;
   outcomeOk: boolean;
 }
 
@@ -120,7 +122,14 @@ export interface SafetyAssessment {
   feedbackLoops: FeedbackStatus;
   safetyConstraints: string[];
   violations: string[];
+  safetyState: AssessmentState;
   safetyOk: boolean;
+}
+
+export interface TraceabilityAssessment {
+  evidenceCompleteness: 'complete' | 'partial' | 'missing';
+  falsificationLink: 'present' | 'absent';
+  traceState: AssessmentState;
 }
 
 // =============================================================================
@@ -135,6 +144,10 @@ export interface DESTJudgmentResult {
 
   // Core judgment
   al: AL;
+  outcomeState: AssessmentState;
+  safetyState: AssessmentState;
+  traceState: AssessmentState;
+  // Backward compatibility (legacy consumers)
   outcomeOk: boolean;
   safetyOk: boolean;
 

@@ -8,6 +8,8 @@ import type {
   AL,
   OutcomeAssessment,
   SafetyAssessment,
+  TraceabilityAssessment,
+  AssessmentState,
   ProgressStatus,
   FeedbackStatus,
 } from '../types/index.js';
@@ -21,18 +23,26 @@ export class ALJudge {
    * - AL2: outcome_ok AND safety_ok
    * - AL1: otherwise (conditional assurance)
    */
-  static judge(outcomeOk: boolean, safetyOk: boolean): AL {
-    // Safety is the first gate
-    if (!safetyOk) {
+  static judge(
+    outcome: boolean | AssessmentState,
+    safety: boolean | AssessmentState,
+    trace: boolean | AssessmentState = 'ok'
+  ): AL {
+    const outcomeState = this.normalizeState(outcome);
+    const safetyState = this.normalizeState(safety);
+    const traceState = this.normalizeState(trace);
+
+    // Safety is the first gate (unknown is treated as not assured)
+    if (safetyState !== 'ok') {
       return 'AL0';
     }
 
-    // Both outcome and safety OK
-    if (outcomeOk && safetyOk) {
+    // All three gates satisfied
+    if (outcomeState === 'ok' && safetyState === 'ok' && traceState === 'ok') {
       return 'AL2';
     }
 
-    // Outcome not OK, but safety OK → conditional
+    // Safety ok but outcome/trace is unknown or ng -> conditional
     return 'AL1';
   }
 
@@ -74,6 +84,7 @@ export class ALJudge {
       currentState,
       targetState,
       progress,
+      outcomeState: outcomeOk ? 'ok' : progress === 'unknown' ? 'unknown' : 'ng',
       outcomeOk,
     };
   }
@@ -122,11 +133,57 @@ export class ALJudge {
       safetyOk = this.evaluateSafetyOk(feedbackLoops, violations);
     }
 
+    const safetyState: AssessmentState =
+      safetyOk ? 'ok' : feedbackLoops === 'unknown' && violations.length === 0 ? 'unknown' : 'ng';
+
     return {
       feedbackLoops,
       safetyConstraints,
       violations,
+      safetyState,
       safetyOk,
+    };
+  }
+
+  /**
+   * Parse Issue body for Traceability Assessment
+   */
+  static parseTraceabilityAssessment(issueBody: string): TraceabilityAssessment {
+    const evidenceMatch = issueBody.match(/Evidence completeness:\s*(complete|partial|missing)/i);
+    const falsificationMatch = issueBody.match(/Falsification link:\s*(present|absent)/i);
+
+    const explicitTraceOkMatch =
+      issueBody.match(/✅.*trace(_state|ability)?\s*:\s*ok/i) ||
+      issueBody.match(/trace(_state|ability)?\s*:\s*ok/i);
+    const explicitTraceNgMatch =
+      issueBody.match(/❌.*trace(_state|ability)?\s*:\s*(ng|false)/i) ||
+      issueBody.match(/trace(_state|ability)?\s*:\s*(ng|false)/i);
+
+    const evidenceCompleteness = (evidenceMatch?.[1]?.toLowerCase() || 'partial') as
+      | 'complete'
+      | 'partial'
+      | 'missing';
+    const falsificationLink = (falsificationMatch?.[1]?.toLowerCase() || 'absent') as
+      | 'present'
+      | 'absent';
+
+    let traceState: AssessmentState;
+    if (explicitTraceOkMatch) {
+      traceState = 'ok';
+    } else if (explicitTraceNgMatch) {
+      traceState = 'ng';
+    } else if (evidenceCompleteness === 'complete' && falsificationLink === 'present') {
+      traceState = 'ok';
+    } else if (evidenceCompleteness === 'missing') {
+      traceState = 'ng';
+    } else {
+      traceState = 'unknown';
+    }
+
+    return {
+      evidenceCompleteness,
+      falsificationLink,
+      traceState,
     };
   }
 
@@ -178,12 +235,14 @@ export class ALJudge {
     al: AL;
     outcome: OutcomeAssessment;
     safety: SafetyAssessment;
+    trace: TraceabilityAssessment;
   } {
     const outcome = this.parseOutcomeAssessment(issueBody);
     const safety = this.parseSafetyAssessment(issueBody);
-    const al = this.judge(outcome.outcomeOk, safety.safetyOk);
+    const trace = this.parseTraceabilityAssessment(issueBody);
+    const al = this.judge(outcome.outcomeState, safety.safetyState, trace.traceState);
 
-    return { al, outcome, safety };
+    return { al, outcome, safety, trace };
   }
 
   /**
@@ -193,5 +252,11 @@ export class ALJudge {
     const hasOutcome = /## Outcome Assessment/i.test(issueBody);
     const hasSafety = /## Safety Assessment/i.test(issueBody);
     return hasOutcome && hasSafety;
+  }
+
+  private static normalizeState(value: boolean | AssessmentState): AssessmentState {
+    if (value === true) return 'ok';
+    if (value === false) return 'ng';
+    return value;
   }
 }

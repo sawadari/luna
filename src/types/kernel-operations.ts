@@ -21,7 +21,9 @@ export type OperationType =
   | 'u.raise_exception'
   | 'u.close_exception'
   | 'u.start_reevaluation' // Issue #51: Kernel再評価開始
-  | 'u.complete_reevaluation'; // Issue #51: Kernel再評価完了
+  | 'u.complete_reevaluation' // Issue #51: Kernel再評価完了
+  | 'u.request_maturity_transition'
+  | 'u.commit_maturity_transition';
 
 /**
  * Base Operation - 基本操作インターフェース
@@ -258,6 +260,35 @@ export interface CompleteReevaluationOperation extends BaseOperation {
 }
 
 /**
+ * Request Maturity Transition Operation
+ * 成熟度遷移を提案（propose）する操作
+ */
+export interface RequestMaturityTransitionOperation extends BaseOperation {
+  op: 'u.request_maturity_transition';
+  payload: {
+    kernel_id: string;
+    from: MaturityLevel;
+    to: MaturityLevel;
+    required_approvers?: string[];
+    evidence_pack_refs?: string[];
+  };
+}
+
+/**
+ * Commit Maturity Transition Operation
+ * 成熟度遷移を承認/確定（commit）する操作
+ */
+export interface CommitMaturityTransitionOperation extends BaseOperation {
+  op: 'u.commit_maturity_transition';
+  payload: {
+    request_id: string;
+    approver: string;
+    signature_ref?: string;
+    reason?: string;
+  };
+}
+
+/**
  * Union type for all operations
  */
 export type KernelOperation =
@@ -270,7 +301,9 @@ export type KernelOperation =
   | RaiseExceptionOperation
   | CloseExceptionOperation
   | StartReevaluationOperation
-  | CompleteReevaluationOperation;
+  | CompleteReevaluationOperation
+  | RequestMaturityTransitionOperation
+  | CommitMaturityTransitionOperation;
 
 /**
  * Operation Result - 操作実行結果

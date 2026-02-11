@@ -13,6 +13,11 @@ describe('ALJudge', () => {
       expect(al).toBe('AL2');
     });
 
+    it('should return AL1 when trace is unknown even if outcome/safety are ok', () => {
+      const al = ALJudge.judge('ok', 'ok', 'unknown');
+      expect(al).toBe('AL1');
+    });
+
     it('should return AL1 when outcome_ok is false but safety_ok is true', () => {
       const al = ALJudge.judge(false, true);
       expect(al).toBe('AL1');
@@ -36,6 +41,7 @@ describe('ALJudge', () => {
       const outcome = ALJudge.parseOutcomeAssessment(issueBody);
 
       expect(outcome.progress).toBe('improving');
+      expect(outcome.outcomeState).toBe('ok');
       expect(outcome.outcomeOk).toBe(true);
     });
 
@@ -50,6 +56,7 @@ describe('ALJudge', () => {
       const outcome = ALJudge.parseOutcomeAssessment(issueBody);
 
       expect(outcome.progress).toBe('degrading');
+      expect(outcome.outcomeState).toBe('ng');
       expect(outcome.outcomeOk).toBe(false);
     });
 
@@ -64,6 +71,7 @@ describe('ALJudge', () => {
       const outcome = ALJudge.parseOutcomeAssessment(issueBody);
 
       expect(outcome.progress).toBe('stable');
+      expect(outcome.outcomeState).toBe('ok');
       expect(outcome.outcomeOk).toBe(true);
     });
   });
@@ -81,6 +89,7 @@ describe('ALJudge', () => {
 
       expect(safety.feedbackLoops).toBe('stable');
       expect(safety.violations).toEqual([]);
+      expect(safety.safetyState).toBe('ok');
       expect(safety.safetyOk).toBe(true);
     });
 
@@ -95,6 +104,7 @@ describe('ALJudge', () => {
       const safety = ALJudge.parseSafetyAssessment(issueBody);
 
       expect(safety.feedbackLoops).toBe('amplifying');
+      expect(safety.safetyState).toBe('ng');
       expect(safety.safetyOk).toBe(false);
     });
 
@@ -109,6 +119,7 @@ describe('ALJudge', () => {
       const safety = ALJudge.parseSafetyAssessment(issueBody);
 
       expect(safety.violations.length).toBeGreaterThan(0);
+      expect(safety.safetyState).toBe('ng');
       expect(safety.safetyOk).toBe(false);
     });
 
@@ -123,12 +134,35 @@ describe('ALJudge', () => {
       const safety = ALJudge.parseSafetyAssessment(issueBody);
 
       expect(safety.feedbackLoops).toBe('oscillating');
+      expect(safety.safetyState).toBe('ng');
       expect(safety.safetyOk).toBe(false);
     });
   });
 
+  describe('parseTraceabilityAssessment', () => {
+    it('should parse complete evidence and present falsification as trace ok', () => {
+      const issueBody = `
+## Traceability Assessment
+- Evidence completeness: complete
+- Falsification link: present
+      `;
+      const trace = ALJudge.parseTraceabilityAssessment(issueBody);
+      expect(trace.traceState).toBe('ok');
+    });
+
+    it('should parse partial evidence as trace unknown', () => {
+      const issueBody = `
+## Traceability Assessment
+- Evidence completeness: partial
+- Falsification link: absent
+      `;
+      const trace = ALJudge.parseTraceabilityAssessment(issueBody);
+      expect(trace.traceState).toBe('unknown');
+    });
+  });
+
   describe('judgeFromIssue', () => {
-    it('should return AL2 for improving + stable feedback + no violations', () => {
+    it('should return AL2 for improving + stable feedback + complete traceability', () => {
       const issueBody = `
 # Improve API Response Time
 
@@ -141,13 +175,18 @@ describe('ALJudge', () => {
 - Feedback loops: stable
 - Safety constraints: SLA 99.9%
 - Violations: none
+
+## Traceability Assessment
+- Evidence completeness: complete
+- Falsification link: present
       `;
 
-      const { al, outcome, safety } = ALJudge.judgeFromIssue(issueBody);
+      const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issueBody);
 
       expect(al).toBe('AL2');
       expect(outcome.outcomeOk).toBe(true);
       expect(safety.safetyOk).toBe(true);
+      expect(trace.traceState).toBe('ok');
     });
 
     it('should return AL0 for degrading + amplifying feedback', () => {
@@ -165,11 +204,12 @@ describe('ALJudge', () => {
 - Violations: SLA breached
       `;
 
-      const { al, outcome, safety } = ALJudge.judgeFromIssue(issueBody);
+      const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issueBody);
 
       expect(al).toBe('AL0');
       expect(outcome.outcomeOk).toBe(false);
       expect(safety.safetyOk).toBe(false);
+      expect(trace.traceState).toBe('unknown');
     });
   });
 

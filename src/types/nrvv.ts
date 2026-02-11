@@ -205,6 +205,27 @@ export interface RelatedArtifact {
   description: string;
 }
 
+export interface MaturityTransitionApproval {
+  approver: string;
+  approvedAt: string;
+  signatureRef?: string;
+}
+
+export interface MaturityTransitionRequest {
+  request_id: string;
+  kernel_id: string;
+  from: MaturityLevel;
+  to: MaturityLevel;
+  requested_by: string;
+  requested_at: string;
+  required_approvers: string[];
+  evidence_pack_refs?: string[];
+  status: 'pending' | 'approved' | 'rejected' | 'committed';
+  approvals: MaturityTransitionApproval[];
+  committed_at?: string;
+  committed_by?: string;
+}
+
 export interface KernelWithNRVV {
   id: string;
 

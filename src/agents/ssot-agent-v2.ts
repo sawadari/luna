@@ -15,7 +15,12 @@ import {
 import { KernelWithNRVV } from '../types/nrvv';
 import { KernelRegistryService } from '../ssot/kernel-registry';
 import { KernelRuntime } from '../ssot/kernel-runtime';
-import { CreateKernelOperation, SetStateOperation, RecordDecisionOperation } from '../types/kernel-operations';
+import {
+  CreateKernelOperation,
+  RecordDecisionOperation,
+  RequestMaturityTransitionOperation,
+  CommitMaturityTransitionOperation,
+} from '../types/kernel-operations';
 import { generateKernelId } from '../utils/kernel-id-generator.js';
 
 interface SSOTResult {
@@ -143,10 +148,20 @@ export class SSOTAgentV2 {
             al: parsedData.dest_judgment.al || 'AL0',
             issueNumber: githubIssue.number,
             judgedAt: new Date().toISOString(),
-            judgedBy: 'system',
+            judgedBy: 'DESTAgent',
+            outcomeState: 'ok',
+            safetyState: 'ok',
+            traceState: 'unknown',
             outcomeOk: true,
-            issueLabel: [],
-            safetyAnalysis: parsedData.dest_judgment.safetyAnalysis || {},
+            safetyOk: true,
+            al0Reasons: [],
+            protocol: null,
+            safetyChecks: [],
+            leveragePoints: [],
+            rationale: 'Parsed from issue body',
+            nextActions: [],
+            escalation: null,
+            labels: [],
           } as any as import('../types').DESTJudgmentResult;
           this.log(`  DEST Judgment parsed from issue body: AL=${destJudgment.al}`);
         }
@@ -292,19 +307,38 @@ export class SSOTAgentV2 {
         if (transition) {
           result.maturityTransitions.push(transition);
 
-          // Issue #43: Use KernelRuntime.apply() for state transitions
-          const setStateOp: SetStateOperation = {
-            op: 'u.set_state',
-            actor: transition.approvedBy || (transition as any).freezedBy || 'SSOTAgentV2',
+          const actor = transition.approvedBy || (transition as any).freezedBy || 'SSOTAgentV2';
+          const requestOp: RequestMaturityTransitionOperation = {
+            op: 'u.request_maturity_transition',
+            actor,
             issue: `#${issueNumber}`,
             payload: {
               kernel_id: kernel.id,
               from: transition.from,
               to: transition.to,
+              required_approvers: [actor],
+            },
+          };
+
+          const requestResult = await this.kernelRuntime.apply(requestOp);
+          if (!requestResult.success) {
+            this.log(`  ⚠️  Failed to request transition for Kernel ${kernel.id}: ${requestResult.error}`);
+            continue;
+          }
+
+          const requestId = requestResult.details?.request_id as string;
+          const commitOp: CommitMaturityTransitionOperation = {
+            op: 'u.commit_maturity_transition',
+            actor,
+            issue: `#${issueNumber}`,
+            payload: {
+              request_id: requestId,
+              approver: actor,
               reason: `Maturity transition via Issue #${issueNumber}`,
             },
           };
-          const setStateResult = await this.kernelRuntime.apply(setStateOp);
+
+          const setStateResult = await this.kernelRuntime.apply(commitOp);
 
           if (setStateResult.success) {
             result.comments.push(

@@ -50,6 +50,12 @@ human_ai_boundary:
     enabled: true
     auto_extract_nrvv: true
     rationale: "NRVVはAIが提案、人間が承認する形式。Self-Improvementの基盤。"
+    maturity_transition:
+      auto_promote: false
+      mode: "propose_only"       # direct | propose_only
+      default_approvers:
+        - "product_owner"
+        - "ssot_reviewer"
     ai_extraction:
       enabled: true
       model: "claude-sonnet-4.5"
@@ -107,6 +113,17 @@ human_ai_boundary:
     alert_channels:
       - "github_issue"
       - "log"
+
+  # Phase 9: Continuous Improvement
+  # Self-Improvement Loopの閾値設定
+  continuous_improvement:
+    enabled: true
+    rationale: "実行結果をKPIで評価し、改善提案を生成する"
+    thresholds:
+      failure_rate: 0.3          # 失敗タスク率30%以上で提案
+      quality_score: 80          # 品質スコア80未満で提案
+      quality_critical: 70       # 70未満はP0として提案
+      alert_count: 3             # 未解決アラート3件以上で提案
 
   auto_deployment:
     enabled: false

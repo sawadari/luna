@@ -8,6 +8,7 @@
 import { Octokit } from '@octokit/rest';
 import type { CoordinationResult } from '../types/coordinator';
 import type { MonitoringContext } from '../types';
+import { ensureRulesConfigLoaded, getRulesConfig, RulesConfigService } from './rules-config-service';
 import type {
   ContinuousImprovementResult,
   CreatedImprovementIssue,
@@ -21,6 +22,13 @@ export interface ContinuousImprovementServiceConfig {
   verbose?: boolean;
 }
 
+interface ContinuousImprovementThresholds {
+  failureRateThreshold: number;
+  qualityScoreThreshold: number;
+  qualityCriticalThreshold: number;
+  alertCountThreshold: number;
+}
+
 export interface ContinuousImprovementInput {
   issueNumber: number;
   coordinationResult: CoordinationResult;
@@ -30,10 +38,12 @@ export interface ContinuousImprovementInput {
 export class ContinuousImprovementService {
   private readonly config: ContinuousImprovementServiceConfig;
   private readonly octokit: Octokit;
+  private readonly rulesConfig: RulesConfigService;
 
   constructor(config: ContinuousImprovementServiceConfig) {
     this.config = config;
     this.octokit = new Octokit({ auth: config.githubToken });
+    this.rulesConfig = getRulesConfig();
   }
 
   private log(message: string): void {
@@ -44,6 +54,7 @@ export class ContinuousImprovementService {
 
   async execute(input: ContinuousImprovementInput): Promise<ContinuousImprovementResult> {
     try {
+      await ensureRulesConfigLoaded();
       const suggestions = this.generateSuggestions(input);
       const createdIssues: CreatedImprovementIssue[] = [];
       const warnings: string[] = [];
@@ -92,6 +103,7 @@ export class ContinuousImprovementService {
   private generateSuggestions(input: ContinuousImprovementInput): ImprovementSuggestion[] {
     const suggestions: ImprovementSuggestion[] = [];
     const { coordinationResult, monitoringContext, issueNumber } = input;
+    const thresholds = this.getThresholds();
 
     const failedTasks = coordinationResult.metrics.failedTasks;
     const totalTasks = Math.max(1, coordinationResult.metrics.totalTasks);
@@ -99,7 +111,7 @@ export class ContinuousImprovementService {
     const qualityScore = monitoringContext?.metrics.find((m) => m.name === 'quality_score')?.value;
     const alertCount = monitoringContext?.alerts.filter((a) => !a.resolved).length ?? 0;
 
-    if (failureRate >= 0.3 || coordinationResult.overallStatus === 'failure') {
+    if (failureRate >= thresholds.failureRateThreshold || coordinationResult.overallStatus === 'failure') {
       suggestions.push({
         id: this.generateSuggestionId('reliability'),
         title: 'Improve task dependency reliability in Coordinator flow',
@@ -120,13 +132,13 @@ export class ContinuousImprovementService {
       });
     }
 
-    if (qualityScore !== undefined && qualityScore < 80) {
+    if (qualityScore !== undefined && qualityScore < thresholds.qualityScoreThreshold) {
       suggestions.push({
         id: this.generateSuggestionId('quality'),
         title: 'Raise code quality gate consistency',
         description:
           'Quality score dropped below target threshold. Tune review rules and enforce quality remediation before merge.',
-        priority: qualityScore < 70 ? 'P0' : 'P1',
+        priority: qualityScore < thresholds.qualityCriticalThreshold ? 'P0' : 'P1',
         category: 'quality',
         recommendedAction: 'Adjust review/test gate settings and add automated checks for quality regressions.',
         labels: ['improvement', 'phase9', 'area:quality'],
@@ -141,7 +153,7 @@ export class ContinuousImprovementService {
       });
     }
 
-    if (alertCount >= 3) {
+    if (alertCount >= thresholds.alertCountThreshold) {
       suggestions.push({
         id: this.generateSuggestionId('process'),
         title: 'Reduce monitoring alerts via operational hardening',
@@ -239,5 +251,17 @@ export class ContinuousImprovementService {
       .toString()
       .padStart(4, '0')}`;
   }
-}
 
+  private getThresholds(): ContinuousImprovementThresholds {
+    return {
+      failureRateThreshold:
+        this.rulesConfig.get<number>('human_ai_boundary.continuous_improvement.thresholds.failure_rate') ?? 0.3,
+      qualityScoreThreshold:
+        this.rulesConfig.get<number>('human_ai_boundary.continuous_improvement.thresholds.quality_score') ?? 80,
+      qualityCriticalThreshold:
+        this.rulesConfig.get<number>('human_ai_boundary.continuous_improvement.thresholds.quality_critical') ?? 70,
+      alertCountThreshold:
+        this.rulesConfig.get<number>('human_ai_boundary.continuous_improvement.thresholds.alert_count') ?? 3,
+    };
+  }
+}

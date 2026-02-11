@@ -205,5 +205,34 @@ describe('ContinuousImprovementService', () => {
     expect(result.createdIssues.length).toBe(result.suggestions.length);
     expect(createSpy).toHaveBeenCalled();
   });
-});
 
+  it('should use rules-config thresholds when generating suggestions', async () => {
+    const service = new ContinuousImprovementService({
+      githubToken: 'test-token',
+      repository: 'owner/repo',
+      dryRun: true,
+      verbose: false,
+    });
+
+    // Tighten failure-rate threshold via rules-config mock to ensure config-driven behavior.
+    vi.spyOn((service as any).rulesConfig, 'get').mockImplementation((path: string) => {
+      if (path === 'human_ai_boundary.continuous_improvement.thresholds.failure_rate') return 0.1;
+      if (path === 'human_ai_boundary.continuous_improvement.thresholds.quality_score') return 80;
+      if (path === 'human_ai_boundary.continuous_improvement.thresholds.quality_critical') return 70;
+      if (path === 'human_ai_boundary.continuous_improvement.thresholds.alert_count') return 3;
+      return undefined;
+    });
+
+    const partial = createBaseResult();
+    partial.overallStatus = 'partial_success';
+    partial.metrics.failedTasks = 2; // 20%
+
+    const result = await service.execute({
+      issueNumber: 52,
+      coordinationResult: partial,
+      monitoringContext: createMonitoringContext(85, 0),
+    });
+
+    expect(result.suggestions.some((s) => s.category === 'reliability')).toBe(true);
+  });
+});

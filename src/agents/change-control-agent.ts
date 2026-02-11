@@ -312,6 +312,31 @@ export class ChangeControlAgent {
           },
         };
 
+      case 'u.request_maturity_transition':
+        return {
+          ...baseOp,
+          op: 'u.request_maturity_transition' as const,
+          payload: {
+            kernel_id: kernelId,
+            from: payload.from,
+            to: payload.to,
+            required_approvers: payload.required_approvers,
+            evidence_pack_refs: payload.evidence_pack_refs,
+          },
+        };
+
+      case 'u.commit_maturity_transition':
+        return {
+          ...baseOp,
+          op: 'u.commit_maturity_transition' as const,
+          payload: {
+            request_id: payload.request_id,
+            approver: payload.approver || actor,
+            signature_ref: payload.signature_ref,
+            reason: payload.reason,
+          },
+        };
+
       case 'u.raise_exception':
         return {
           ...baseOp,

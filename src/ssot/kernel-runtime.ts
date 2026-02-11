@@ -24,9 +24,12 @@ import {
   CloseExceptionOperation,
   StartReevaluationOperation,
   CompleteReevaluationOperation,
+  RequestMaturityTransitionOperation,
+  CommitMaturityTransitionOperation,
 } from '../types/kernel-operations.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getRulesConfig } from '../services/rules-config-service.js';
+import { MaturityTransitionService } from '../services/maturity-transition-service.js';
 
 /**
  * Kernel Runtime Configuration
@@ -72,6 +75,7 @@ export class KernelRuntime {
   private registry: KernelRegistryService;
   private authority: AuthorityService;
   private ledger: KernelLedger | null;
+  private maturityTransitionService: MaturityTransitionService;
   private config: KernelRuntimeConfig;
 
   constructor(config: KernelRuntimeConfig = {}) {
@@ -133,6 +137,8 @@ export class KernelRuntime {
     } else {
       this.ledger = null;
     }
+
+    this.maturityTransitionService = new MaturityTransitionService();
   }
 
   private log(message: string): void {
@@ -154,6 +160,8 @@ export class KernelRuntime {
     this.log(`Applying operation: ${operation.op} (${op_id})`);
 
     try {
+      const rulesConfig = getRulesConfig();
+
       // Phase C1: Issue必須チェック
       if (this.config.enforceIssueRequired && !operation.issue) {
         return {
@@ -175,6 +183,25 @@ export class KernelRuntime {
             error: `Phase C1: Bootstrap Kernel ${payload.kernel_id} is immutable and cannot be modified`,
           };
         }
+      }
+
+      const maturityMode =
+        rulesConfig.isLoaded()
+          ? rulesConfig.get<string>('human_ai_boundary.kernel_generation.maturity_transition.mode') || 'direct'
+          : 'direct';
+
+      if (
+        operation.op === 'u.set_state' &&
+        maturityMode === 'propose_only' &&
+        !this.config.soloMode
+      ) {
+        return {
+          success: false,
+          op_id,
+          timestamp,
+          error:
+            'Direct u.set_state is blocked in propose_only mode. Use u.request_maturity_transition and u.commit_maturity_transition.',
+        };
       }
 
       // Solo mode以外では権限チェックを行う
@@ -222,6 +249,12 @@ export class KernelRuntime {
           break;
         case 'u.complete_reevaluation':
           result = await this.executeCompleteReevaluation(operation as CompleteReevaluationOperation);
+          break;
+        case 'u.request_maturity_transition':
+          result = await this.executeRequestMaturityTransition(operation as RequestMaturityTransitionOperation);
+          break;
+        case 'u.commit_maturity_transition':
+          result = await this.executeCommitMaturityTransition(operation as CommitMaturityTransitionOperation);
           break;
         default:
           return {
@@ -868,6 +901,126 @@ export class KernelRuntime {
         from,
         to,
         gate_checks: gateResult.checks, // Issue #49: Include gate checks in success result
+      },
+    };
+  }
+
+  private async executeRequestMaturityTransition(
+    operation: RequestMaturityTransitionOperation
+  ): Promise<OperationResult> {
+    const { kernel_id, from, to, required_approvers, evidence_pack_refs } = operation.payload;
+
+    const rulesConfig = getRulesConfig();
+    const defaultApprovers = ['product_owner', 'ssot_reviewer'];
+    const approvers = required_approvers && required_approvers.length > 0
+      ? required_approvers
+      : (rulesConfig.isLoaded()
+          ? rulesConfig.get<string[]>('human_ai_boundary.kernel_generation.maturity_transition.default_approvers') ||
+            defaultApprovers
+          : defaultApprovers);
+
+    const request = await this.maturityTransitionService.createRequest({
+      kernel_id,
+      from,
+      to,
+      requested_by: operation.actor,
+      required_approvers: approvers,
+      evidence_pack_refs,
+    });
+
+    const kernel = await this.registry.getKernel(kernel_id);
+    if (kernel) {
+      if (!kernel.history) kernel.history = [];
+      kernel.history.push({
+        action: 'request_maturity_transition',
+        by: operation.actor,
+        timestamp: new Date().toISOString(),
+        op: 'u.request_maturity_transition',
+        actor: operation.actor,
+        issue: operation.issue,
+        summary: `Maturity transition requested: ${from} -> ${to} (${request.request_id})`,
+      });
+      if (!this.config.dryRun) {
+        await this.registry.saveKernel(kernel);
+      }
+    }
+
+    return {
+      success: true,
+      op_id: '',
+      timestamp: '',
+      details: {
+        request_id: request.request_id,
+        kernel_id,
+        from,
+        to,
+        required_approvers: approvers,
+      },
+    };
+  }
+
+  private async executeCommitMaturityTransition(
+    operation: CommitMaturityTransitionOperation
+  ): Promise<OperationResult> {
+    const { request_id, approver, signature_ref, reason } = operation.payload;
+
+    const request = await this.maturityTransitionService.approveRequest(
+      request_id,
+      approver,
+      signature_ref
+    );
+
+    if (!request) {
+      return {
+        success: false,
+        op_id: '',
+        timestamp: '',
+        error: `Maturity transition request not found: ${request_id}`,
+      };
+    }
+
+    if (request.status !== 'approved') {
+      return {
+        success: true,
+        op_id: '',
+        timestamp: '',
+        details: {
+          request_id,
+          status: request.status,
+          approvals: request.approvals,
+          committed: false,
+        },
+      };
+    }
+
+    const stateResult = await this.executeSetState({
+      op: 'u.set_state',
+      actor: operation.actor,
+      issue: operation.issue,
+      payload: {
+        kernel_id: request.kernel_id,
+        from: request.from,
+        to: request.to,
+        reason: reason || `Committed via ${request_id}`,
+      },
+    });
+
+    if (!stateResult.success) {
+      return stateResult;
+    }
+
+    await this.maturityTransitionService.commitRequest(request_id, operation.actor);
+
+    return {
+      success: true,
+      op_id: '',
+      timestamp: '',
+      details: {
+        request_id,
+        kernel_id: request.kernel_id,
+        from: request.from,
+        to: request.to,
+        committed: true,
       },
     };
   }

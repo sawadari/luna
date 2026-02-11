@@ -82,7 +82,7 @@ AIは毎回「ゼロから」コードを生成する。過去の実装の**要�
 - 第2章：関連研究（システム思考、MBSE、DevOps/CI/CD）
 - 第3章：問題定義（従来の開発プロセスの根本的問題）
 - 第4章：理論的基盤（DEST、Planning Layer、SSOT Layer）
-- 第5章：アーキテクチャ（9-Phaseパイプライン、エージェント設計）
+- 第5章：アーキテクチャ（10-Phaseパイプライン、エージェント設計）
 - 第6章：主要な革新（問題・解決策の分離、意思決定の循環、責任分界）
 - 第7章：実装（技術スタック、Kernel Registry、NRVV）
 - 第8章：評価（Convergence Rate、品質メトリクス、実証例）
@@ -253,44 +253,56 @@ DEST理論は、システム介入を以下の4次元で分析する：
 - 介入の根拠は記録されているか？
 - 反証条件は明確か？
 
-#### 4.1.2 2軸評価：OutcomeとSafety
+#### 4.1.2 2軸評価 + 追跡性ゲート：Outcome, Safety, Trace
 
-DEST理論の核心は、**Outcome（成果軸）とSafety（安全軸）の2軸評価**である：
+DEST理論の核心は、**Outcome（成果軸）とSafety（安全軸）の評価**に、**Traceability（追跡性）のゲート**を組み合わせることである。実運用では「不明（unknown）」が必ず発生するため、AL判定の入力は3値（ok/unknown/ng）で扱う：
 
 ```
 Outcome Assessment:
   - Current state: 現在の状態
   - Target state: 目標状態
   - Progress: better/same/worse（値より傾向）
-  - outcomeOk: boolean
+  - outcome_state: ok/unknown/ng
 
 Safety Assessment:
   - Feedback loops: present/absent/harmful
   - Violations: []（安全制約違反）
-  - safetyOk: boolean
+  - safety_state: ok/unknown/ng
+
+Traceability Assessment:
+  - Evidence completeness: complete/partial/missing
+  - Falsification link: present/absent
+  - trace_state: ok/unknown/ng
 ```
 
-**重要な原則**：**Safetyが第一ゲート**である。`safetyOk`がNGの場合、`outcomeOk`に関係なく必ずAL0になる。これは、「効果があっても、有害な副作用があれば実装しない」という原則を反映している。
+**重要な原則**：**Safetyが第一ゲート**である。`safety_state != ok`（unknown含む）の場合、`outcome_state`や`trace_state`に関係なく必ずAL0になる。これは、「効果が見込まれても、安全が確認できない介入は実装しない」という原則を反映している。
 
 #### 4.1.3 保証レベル（Assurance Level）
 
-Outcome（成果軸）とSafety（安全軸）の2軸から、**保証レベル（AL: Assurance Level）**が決定される：
+Outcome・Safety・Traceabilityの3状態から、**保証レベル（AL: Assurance Level）**が決定される：
 
 | AL | 名称 | 条件 | 意味 | アクション |
 |----|------|------|------|-----------|
-| **AL2** | Assured | outcome_ok **AND** safety_ok | 保証成立 | ✅ 実装を自動進行 |
-| **AL1** | Qualified | outcome_ok **OR** safety_ok（条件付き） | 条件付き保証 | ⚠️ 人間が最終判断 |
-| **AL0** | Not Assured | **NOT** safety_ok | 保証なし | 🚫 実装をブロック |
+| **AL2** | Assured | safety_state=ok **AND** outcome_state=ok **AND** trace_state=ok | 保証成立 | ✅ 実装を自動進行（事前委任範囲内） |
+| **AL1** | Qualified | safety_state=ok **AND** (outcome_state!=ok **OR** trace_state!=ok) | 条件付き保証 | ⚠️ 人間承認待ち（承認後に進行） |
+| **AL0** | Not Assured | safety_state!=ok | 保証なし | 🚫 実装をブロック |
 
 **AL判定ルール**：
 ```python
-if not safety_ok:
+if safety_state != "ok":
     return AL0  # Safety第一ゲート
-elif outcome_ok and safety_ok:
+elif outcome_state == "ok" and trace_state == "ok":
     return AL2  # 保証成立
 else:
-    return AL1  # 条件付き
+    return AL1  # 安全はOKだが、効果または証跡が未確定
 ```
+
+**Safety state判定の最低チェック（制御理論寄り）**：
+- ループ構造：正負フィードバックの有無、支配的ループの符号
+- 遅れ：delayと介入周期の整合（R02）
+- 飽和・非線形：アクチュエータ飽和による制御破綻の兆候
+- 観測可能性：観測不足による誤差増幅の有無（R05/R10）
+- 安定余裕：振動・発散兆候の有無（定性的評価可）
 
 #### 4.1.4 AL0 Reason：失敗パターンの有限化
 
@@ -691,6 +703,25 @@ Kernelは、以下の成熟度状態を持つ：
 
 **重要な原則**：成熟度遷移は、必ず責任主体（role）の承認が必要。自動昇格は許可されない。
 
+遷移は「提案（propose）」と「確定（commit）」を分離して管理する。エージェントは状態を直接変更せず、遷移要求と証拠を起票する：
+
+```yaml
+MaturityTransitionRequest:
+  request_id: MTR-2026-0001
+  kernel_id: KRN-002
+  from: under_review
+  to: agreed
+  requested_by: DeploymentAgent
+  required_approvers: [product_owner, ssot_reviewer]
+  evidence_pack_refs:
+    - EPK-2026-0101
+  status: pending/approved/rejected
+  approvals:
+    - approver: product_owner
+      approved_at: 2026-02-10T00:00:00Z
+      signature_ref: SIG-xxx
+```
+
 #### 4.3.5 不変条件（Φ: Phi）
 
 SSOT Layerは、以下の3レベルの不変条件を持つ：
@@ -806,7 +837,7 @@ DEST理論（Problem Space）、Planning Layer、SSOT Layerは、以下のよう
 ```
 ┌─────────────────────────────────────────┐
 │ Problem Space (DEST理論)                │
-│ - AL判定（Outcome/Safety）               │
+│ - AL判定（Outcome/Safety/Trace）         │
 │ - AL0 Reason検出                        │
 │ - Protocol適用                          │
 └────────────┬────────────────────────────┘
@@ -824,7 +855,7 @@ DEST理論（Problem Space）、Planning Layer、SSOT Layerは、以下のよう
 ┌─────────────────────────────────────────┐
 │ Solution Space - SSOT Layer             │
 │ - Kernel固定（DecisionRecordを核に）      │
-│ - Maturity遷移（draft→agreed→frozen）    │
+│ - Maturity遷移要求の提案と承認（propose→commit） │
 │ - Evidence統治（AI生成物の検証）          │
 │ - Change Control（外乱を状態遷移に吸収）   │
 └─────────────────────────────────────────┘
@@ -850,7 +881,7 @@ DEST理論（Problem Space）、Planning Layer、SSOT Layerは、以下のよう
 
 ### 5.1 全体構成
 
-Lunaは、**9-Phase自律型開発パイプライン**として設計されている：
+Lunaは、**10-Phase自律型開発パイプライン**として設計されている（Phase 0〜9の合計10フェーズ）：
 
 ```
 Phase 0: DEST Judgment（問題空間分析）
@@ -881,19 +912,22 @@ Phase 9: Self-Improvement（継続的改善）
 3. AL判定（AL0/AL1/AL2）
 4. AL0 Reason Detection（R01-R11）
 5. Protocol Routing（P0-P4）
+6. Operational Posture決定（Wait/Freeze/Revise）
 
 **出力**: DESTJudgmentResult
 ```typescript
 {
   al: 'AL0' | 'AL1' | 'AL2',
-  outcomeOk: boolean,
-  safetyOk: boolean,
+  outcomeState: 'ok' | 'unknown' | 'ng',
+  safetyState: 'ok' | 'unknown' | 'ng',
+  traceState: 'ok' | 'unknown' | 'ng',
   al0Reasons: string[],  // ['R02', 'R04']
-  protocol: 'Wait' | 'Freeze' | 'Revise'
+  protocol: 'P0' | 'P1' | 'P2' | 'P3' | 'P4',
+  operationalPosture: 'Wait' | 'Freeze' | 'Revise'
 }
 ```
 
-**重要な原則**: **AL0なら実装をブロック**
+**重要な原則**: **AL0なら実装をブロック、AL1なら承認待ちで停止**
 
 #### Agent 2: PlanningAgent（Phase 1）
 
@@ -1004,9 +1038,11 @@ Phase 9: Self-Improvement（継続的改善）
 1. デプロイ実行（dev/staging/prod）
 2. ヘルスチェック
 3. **KernelのValidationを自動追加**
-4. Maturity遷移（draft → agreed → frozen）
+4. **Maturity遷移要求を発行（propose only）**
+   - 例：under_review → agreed、agreed → frozen の要求を evidence_pack と共に起票
+   - 最終遷移は承認者のコミットでのみ確定
 
-**出力**: DeploymentContext + Updated Kernels（frozen）
+**出力**: DeploymentContext + MaturityTransitionRequest（pending）
 
 #### Agent 9: MonitoringAgent（Phase 8）
 
@@ -1038,8 +1074,10 @@ Phase 9: Self-Improvement（継続的改善）
 Issue (GitHub)
   ↓
 DESTJudgmentResult
-  { al: AL0/AL1/AL2, outcomeOk, safetyOk, al0Reasons, protocol }
+  { al: AL0/AL1/AL2, outcomeState, safetyState, traceState, al0Reasons, protocol, operationalPosture }
   ↓ (AL0 なら Block)
+  ↓ (AL1 なら Approval Required)
+  ↓ (AL2 なら Auto Proceed)
 PlanningData
   { opportunity, optionSet, decisionRecord }
   ↓
@@ -1118,11 +1156,11 @@ interface ExecutionContext {
 ```
 Issue受付
   ↓
-DEST判定（Outcome/Safety評価）
+DEST判定（Outcome/Safety/Trace評価）
   ↓
 AL0 → 🚫 実装ブロック
-AL1 → ⚠️ 人間が最終判断
-AL2 → ✅ 実装自動進行
+AL1 → ⚠️ 人間承認待ち（承認後に進行）
+AL2 → ✅ 実装自動進行（事前委任範囲内）
 ```
 
 **効果**:
@@ -1220,7 +1258,7 @@ Convergence Rate = 完全なKernel数 / 総Kernel数
 human_ai_boundary:
   dest_judgment:
     enabled: true
-    rationale: "問題空間の価値判断は人間の責任"
+    rationale: "問題空間の価値判断は人間の責任。人間はAL閾値と例外規定を事前定義し、その範囲内の判定をAIに委任する。AL1と例外は人間承認で確定する。"
     al_threshold:
       block_below: "AL0"
       require_approval: "AL1"
@@ -1237,6 +1275,7 @@ human_ai_boundary:
   kernel_generation:
     maturity_transition:
       auto_promote: false  # 自動昇格は無効
+      mode: propose_only   # エージェントは提案のみ。確定は承認コミットで実行
       require_approval:
         - "under_review -> agreed"
         - "agreed -> frozen"
@@ -1328,7 +1367,7 @@ export class KernelRegistryService {
 
 ### 7.3 CoordinatorAgentの実装
 
-CoordinatorAgentは、9-Phaseパイプライン全体を統括する：
+CoordinatorAgentは、10-Phaseパイプライン全体を統括する：
 
 ```typescript
 export class CoordinatorAgent {
@@ -1337,6 +1376,9 @@ export class CoordinatorAgent {
     const destJudgment = await this.destAgent.execute(issue);
     if (destJudgment.al === 'AL0') {
       return this.blockImplementation(destJudgment);
+    }
+    if (destJudgment.al === 'AL1') {
+      return this.requireHumanApproval(destJudgment);
     }
 
     // Phase 1: Planning
@@ -1434,6 +1476,12 @@ Convergence Rate = 完全なKernel数 / 総Kernel数
 - **期間**：2026年1月（4週間）
 - **Issue数**：50 Issues
 - **比較**：従来の手動開発（Week 1-2）vs Luna使用（Week 3-4）
+
+**再現性とデータ注記**：
+- 本稿の数値は、上記期間（2026-01-01〜2026-01-31）の内部運用ログから集計した実測値である
+- 外部第三者ベンチマークではなく、単一プロジェクト内比較である
+- 集計定義：Convergence Rate=完全Kernel数/総Kernel数、Issue→デプロイ時間=Issue作成から本番反映までの中央値、再実装率=同一Issueの再オープンまたは同種修正Issueの発生割合
+- 再現手順：同一リポジトリ、同一期間、同一定義で `kernels.yaml`・Issue履歴・CI/CDログを再集計する
 
 **結果**：
 

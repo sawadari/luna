@@ -70,6 +70,54 @@ npm run build
 
 **✅ これだけで完了です！**
 
+### 🎯 最速で始める: ワンコマンド実行 (NEW!)
+
+Lunaは**自然文でやりたいことを伝えるだけで、Issue化から実行まで自動化**できます：
+
+```bash
+# 環境変数を設定（初回のみ）
+export GITHUB_TOKEN=<your-github-token>
+export GITHUB_REPOSITORY=owner/repo
+export ANTHROPIC_API_KEY=<your-anthropic-key>
+
+# 自然文 → Issue生成 → 即座に実行
+npm run luna:do -- "ユーザー認証機能を追加したい"
+```
+
+**これで以下がすべて自動実行されます**:
+1. ✅ AI（Claude Sonnet 4）が自然文からIssue本文を生成
+2. ✅ DEST判定フィールドを自動的に含める
+3. ✅ GitHub Issueを作成（適切なラベル付き）
+4. ✅ CoordinatorAgentが自動実行
+
+#### 他の使い方
+
+```bash
+# Issue作成のみ（実行はしない）
+npm run luna:plan -- "ダークモードを実装したい"
+
+# 既存Issueを実行
+npm run luna:run -- --issue 123
+
+# dry-runモード（プレビューのみ）
+npm run luna:do -- "キャッシュ機能を追加" --dry-run
+```
+
+#### 環境変数の設定
+
+`.env`ファイルを作成して環境変数を設定することもできます：
+
+```bash
+# .env ファイル
+GITHUB_TOKEN=ghp_xxxxxxxxxxxxx
+GITHUB_REPOSITORY=your-org/luna
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxx
+```
+
+**重要**: `.env`ファイルは絶対にコミットしないでください（`.gitignore`に含まれています）。
+
+---
+
 ---
 
 ## Phase A-C: Core Architectureを体験

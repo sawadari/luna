@@ -59,6 +59,40 @@ npm install
 npm run build
 ```
 
+### 🎯 ワンコマンド実行 - 自然文からIssue化・実行まで (NEW!)
+
+Lunaは**自然文での指示から自動的にIssueを生成し、そのまま実行する**ワンコマンド導線をサポートしています：
+
+```bash
+# 1. 自然文 → Issue作成 → 即座に実行
+npm run luna:do -- "ユーザー認証機能を追加したい"
+
+# 2. 自然文 → Issue作成のみ（実行しない）
+npm run luna:plan -- "ダークモードを実装したい"
+
+# 3. 既存Issueを実行
+npm run luna:run -- --issue 100
+
+# 4. dry-runモード（プレビューのみ、Issue未作成）
+npm run luna:do -- "キャッシュ機能を追加" --dry-run
+npm run luna:plan -- "API rate limiting" --dry-run
+```
+
+**仕組み**:
+1. AI（Claude Sonnet 4）が自然文からIssue本文を生成
+2. DEST判定フィールドを自動的に含める
+3. GitHub Issueを自動作成（ラベル付き）
+4. `luna:do` の場合、Coordinatorを自動実行
+
+**必要な環境変数**:
+```bash
+GITHUB_TOKEN=<your-token>
+GITHUB_REPOSITORY=owner/repo
+ANTHROPIC_API_KEY=<your-key>
+```
+
+詳細は [docs/guides/GETTING_STARTED.md](./docs/guides/GETTING_STARTED.md) を参照してください。
+
 ### Phase A-C テスト実行
 
 新しいコアアーキテクチャの動作確認：

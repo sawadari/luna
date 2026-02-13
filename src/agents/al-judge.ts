@@ -13,6 +13,10 @@ import type {
   ProgressStatus,
   FeedbackStatus,
 } from '../types/index.js';
+import type {
+  IssueDestContract,
+  IssueDestParseResult,
+} from '../types/issue-dest-contract';
 
 export class ALJudge {
   /**
@@ -229,7 +233,153 @@ export class ALJudge {
   }
 
   /**
-   * Full judgment from Issue body
+   * Parse dest block from Issue body (L1: highest priority)
+   */
+  static parseDestBlock(issueBody: string): IssueDestParseResult {
+    // Extract dest fenced code block
+    const destBlockMatch = issueBody.match(/```dest\n([\s\S]*?)\n```/);
+
+    if (!destBlockMatch) {
+      return {
+        data: null,
+        confidence: 0,
+        method: 'failed',
+        error: 'No dest block found',
+      };
+    }
+
+    try {
+      const destContent = destBlockMatch[1];
+      const contract: IssueDestContract = {
+        outcome_state: 'unknown',
+        safety_state: 'unknown',
+        trace_state: 'unknown',
+        feedback_loops: 'absent',
+        violations: [],
+      };
+
+      // Parse YAML-like structure
+      const lines = destContent.split('\n');
+      let inViolations = false;
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (trimmed.startsWith('outcome_state:')) {
+          const value = trimmed.split(':')[1]?.trim();
+          if (value === 'ok' || value === 'regressing' || value === 'unknown') {
+            contract.outcome_state = value;
+          }
+        } else if (trimmed.startsWith('safety_state:')) {
+          const value = trimmed.split(':')[1]?.trim();
+          if (value === 'ok' || value === 'violated' || value === 'unknown') {
+            contract.safety_state = value;
+          }
+        } else if (trimmed.startsWith('trace_state:')) {
+          const value = trimmed.split(':')[1]?.trim();
+          if (value === 'ok' || value === 'partial' || value === 'absent' || value === 'unknown') {
+            contract.trace_state = value;
+          }
+        } else if (trimmed.startsWith('feedback_loops:')) {
+          const value = trimmed.split(':')[1]?.trim();
+          if (value === 'present' || value === 'absent' || value === 'harmful') {
+            contract.feedback_loops = value;
+          }
+        } else if (trimmed.startsWith('violations:')) {
+          inViolations = true;
+          const value = trimmed.split(':')[1]?.trim();
+          if (value === '[]') {
+            contract.violations = [];
+            inViolations = false;
+          }
+        } else if (inViolations && trimmed.startsWith('- ')) {
+          contract.violations.push(trimmed.substring(2).trim());
+        } else if (trimmed.startsWith('notes:')) {
+          const value = trimmed.split(':')[1]?.trim();
+          contract.notes = value?.replace(/^["']|["']$/g, ''); // Remove quotes
+        }
+      }
+
+      return {
+        data: contract,
+        confidence: 1.0, // Highest confidence - strict format
+        method: 'dest_block',
+      };
+    } catch (error: any) {
+      return {
+        data: null,
+        confidence: 0,
+        method: 'failed',
+        error: `Failed to parse dest block: ${error.message}`,
+      };
+    }
+  }
+
+  /**
+   * Convert IssueDestContract to DEST assessment format
+   */
+  static convertDestContractToAssessment(contract: IssueDestContract): {
+    outcome: OutcomeAssessment;
+    safety: SafetyAssessment;
+    trace: TraceabilityAssessment;
+  } {
+    // Map outcome_state
+    const outcomeOk = contract.outcome_state === 'ok';
+    const outcomeState = contract.outcome_state;
+
+    // Map safety_state
+    const safetyOk = contract.safety_state === 'ok';
+    const safetyState = contract.safety_state;
+
+    // Map trace_state
+    const traceState = contract.trace_state;
+
+    // Map feedback_loops to FeedbackStatus
+    let feedbackLoops: FeedbackStatus = 'unknown';
+    if (contract.feedback_loops === 'present') {
+      feedbackLoops = 'stable';
+    } else if (contract.feedback_loops === 'absent') {
+      feedbackLoops = 'unknown';
+    } else if (contract.feedback_loops === 'harmful') {
+      feedbackLoops = 'amplifying';
+    }
+
+    // Determine progress from outcome_state
+    let progress: ProgressStatus = 'unknown';
+    if (contract.outcome_state === 'ok') {
+      progress = 'improving';
+    } else if (contract.outcome_state === 'regressing') {
+      progress = 'degrading';
+    }
+
+    const outcome: OutcomeAssessment = {
+      currentState: contract.notes?.split('.')[0] || 'Generated from dest block',
+      targetState: contract.notes?.split('.')[1] || 'Generated from dest block',
+      progress,
+      outcomeState,
+      outcomeOk,
+    };
+
+    const safety: SafetyAssessment = {
+      feedbackLoops,
+      safetyConstraints: [],
+      violations: contract.violations,
+      safetyState,
+      safetyOk,
+    };
+
+    const trace: TraceabilityAssessment = {
+      evidenceCompleteness: traceState === 'ok' ? 'complete' : traceState === 'partial' ? 'partial' : 'missing',
+      falsificationLink: traceState === 'ok' ? 'present' : 'absent',
+      traceState,
+    };
+
+    return { outcome, safety, trace };
+  }
+
+  /**
+   * Full judgment from Issue body (with dest block priority)
    */
   static judgeFromIssue(issueBody: string): {
     al: AL;
@@ -237,6 +387,19 @@ export class ALJudge {
     safety: SafetyAssessment;
     trace: TraceabilityAssessment;
   } {
+    // L1: Try dest block first (highest priority, highest confidence)
+    const destResult = this.parseDestBlock(issueBody);
+    if (destResult.data && destResult.confidence >= 0.7) {
+      const assessments = this.convertDestContractToAssessment(destResult.data);
+      const al = this.judge(
+        assessments.outcome.outcomeState,
+        assessments.safety.safetyState,
+        assessments.trace.traceState
+      );
+      return { al, ...assessments };
+    }
+
+    // L2/L3: Fallback to GitHub Form / heuristic parsing
     const outcome = this.parseOutcomeAssessment(issueBody);
     const safety = this.parseSafetyAssessment(issueBody);
     const trace = this.parseTraceabilityAssessment(issueBody);
@@ -249,6 +412,13 @@ export class ALJudge {
    * Check if Issue body contains required DEST fields
    */
   static hasRequiredFields(issueBody: string): boolean {
+    // Check for dest block (highest priority)
+    const hasDestBlock = /```dest\n[\s\S]*?\n```/.test(issueBody);
+    if (hasDestBlock) {
+      return true;
+    }
+
+    // Check for traditional GitHub Form fields
     const hasOutcome = /## Outcome Assessment/i.test(issueBody);
     const hasSafety = /## Safety Assessment/i.test(issueBody);
     return hasOutcome && hasSafety;

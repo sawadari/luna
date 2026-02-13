@@ -243,5 +243,356 @@ describe('ALJudge', () => {
 
       expect(ALJudge.hasRequiredFields(issueBody)).toBe(false);
     });
+
+    it('should return true when dest block is present', () => {
+      const issueBody = `
+## Summary
+AI-generated Issue
+
+\`\`\`dest
+outcome_state: ok
+safety_state: ok
+trace_state: unknown
+feedback_loops: present
+violations: []
+\`\`\`
+      `;
+
+      expect(ALJudge.hasRequiredFields(issueBody)).toBe(true);
+    });
+  });
+
+  describe('dest block parsing (L1 parser)', () => {
+    it('should parse dest block with confidence=1.0', () => {
+      const issueBody = `
+## Summary
+AI-generated Issue with dest block
+
+\`\`\`dest
+outcome_state: ok
+safety_state: ok
+trace_state: unknown
+feedback_loops: present
+violations: []
+notes: "Test note"
+\`\`\`
+      `;
+
+      const result = ALJudge.parseDestBlock(issueBody);
+
+      expect(result.confidence).toBe(1.0);
+      expect(result.method).toBe('dest_block');
+      expect(result.data).toBeDefined();
+      expect(result.data?.outcome_state).toBe('ok');
+      expect(result.data?.safety_state).toBe('ok');
+      expect(result.data?.trace_state).toBe('unknown');
+      expect(result.data?.feedback_loops).toBe('present');
+      expect(result.data?.violations).toEqual([]);
+      expect(result.data?.notes).toBe('Test note');
+    });
+
+    it('should parse dest block with violations', () => {
+      const issueBody = `
+\`\`\`dest
+outcome_state: ok
+safety_state: violated
+trace_state: ok
+feedback_loops: present
+violations:
+  - Breaking change
+  - Missing tests
+notes: "Has violations"
+\`\`\`
+      `;
+
+      const result = ALJudge.parseDestBlock(issueBody);
+
+      expect(result.data?.safety_state).toBe('violated');
+      expect(result.data?.violations).toEqual(['Breaking change', 'Missing tests']);
+    });
+
+    it('should return confidence=0 when dest block is missing', () => {
+      const issueBody = `
+## Outcome Assessment
+- Current state: ...
+      `;
+
+      const result = ALJudge.parseDestBlock(issueBody);
+
+      expect(result.confidence).toBe(0);
+      expect(result.method).toBe('failed');
+      expect(result.data).toBeNull();
+    });
+
+    it('should parse all outcome_state values', () => {
+      const testCases = [
+        { value: 'ok', expected: 'ok' },
+        { value: 'regressing', expected: 'regressing' },
+        { value: 'unknown', expected: 'unknown' },
+      ];
+
+      for (const { value, expected } of testCases) {
+        const issueBody = `
+\`\`\`dest
+outcome_state: ${value}
+safety_state: ok
+trace_state: unknown
+feedback_loops: present
+violations: []
+\`\`\`
+        `;
+
+        const result = ALJudge.parseDestBlock(issueBody);
+        expect(result.data?.outcome_state).toBe(expected);
+      }
+    });
+
+    it('should parse all safety_state values', () => {
+      const testCases = [
+        { value: 'ok', expected: 'ok' },
+        { value: 'violated', expected: 'violated' },
+        { value: 'unknown', expected: 'unknown' },
+      ];
+
+      for (const { value, expected } of testCases) {
+        const issueBody = `
+\`\`\`dest
+outcome_state: ok
+safety_state: ${value}
+trace_state: unknown
+feedback_loops: present
+violations: []
+\`\`\`
+        `;
+
+        const result = ALJudge.parseDestBlock(issueBody);
+        expect(result.data?.safety_state).toBe(expected);
+      }
+    });
+
+    it('should parse all feedback_loops values', () => {
+      const testCases = [
+        { value: 'present', expected: 'present' },
+        { value: 'absent', expected: 'absent' },
+        { value: 'harmful', expected: 'harmful' },
+      ];
+
+      for (const { value, expected } of testCases) {
+        const issueBody = `
+\`\`\`dest
+outcome_state: ok
+safety_state: ok
+trace_state: unknown
+feedback_loops: ${value}
+violations: []
+\`\`\`
+        `;
+
+        const result = ALJudge.parseDestBlock(issueBody);
+        expect(result.data?.feedback_loops).toBe(expected);
+      }
+    });
+  });
+
+  describe('judgeFromIssue with dest block (integration)', () => {
+    it('should prioritize dest block over traditional format', () => {
+      const issueBody = `
+## Summary
+AI-generated Issue
+
+## Outcome Assessment
+**Current State**: Wrong data (should be ignored)
+**Target State**: Wrong data
+**Progress**: degrading
+
+## Safety Assessment
+**Feedback Loops**: harmful
+**Violations**: Critical error
+
+\`\`\`dest
+outcome_state: ok
+safety_state: ok
+trace_state: unknown
+feedback_loops: present
+violations: []
+notes: "Current: Good state. Target: Better state"
+\`\`\`
+      `;
+
+      const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issueBody);
+
+      // Should use dest block values, not traditional format
+      expect(outcome.outcomeState).toBe('ok');
+      expect(outcome.outcomeOk).toBe(true);
+      expect(safety.safetyState).toBe('ok');
+      expect(safety.safetyOk).toBe(true);
+      expect(trace.traceState).toBe('unknown');
+      expect(al).toBe('AL1'); // outcome=ok, safety=ok, trace=unknown → AL1
+    });
+
+    it('should correctly judge AL2 from dest block', () => {
+      const issueBody = `
+\`\`\`dest
+outcome_state: ok
+safety_state: ok
+trace_state: ok
+feedback_loops: present
+violations: []
+\`\`\`
+      `;
+
+      const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issueBody);
+
+      expect(outcome.outcomeState).toBe('ok');
+      expect(safety.safetyState).toBe('ok');
+      expect(trace.traceState).toBe('ok');
+      expect(al).toBe('AL2');
+    });
+
+    it('should correctly judge AL1 from dest block', () => {
+      const issueBody = `
+\`\`\`dest
+outcome_state: ok
+safety_state: ok
+trace_state: unknown
+feedback_loops: present
+violations: []
+\`\`\`
+      `;
+
+      const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issueBody);
+
+      expect(outcome.outcomeState).toBe('ok');
+      expect(safety.safetyState).toBe('ok');
+      expect(trace.traceState).toBe('unknown');
+      expect(al).toBe('AL1');
+    });
+
+    it('should correctly judge AL0 from dest block with safety violation', () => {
+      const issueBody = `
+\`\`\`dest
+outcome_state: ok
+safety_state: violated
+trace_state: ok
+feedback_loops: present
+violations:
+  - Security breach
+\`\`\`
+      `;
+
+      const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issueBody);
+
+      expect(outcome.outcomeState).toBe('ok');
+      expect(safety.safetyState).toBe('violated');
+      expect(safety.safetyOk).toBe(false);
+      expect(safety.violations).toEqual(['Security breach']);
+      expect(al).toBe('AL0');
+    });
+
+    it('should correctly judge AL0 from dest block with unknown safety', () => {
+      const issueBody = `
+\`\`\`dest
+outcome_state: ok
+safety_state: unknown
+trace_state: ok
+feedback_loops: absent
+violations: []
+\`\`\`
+      `;
+
+      const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issueBody);
+
+      expect(safety.safetyState).toBe('unknown');
+      expect(al).toBe('AL0');
+    });
+
+    it('should fallback to traditional parsing when dest block is absent', () => {
+      const issueBody = `
+## Outcome Assessment
+Current state: Traditional format
+Target state: Better state
+Progress: improving
+
+## Safety Assessment
+Feedback loops: stable
+Violations: None
+      `;
+
+      const { al, outcome, safety } = ALJudge.judgeFromIssue(issueBody);
+
+      expect(outcome.progress).toBe('improving');
+      expect(outcome.outcomeOk).toBe(true);
+      expect(safety.feedbackLoops).toBe('stable');
+      expect(safety.safetyOk).toBe(true);
+      expect(al).toBe('AL1'); // trace=unknown by default
+    });
+
+    it('should handle real AI-generated Issue format (Issue #50 style)', () => {
+      const issueBody = `
+## Summary
+テストIssue
+
+## Goal
+機能を実装する
+
+## Context
+ユーザーからの要望
+
+## Constraints
+- 後方互換性を維持
+- 既存パターンに従う
+
+## Acceptance Criteria
+- [ ] 機能が実装される
+- [ ] テストが通る
+- [ ] ドキュメントが更新される
+
+---
+
+## 🎯 DEST Judgment
+
+### Outcome Assessment
+**Current State**: 機能が存在しない
+**Target State**: 機能が完全に実装され、テストされている
+**Progress**: better
+
+### Safety Assessment
+**Feedback Loops**: present
+
+**Safety Constraints**:
+- 本番データを変更しない
+- すべてのテスト環境は本番から隔離される
+
+**Violations**: None
+
+---
+
+### Machine-Readable DEST Data
+
+\`\`\`dest
+outcome_state: ok
+safety_state: ok
+trace_state: unknown
+feedback_loops: present
+violations: []
+notes: "Current: 機能が存在しない. Target: 機能が完全に実装され、テストされている"
+\`\`\`
+
+---
+*Generated by Luna Intent-to-Issue*
+      `;
+
+      const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issueBody);
+
+      // Should parse dest block successfully
+      expect(outcome.outcomeState).toBe('ok');
+      expect(safety.safetyState).toBe('ok');
+      expect(trace.traceState).toBe('unknown');
+      expect(al).toBe('AL1');
+
+      // Verify it used dest block (not traditional format)
+      expect(outcome.progress).toBe('improving'); // Mapped from outcome_state=ok
+      expect(safety.feedbackLoops).toBe('stable'); // Mapped from feedback_loops=present
+    });
   });
 });

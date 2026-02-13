@@ -353,11 +353,28 @@ export class ALJudge {
       progress = 'degrading';
     }
 
+    // Map dest block states to AssessmentState
+    const mappedOutcomeState: AssessmentState =
+      outcomeState === 'ok' ? 'ok' :
+      outcomeState === 'regressing' ? 'ng' :
+      'unknown';
+
+    const mappedSafetyState: AssessmentState =
+      safetyState === 'ok' ? 'ok' :
+      safetyState === 'violated' ? 'ng' :
+      'unknown';
+
+    const mappedTraceState: AssessmentState =
+      traceState === 'ok' ? 'ok' :
+      traceState === 'partial' ? 'unknown' :
+      traceState === 'absent' ? 'ng' :
+      'unknown';
+
     const outcome: OutcomeAssessment = {
       currentState: contract.notes?.split('.')[0] || 'Generated from dest block',
       targetState: contract.notes?.split('.')[1] || 'Generated from dest block',
       progress,
-      outcomeState,
+      outcomeState: mappedOutcomeState,
       outcomeOk,
     };
 
@@ -365,14 +382,14 @@ export class ALJudge {
       feedbackLoops,
       safetyConstraints: [],
       violations: contract.violations,
-      safetyState,
+      safetyState: mappedSafetyState,
       safetyOk,
     };
 
     const trace: TraceabilityAssessment = {
       evidenceCompleteness: traceState === 'ok' ? 'complete' : traceState === 'partial' ? 'partial' : 'missing',
       falsificationLink: traceState === 'ok' ? 'present' : 'absent',
-      traceState,
+      traceState: mappedTraceState,
     };
 
     return { outcome, safety, trace };

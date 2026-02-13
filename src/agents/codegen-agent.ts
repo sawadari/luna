@@ -122,6 +122,33 @@ export class CodeGenAgent {
         // The ReviewAgent will handle the final decision
       }
 
+      // 6.6. P0: Prevent false success - feature/enhancement MUST generate files
+      if (generatedCode.length === 0) {
+        const requiresFiles = analysis.type === 'feature' ||
+                             analysis.type === 'refactor' ||
+                             issue.labels.some((l: any) =>
+                               l.name.toLowerCase().includes('enhancement')
+                             );
+
+        if (requiresFiles) {
+          this.log(`❌ FAILURE: ${analysis.type} requires code generation but 0 files generated`);
+          return {
+            status: 'error',
+            error: new Error(
+              `RunContract violation: ${analysis.type} execution requires generated_files > 0, but got 0. ` +
+              `This indicates the AI failed to produce implementation code. ` +
+              `Please review the Issue requirements and try again.`
+            ),
+            metrics: {
+              durationMs: Date.now() - startTime,
+              timestamp: new Date().toISOString(),
+            },
+          };
+        } else {
+          this.log(`ℹ️  0 files generated, but acceptable for type=${analysis.type}`);
+        }
+      }
+
       // 7. Kernel更新 (Generated code artifacts)
       await this.updateKernelsWithGeneratedCode(relatedKernels, generatedCode, issue);
       this.log(`💾 Updated ${relatedKernels.length} Kernels with generated code artifacts`);

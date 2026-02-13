@@ -483,7 +483,7 @@ violations:
       const { al, outcome, safety, trace } = ALJudge.judgeFromIssue(issueBody);
 
       expect(outcome.outcomeState).toBe('ok');
-      expect(safety.safetyState).toBe('violated');
+      expect(safety.safetyState).toBe('ng'); // violated is mapped to 'ng'
       expect(safety.safetyOk).toBe(false);
       expect(safety.violations).toEqual(['Security breach']);
       expect(al).toBe('AL0');

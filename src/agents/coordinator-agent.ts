@@ -44,6 +44,14 @@ import {
   ContinuousImprovementService,
   type ContinuousImprovementInput,
 } from '../services/continuous-improvement-service';
+import {
+  type ExecutionType,
+  type PhaseGateResult,
+  createRunContract,
+  validateRunContract,
+  calculateKnowledgeMetrics,
+} from '../types/run-contract';
+import { RunMetricsService } from '../services/run-metrics-service';
 
 export class CoordinatorAgent {
   private octokit: Octokit;
@@ -59,6 +67,7 @@ export class CoordinatorAgent {
   private continuousImprovementService: ContinuousImprovementService;
   private kernelRegistry: KernelRegistryService;
   private rulesConfig: RulesConfigService;
+  private metricsService: RunMetricsService;
 
   constructor(config: AgentConfig) {
     this.config = config;
@@ -79,6 +88,7 @@ export class CoordinatorAgent {
     });
     this.kernelRegistry = new KernelRegistryService();
     this.rulesConfig = getRulesConfig();
+    this.metricsService = new RunMetricsService();
   }
 
   private log(message: string): void {
@@ -288,18 +298,77 @@ export class CoordinatorAgent {
       const endTime = Date.now();
       const actualDuration = (endTime - startTime) / 1000 / 60; // minutes
 
+      // P0: RunContract-driven status judgment
+      const executionType = this.inferExecutionType(githubIssue);
+      const generatedFiles = executionContext.codeGenContext?.generatedCode?.length || 0;
+      const kernelsLoaded = executionContext.ssotResult?.preLoadedKernels?.length || 0;
+      const kernelsReferenced = executionContext.codeGenContext?.analysis?.relatedKernels?.length || 0;
+      const kernelsCreated = executionContext.ssotResult?.suggestedKernels?.length || 0;
+      const kernelsUpdated = 0; // TODO: Track Kernel updates properly
+      const evidenceLinked = 0; // TODO: Track evidence linking
+      const knowledgeMetrics = calculateKnowledgeMetrics(
+        kernelsLoaded,
+        kernelsReferenced,
+        kernelsCreated,
+        kernelsUpdated,
+        evidenceLinked
+      );
+
+      // Phase Gate results (collect from execution)
+      const gateResults: PhaseGateResult[] = [];
+
+      // Phase Gate: Kernel minimum guarantee for feature/enhancement
+      if (executionType === 'feature' || executionType === 'enhancement') {
+        const kernelTotal = kernelsCreated + kernelsUpdated;
+        if (kernelTotal === 0) {
+          gateResults.push({
+            passed: false,
+            phaseName: 'Phase 0.5: SSOT Pre-execution',
+            reason: 'No Kernels created or updated',
+            missingItems: ['At least 1 Kernel required for feature/enhancement'],
+          });
+        } else {
+          gateResults.push({
+            passed: true,
+            phaseName: 'Phase 0.5: SSOT Pre-execution',
+          });
+        }
+      }
+
+      // Create RunContract
+      const kernelUpdates = kernelsCreated + kernelsUpdated;
+      const runContract = createRunContract(
+        executionType,
+        generatedFiles,
+        kernelUpdates,
+        knowledgeMetrics,
+        gateResults
+      );
+
+      const contractValidation = validateRunContract(runContract);
+
+      // Determine overallStatus based on RunContract validation
+      let overallStatus: 'success' | 'partial_success' | 'failure';
+      if (!contractValidation.valid) {
+        // P0: Contract violations ALWAYS result in failure (no partial)
+        overallStatus = 'failure';
+        this.log(`⚠️  RunContract validation failed: ${contractValidation.violations.length} violations`);
+        contractValidation.violations.forEach((v) => this.log(`   - ${v}`));
+      } else if (failedTasks.length === 0) {
+        overallStatus = 'success';
+      } else if (executedTasks.length > 0) {
+        overallStatus = 'partial_success';
+      } else {
+        overallStatus = 'failure';
+      }
+
       const result: CoordinationResult = {
         issueNumber: githubIssue.number,
         dag,
         executionPlan,
         executedTasks,
         failedTasks,
-        overallStatus:
-          failedTasks.length === 0
-            ? 'success'
-            : executedTasks.length > 0
-            ? 'partial_success'
-            : 'failure',
+        overallStatus,
         metrics: {
           totalTasks: dag.nodes.size,
           completedTasks: executedTasks.length,
@@ -308,7 +377,39 @@ export class CoordinatorAgent {
           estimatedDuration: executionPlan.totalEstimatedDuration,
           efficiencyRatio: actualDuration / executionPlan.totalEstimatedDuration,
         },
+        knowledgeMetrics: {
+          generatedFiles,
+          kernelsLoaded,
+          kernelsReferenced,
+          kernelsCreated,
+          kernelsUpdated,
+          reuseRate: knowledgeMetrics.reuse_rate,
+          convergenceDelta: knowledgeMetrics.convergence_delta,
+        },
+        contractViolations: contractValidation.valid ? undefined : contractValidation.violations,
       };
+
+      // P1: Record metrics to run-metrics.ndjson (if not dry-run)
+      if (!this.config.dryRun) {
+        try {
+          await this.metricsService.recordMetrics(
+            githubIssue.number,
+            executionType,
+            overallStatus === 'success' ? 'success' : overallStatus === 'partial_success' ? 'partial' : 'failure',
+            generatedFiles,
+            kernelsLoaded,
+            kernelsReferenced,
+            kernelsCreated,
+            kernelsUpdated,
+            evidenceLinked,
+            actualDuration * 60, // convert to seconds
+            gateResults
+          );
+          this.log('📊 Metrics recorded to run-metrics.ndjson');
+        } catch (error) {
+          this.log(`⚠️  Failed to record metrics: ${(error as Error).message}`);
+        }
+      }
 
       // Phase 9: Continuous Improvement
       this.log('Phase 9: Continuous Improvement');
@@ -1155,6 +1256,27 @@ export class CoordinatorAgent {
     comment += `- Critical Path Duration: ${result.executionPlan.criticalPathDuration.toFixed(1)}min\n`;
     comment += `- Parallelization Factor: ${result.executionPlan.parallelizationFactor.toFixed(2)}x\n\n`;
 
+    // P1: Knowledge Metrics
+    if (result.knowledgeMetrics) {
+      comment += `**📊 Knowledge Metrics**:\n`;
+      comment += `- Generated Files: ${result.knowledgeMetrics.generatedFiles}\n`;
+      comment += `- Kernels Loaded: ${result.knowledgeMetrics.kernelsLoaded}\n`;
+      comment += `- Kernels Referenced: ${result.knowledgeMetrics.kernelsReferenced}\n`;
+      comment += `- Kernels Created: ${result.knowledgeMetrics.kernelsCreated}\n`;
+      comment += `- Kernels Updated: ${result.knowledgeMetrics.kernelsUpdated}\n`;
+      comment += `- Knowledge Reuse Rate: ${(result.knowledgeMetrics.reuseRate * 100).toFixed(1)}%\n`;
+      comment += `- Convergence Delta: ${(result.knowledgeMetrics.convergenceDelta * 100).toFixed(1)}%\n\n`;
+    }
+
+    // P0: Contract Violations
+    if (result.contractViolations && result.contractViolations.length > 0) {
+      comment += `**⚠️ Contract Violations**:\n`;
+      for (const violation of result.contractViolations) {
+        comment += `- ${violation}\n`;
+      }
+      comment += `\n`;
+    }
+
     if (result.continuousImprovement) {
       comment += `**Phase 9 (Continuous Improvement)**:\n`;
       comment += `- Status: ${result.continuousImprovement.status}\n`;
@@ -1256,5 +1378,50 @@ export class CoordinatorAgent {
       // Fail-safe: Block if we can't verify approval
       return false;
     }
+  }
+
+  /**
+   * Infer ExecutionType from GitHub Issue labels
+   */
+  private inferExecutionType(issue: GitHubIssue): ExecutionType {
+    const labels = issue.labels.map((l: any) => l.name.toLowerCase());
+    const title = issue.title.toLowerCase();
+
+    // Check labels first
+    if (labels.some((l) => l.includes('bug') || l.includes('fix'))) {
+      return 'bug';
+    }
+    if (labels.some((l) => l.includes('enhancement'))) {
+      return 'enhancement';
+    }
+    if (labels.some((l) => l.includes('refactor'))) {
+      return 'refactor';
+    }
+    if (labels.some((l) => l.includes('test'))) {
+      return 'test';
+    }
+    if (labels.some((l) => l.includes('docs') || l.includes('documentation'))) {
+      return 'docs';
+    }
+    if (labels.some((l) => l.includes('chore'))) {
+      return 'chore';
+    }
+
+    // Check title for hints
+    if (title.includes('fix') || title.includes('bug')) {
+      return 'bug';
+    }
+    if (title.includes('refactor')) {
+      return 'refactor';
+    }
+    if (title.includes('test')) {
+      return 'test';
+    }
+    if (title.includes('doc')) {
+      return 'docs';
+    }
+
+    // Default: feature (most strict requirements)
+    return 'feature';
   }
 }

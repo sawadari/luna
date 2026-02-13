@@ -72,6 +72,18 @@ export interface CoordinationResult {
     estimatedDuration: number;
     efficiencyRatio: number; // actual / estimated
   };
+  /** P1: Knowledge metrics (if available) */
+  knowledgeMetrics?: {
+    generatedFiles: number;
+    kernelsLoaded: number;
+    kernelsReferenced: number;
+    kernelsCreated: number;
+    kernelsUpdated: number;
+    reuseRate: number;
+    convergenceDelta: number;
+  };
+  /** P0: Contract violations (if any) */
+  contractViolations?: string[];
 }
 
 // =============================================================================

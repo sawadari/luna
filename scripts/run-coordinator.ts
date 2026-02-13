@@ -8,6 +8,7 @@
 import '../src/config/env.js'; // Initialize dotenv to load .env file
 import { CoordinatorAgent } from '../src/agents/coordinator-agent';
 import { AgentConfig } from '../src/types';
+import { ensureRulesConfigLoaded } from '../src/services/rules-config-service';
 
 interface RunOptions {
   issue: number;
@@ -90,6 +91,9 @@ async function main() {
   console.log('🎯 CoordinatorAgent - Real GitHub Issue Execution');
   console.log('='.repeat(80));
   console.log();
+
+  // Load rules configuration
+  ensureRulesConfigLoaded();
 
   // Parse arguments
   const options = parseArgs();

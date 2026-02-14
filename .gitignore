@@ -142,3 +142,7 @@ vite.config.ts.timestamp-*
 test-*.js
 test-output*.txt
 tmpclaude-*
+
+# Luna runtime data (運用データの混入防止)
+data/ssot/run-metrics.ndjson
+data/ssot/maturity-transition-requests.yaml

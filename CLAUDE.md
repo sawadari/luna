@@ -18,6 +18,17 @@
 - Phase A-C: Core Architecture実装完了（Kernel Runtime, Issue Enforcement, Bootstrap Protection, AL0 Gate）
 - すべてのエージェントがRules Configurationに対応
 
+**Issue #47: ワンコマンド導線 & RunContract**: ✅ 実装完了 (2026-02-14)
+- 自然文→Issue化→Luna実行のワンコマンド導線（`luna:do`, `luna:plan`, `luna:run`）
+- P0: 偽成功防止（RunContract v1）
+  - feature実行で0ファイル生成 → 即座にfailure判定
+  - 契約違反4タイプを検出・記録
+- P1: 知識メトリクス可視化
+  - 実行ごとのメトリクスを`run-metrics.ndjson`に永続化
+  - kernels_loaded/referenced/created/updated、reuse_rate、convergence_delta
+- P2: 言語契約（`--lang ja/en/auto`）
+  - 日本語・英語の自動検出とIssue生成
+
 ## 🌸 Miyabi Framework - Phase 1 MVP
 
 ### 8つの自律エージェント
@@ -27,6 +38,8 @@
 - Critical Path分析（PERT/CPM）による最適実行計画
 - 並列実行可能タスクの特定
 - 全エージェントの調整と実行
+- **RunContract validation**: 契約違反時は`overallStatus = failure`（偽成功防止）
+- **Knowledge metrics tracking**: 実行ごとのメトリクスを`run-metrics.ndjson`に記録
 - **実装**: `src/agents/coordinator-agent.ts` (738 lines)
 - **テスト**: `scripts/test-coordinator-agent.ts` (4シナリオ)
 
@@ -50,6 +63,7 @@
 - Anthropic Claude Sonnet 4.5統合
 - Issue分析・コード生成
 - 品質メトリクス計算
+- **RunContract enforcement**: feature実行で0ファイル生成時は即座にエラー
 - **実装**: `src/agents/codegen-agent.ts`
 - **統合**: CoordinatorAgentに統合済み
 

@@ -90,9 +90,27 @@ npm run luna:do -- "キャッシュ追加" --lang auto  # 自動検出（デフ�
 4. `luna:do` の場合、Coordinatorを自動実行
 
 **成功条件（RunContract）**:
+
+RunContractは、各実行タイプが満たすべき最低品質基準を定義したルールです：
+
 - **feature/enhancement**: 最低1ファイル生成 + 最低1 Kernel更新が必須
-- **違反時の動作**: `overallStatus = failure`（偽成功を防止）
-- **知識メトリクス**: 実行ごとに蓄積・活用状況を数値で表示
+- **bug**: 0ファイルOK（設定変更のみの場合）、Kernel更新不要
+- **test/docs/chore**: ファイル数・Kernel更新の制約なし
+- **Phase Gate**: feature/enhancementはKernel最低保証をパス必須
+
+**契約違反時の動作**:
+- `overallStatus = failure`（偽成功を防止）
+- 4つの違反タイプを記録：
+  1. 生成ファイル不足（0/1）
+  2. Kernel更新不足（0/1）
+  3. Phase Gate失敗
+  4. 必須項目欠落
+- 違反内容は`run-metrics.ndjson`に永続化
+
+**知識メトリクス**: 実行ごとに蓄積・活用状況を数値で表示
+- `kernels_loaded/referenced/created/updated`
+- `reuse_rate`: 再利用率 = referenced / loaded
+- `convergence_delta`: 収束度 = (referenced + updated) / (loaded + created)
 
 **必要な環境変数**:
 ```bash
@@ -183,6 +201,59 @@ HTTPSとJWT認証を必須化するセキュリティKernelを作成します。
 2. CR承認 → `KernelRuntime.apply()` で自動実行
 3. Ledgerに記録 → Registry更新
 4. Graph構造検証 → 完了
+
+---
+
+## 📊 RunContract: 実行品質保証
+
+### 契約違反とは
+
+RunContractは、**Lunaが約束した最低品質基準を満たさなかった証拠**です。以前は「feature実装で0ファイル生成」という明らかな失敗が `success` と判定される「偽成功」問題がありました。
+
+### 契約違反の検出フロー
+
+```
+1. CodeGenAgent
+   ↓ 0ファイル生成を検出
+   ↓ feature/enhancementの場合 → 即座にエラー
+
+2. CoordinatorAgent
+   ↓ RunContract検証
+   ↓ 4つの契約違反を検出
+
+3. RunMetricsService
+   ↓ run-metrics.ndjsonに記録
+   ↓ 永続化された監査証跡
+```
+
+### 契約違反の例（Issue #56）
+
+```json
+{
+  "execution_type": "feature",
+  "status": "failure",
+  "generated_files": 0,
+  "kernel_updates": 0,
+  "violation_reasons": [
+    "Generated files (0) below minimum (1) for feature",
+    "Kernel updates (0) below minimum (1) for feature",
+    "Phase Gate failed: Phase 0.5: SSOT Pre-execution - No Kernels created or updated",
+    "  Missing: At least 1 Kernel required for feature/enhancement"
+  ]
+}
+```
+
+### 契約違反の価値
+
+| 側面 | 契約なし（以前） | 契約あり（現在） |
+|------|----------------|----------------|
+| **検出** | なし | 即座に検出 |
+| **通知** | 「成功しました」 | 「4つの違反」 |
+| **原因** | 不明 | 具体的に記録 |
+| **改善** | できない | 明確な指針 |
+| **監査** | 証拠なし | ndjsonに永続化 |
+
+詳細は [src/types/run-contract.ts](./src/types/run-contract.ts) を参照してください。
 
 ---
 

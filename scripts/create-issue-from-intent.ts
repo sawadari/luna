@@ -36,6 +36,7 @@ interface ScriptOptions {
   execute: boolean; // luna:do=true, luna:plan=false
   dryRun: boolean; // --dry-run flag
   verbose: boolean;
+  lang: 'ja' | 'en' | 'auto'; // P2: Language preference
 }
 
 interface GeneratedIssue {
@@ -112,13 +113,14 @@ async function main() {
   console.log(`   Intent: "${options.intent}"`);
   console.log(`   Mode: ${options.execute ? 'CREATE + EXECUTE' : 'CREATE ONLY'}`);
   console.log(`   Dry-run: ${options.dryRun ? 'YES (preview only)' : 'NO'}`);
+  console.log(`   Language: ${options.lang}`);
   console.log(`   Verbose: ${options.verbose}`);
   console.log();
 
   try {
     // Generate Issue content with AI
     console.log('🤖 Generating Issue content with Claude AI...');
-    const generated = await generateIssueFromIntent(options.intent, anthropicApiKey, options.verbose);
+    const generated = await generateIssueFromIntent(options.intent, anthropicApiKey, options.verbose, options.lang);
 
     if (options.verbose) {
       console.log('✅ Issue content generated successfully');
@@ -217,6 +219,7 @@ function parseArgs(): ScriptOptions {
     execute: false,
     dryRun: false,
     verbose: true,
+    lang: 'auto', // P2: Default to auto-detect
   };
 
   for (let i = 0; i < args.length; i++) {
@@ -239,6 +242,23 @@ function parseArgs(): ScriptOptions {
       case '--quiet':
       case '-q':
         options.verbose = false;
+        break;
+      case '--lang':
+      case '-l':
+        // P2: Language option
+        i++;
+        if (i < args.length) {
+          const langValue = args[i].toLowerCase();
+          if (langValue === 'ja' || langValue === 'en' || langValue === 'auto') {
+            options.lang = langValue;
+          } else {
+            console.error(`Invalid --lang value: ${args[i]}. Must be 'ja', 'en', or 'auto'.`);
+            process.exit(1);
+          }
+        } else {
+          console.error('--lang requires a value (ja, en, or auto)');
+          process.exit(1);
+        }
         break;
       case '--help':
       case '-h':
@@ -274,6 +294,7 @@ Arguments:
 
 Options:
   --dry-run, -d    Preview Issue without creating (shows generated content)
+  --lang, -l       Language for Issue content: ja, en, or auto (default: auto)
   --verbose, -v    Enable verbose logging (default)
   --quiet, -q      Disable verbose logging
   --help, -h       Show this help message
@@ -299,17 +320,36 @@ Examples:
 }
 
 // =============================================================================
+// Language Detection
+// =============================================================================
+
+function detectLanguage(text: string): 'ja' | 'en' {
+  // Simple heuristic: detect Japanese characters
+  const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF]/;
+  return japaneseRegex.test(text) ? 'ja' : 'en';
+}
+
+function resolveLanguage(intent: string, langOption: 'ja' | 'en' | 'auto'): 'ja' | 'en' {
+  if (langOption === 'auto') {
+    return detectLanguage(intent);
+  }
+  return langOption;
+}
+
+// =============================================================================
 // AI Issue Generation
 // =============================================================================
 
 async function generateIssueFromIntent(
   intent: string,
   apiKey: string,
-  verbose: boolean
+  verbose: boolean,
+  lang: 'ja' | 'en' | 'auto' = 'auto' // P2: Language parameter
 ): Promise<GeneratedIssue> {
   const anthropic = new Anthropic({ apiKey });
 
-  const prompt = buildIssueGenerationPrompt(intent);
+  const resolvedLang = resolveLanguage(intent, lang);
+  const prompt = buildIssueGenerationPrompt(intent, resolvedLang);
 
   if (verbose) {
     console.log('   Calling Claude API...');
@@ -342,7 +382,15 @@ async function generateIssueFromIntent(
   }
 }
 
-function buildIssueGenerationPrompt(intent: string): string {
+function buildIssueGenerationPrompt(intent: string, lang: 'ja' | 'en'): string {
+  if (lang === 'ja') {
+    return buildJapanesePrompt(intent);
+  } else {
+    return buildEnglishPrompt(intent);
+  }
+}
+
+function buildEnglishPrompt(intent: string): string {
   return `# GitHub Issue Generation Task
 
 ## User Intent
@@ -410,6 +458,76 @@ You MUST respond with ONLY a valid JSON object (no markdown, no extra text):
   - Priority: "📥 priority:P0-Critical", "📥 priority:P1-High", "📥 priority:P2-Medium", "📥 priority:P3-Low"
 
 **IMPORTANT**: Return ONLY the JSON object. No markdown code blocks, no explanations, just the JSON.`;
+}
+
+function buildJapanesePrompt(intent: string): string {
+  return `# GitHub Issue 生成タスク
+
+## ユーザーの要望
+${intent}
+
+## あなたのタスク
+Luna（DEST判定フレームワークを持つソフトウェア開発プラットフォーム）用の完全なGitHub Issueを生成してください。
+
+Lunaは自動処理のために構造化されたIssue内容を必要とします。ユーザーの要望に基づいて包括的なIssue詳細を生成してください。
+
+## 必須出力形式（JSON）
+
+有効なJSONオブジェクトのみを返してください（マークダウンや追加テキストなし）:
+
+\`\`\`json
+{
+  "title": "簡潔で実行可能なタイトル（最大80文字）",
+  "summary": "これが達成することの2-3文の要約",
+  "goal": "目的の明確な記述",
+  "context": "背景情報と動機（なぜこれが必要か？）",
+  "constraints": [
+    "技術的制約1",
+    "ビジネス制約2"
+  ],
+  "acceptanceCriteria": [
+    "測定可能な基準1",
+    "測定可能な基準2"
+  ],
+  "destInput": {
+    "outcomeAssessment": {
+      "currentState": "現在の状況の説明",
+      "targetState": "望ましい結果の説明",
+      "progress": "better"
+    },
+    "safetyAssessment": {
+      "feedbackLoops": "present",
+      "safetyConstraints": [
+        "安全要件1",
+        "安全要件2"
+      ],
+      "violations": []
+    }
+  },
+  "labels": [
+    "✨ type:feature",
+    "📊 complexity:medium",
+    "📥 priority:P2-Medium"
+  ]
+}
+\`\`\`
+
+## フィールドガイドライン
+
+- **title**: 明確で実行可能であるべき（例: "JWT認証を追加", "ダークモードトグルを実装"）
+- **summary**: 2-3文での高レベル概要
+- **goal**: 達成しようとしていること（「なぜ」）
+- **context**: 背景、動機、これが解決する問題
+- **constraints**: 技術的制限、依存関係、要件
+- **acceptanceCriteria**: 測定可能な成功条件（チェック可能な形式を使用）
+- **destInput.outcomeAssessment.progress**: "better"（改善）、"same"（リファクタリング）、または"worse"（非推奨化）を選択
+- **destInput.safetyAssessment.feedbackLoops**: "present"（観察可能）、"absent"（フィードバックなし）、または"harmful"（負の影響）を選択
+- **labels**: これらの正確な形式を使用:
+  - Type: "✨ type:feature", "🐛 type:bug", "🔧 type:enhancement"
+  - Complexity: "📊 complexity:simple", "📊 complexity:medium", "📊 complexity:complex"
+  - Priority: "📥 priority:P0-Critical", "📥 priority:P1-High", "📥 priority:P2-Medium", "📥 priority:P3-Low"
+
+**重要**: JSONオブジェクトのみを返してください。マークダウンコードブロックや説明は不要です。JSONのみです。`;
 }
 
 function parseAIResponse(responseText: string): GeneratedIssue {

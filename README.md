@@ -76,13 +76,23 @@ npm run luna:run -- --issue 100
 # 4. dry-runモード（プレビューのみ、Issue未作成）
 npm run luna:do -- "キャッシュ機能を追加" --dry-run
 npm run luna:plan -- "API rate limiting" --dry-run
+
+# 5. 言語指定（日本語/英語/自動検出）
+npm run luna:do -- "ユーザー認証機能を追加" --lang ja
+npm run luna:plan -- "Add user authentication" --lang en
+npm run luna:do -- "キャッシュ追加" --lang auto  # 自動検出（デフォルト）
 ```
 
 **仕組み**:
 1. AI（Claude Sonnet 4）が自然文からIssue本文を生成
-2. DEST判定フィールドを自動的に含める
+2. DEST判定フィールドを自動的に含める（機械可読形式）
 3. GitHub Issueを自動作成（ラベル付き）
 4. `luna:do` の場合、Coordinatorを自動実行
+
+**成功条件（RunContract）**:
+- **feature/enhancement**: 最低1ファイル生成 + 最低1 Kernel更新が必須
+- **違反時の動作**: `overallStatus = failure`（偽成功を防止）
+- **知識メトリクス**: 実行ごとに蓄積・活用状況を数値で表示
 
 **必要な環境変数**:
 ```bash
